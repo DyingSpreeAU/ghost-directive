@@ -78,9 +78,43 @@ function roomTransport(code: string): Transport {
 // ------------------------------------------------------------------ PeerJS fallback
 
 type PeerConn = { peer: string; open: boolean; send: (d: unknown) => void; on: (e: string, f: (x?: unknown) => void) => void; close: () => void }
-type PeerObj = { on: (e: string, f: (x: never) => void) => void; connect: (id: string, o?: object) => PeerConn; destroy: () => void; destroyed: boolean }
+type PeerObj = {
+  on: (e: string, f: (x: never) => void) => void
+  connect: (id: string, o?: object) => PeerConn
+  reconnect: () => void
+  destroy: () => void
+  destroyed: boolean
+  disconnected: boolean
+}
 
 const peerId = (code: string) => `ghost-directive-${code.toLowerCase()}`
+
+/**
+ * Signalling server and ICE servers. Defaults to the free public PeerJS cloud and public STUN.
+ * Set VITE_PEERJS_HOST / _PORT / _PATH / _SECURE to use your own PeerServer, and
+ * VITE_TURN_URLS (comma-separated) + VITE_TURN_USERNAME + VITE_TURN_CREDENTIAL to add a TURN relay
+ * for players behind strict NATs or firewalls.
+ */
+function peerOptions() {
+  const env = import.meta.env
+  const iceServers: RTCIceServer[] = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+  ]
+  if (env.VITE_TURN_URLS) {
+    iceServers.push({ urls: String(env.VITE_TURN_URLS).split(','), username: env.VITE_TURN_USERNAME, credential: env.VITE_TURN_CREDENTIAL })
+  }
+  const opts: Record<string, unknown> = { config: { iceServers }, debug: Number(env.VITE_PEERJS_DEBUG ?? 0) }
+  if (env.VITE_PEERJS_HOST) {
+    opts.host = env.VITE_PEERJS_HOST
+    if (env.VITE_PEERJS_PORT) opts.port = Number(env.VITE_PEERJS_PORT)
+    if (env.VITE_PEERJS_PATH) opts.path = env.VITE_PEERJS_PATH
+    opts.secure = env.VITE_PEERJS_SECURE !== 'false'
+  }
+  return opts
+}
+
+const DIAL_TIMEOUT_MS = 15000
 
 function peerTransport(code: string, role: 'host' | 'guest'): Transport {
   const b = bus()
@@ -88,41 +122,79 @@ function peerTransport(code: string, role: 'host' | 'guest'): Transport {
   let peer: PeerObj | null = null
   let toHost: PeerConn | null = null
   let closed = false
-  let retry: ReturnType<typeof setTimeout> | undefined
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const later = (fn: () => void, ms: number) => { clearTimeout(timer); timer = setTimeout(() => { if (!closed) fn() }, ms) }
 
-  const wire = (c: PeerConn) => {
+  // Guest: open a data connection to the host, retrying until it opens.
+  const dial = () => {
+    if (closed || !peer || peer.destroyed) return
+    toHost?.close()
+    setStatus(b, 'connecting', 'Lobby server reached. Opening a direct connection to the host\u2026')
+    const c = peer.connect(peerId(code), { reliable: true })
+    toHost = c
+    later(() => {
+      if (c.open) return
+      setStatus(b, 'offline', 'Found the lobby server but could not open a direct connection to the host. A firewall or strict network may be blocking it. Retrying\u2026')
+      dial()
+    }, DIAL_TIMEOUT_MS)
+    c.on('open', () => { clearTimeout(timer); setStatus(b, 'online') })
     c.on('data', (d) => b.msg.forEach((f) => f(d, c.peer)))
     c.on('close', () => {
-      conns.delete(c.peer)
-      if (role === 'guest' && !closed) { setStatus(b, 'offline', 'Lost the host. Reconnecting…'); schedule() }
+      if (closed || toHost !== c) return
+      setStatus(b, 'offline', 'Lost the host. Reconnecting\u2026')
+      later(dial, 2000)
     })
+    c.on('error', () => { /* surfaced through the peer's error or the dial timeout */ })
   }
-  const schedule = () => { clearTimeout(retry); retry = setTimeout(start, 3000) }
 
   const start = async () => {
     if (closed) return
     const { Peer } = await import('peerjs')
+    if (closed) return
     peer?.destroy()
-    peer = (role === 'host' ? new Peer(peerId(code)) : new Peer()) as unknown as PeerObj
-    peer.on('open', () => {
-      if (role === 'host') return setStatus(b, 'online')
-      toHost = peer!.connect(peerId(code), { reliable: true })
-      toHost.on('open', () => setStatus(b, 'online'))
-      wire(toHost)
+    setStatus(b, 'connecting', 'Reaching the lobby server\u2026')
+    const opts = peerOptions()
+    const p = (role === 'host' ? new Peer(peerId(code), opts) : new Peer(opts)) as unknown as PeerObj
+    peer = p
+    p.on('open', () => {
+      if (peer !== p) return
+      if (role === 'host') setStatus(b, 'online')
+      else if (!toHost?.open) dial()
     })
-    peer.on('connection', (c: PeerConn) => {
+    p.on('connection', (c: PeerConn) => {
       if (role !== 'host') return c.close()
+      conns.get(c.peer)?.close()
       conns.set(c.peer, c)
-      wire(c)
+      c.on('data', (d) => b.msg.forEach((f) => f(d, c.peer)))
+      c.on('close', () => { if (conns.get(c.peer) === c) conns.delete(c.peer) })
+      c.on('error', () => { /* the guest redials */ })
     })
-    peer.on('error', (e: { type?: string }) => {
-      if (closed) return
-      if (role === 'host' && e.type === 'unavailable-id') setStatus(b, 'offline', 'Lobby code still held by an earlier session. Retrying…')
-      else if (e.type === 'peer-unavailable') setStatus(b, 'offline', 'Host not reachable. Is the host’s window open?')
-      else setStatus(b, 'offline', 'Connection problem. Retrying…')
-      schedule()
+    // Losing the signalling server does not drop open data connections; just re-register.
+    p.on('disconnected', () => {
+      if (closed || peer !== p || p.destroyed) return
+      if (role === 'host') setStatus(b, 'offline', 'Lost the lobby server. Players already connected stay connected. Reconnecting\u2026')
+      later(() => { if (!p.destroyed && p.disconnected) p.reconnect() }, 2000)
     })
-    peer.on('disconnected', () => { if (!closed) schedule() })
+    p.on('error', (e: { type?: string }) => {
+      if (closed || peer !== p) return
+      const t = e.type ?? 'unknown'
+      if (t === 'peer-unavailable') {
+        // Guest only: nobody is hosting this code right now.
+        setStatus(b, 'offline', `No lobby ${code} is open right now. Check the code, and that the host\u2019s window is open. Retrying\u2026`)
+        return later(dial, 3000)
+      }
+      if (t === 'unavailable-id') {
+        setStatus(b, 'offline', 'This lobby code is still held by an earlier session (it frees up within a minute). Retrying\u2026')
+        return later(start, 5000)
+      }
+      if (t === 'browser-incompatible') return setStatus(b, 'unavailable', 'This browser does not support direct connections (WebRTC).')
+      if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') {
+        setStatus(b, 'offline', 'Cannot reach the lobby server. Retrying\u2026')
+        return later(() => (p.destroyed ? start() : p.reconnect()), 4000)
+      }
+      setStatus(b, 'offline', `Connection problem (${t}). Retrying\u2026`)
+      later(start, 4000)
+    })
   }
   start()
 
@@ -134,7 +206,7 @@ function peerTransport(code: string, role: 'host' | 'guest'): Transport {
     },
     onMessage: (fn) => { b.msg.push(fn) },
     onStatus: (fn) => { b.status.push(fn); fn(...b.last) },
-    close: () => { closed = true; clearTimeout(retry); peer?.destroy() },
+    close: () => { closed = true; clearTimeout(timer); peer?.destroy() },
   }
 }
 

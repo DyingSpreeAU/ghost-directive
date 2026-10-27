@@ -59,6 +59,22 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - Mode B, Level 3 Bungie API integration (Phase 4).
 - Permanent cross-run upgrades and an Artifact capacity rule.
 
+## Hosting outside claude.ai (Netlify etc.)
+
+`npm run build` and deploy `dist/`. Lobbies then connect browsers directly with WebRTC via
+PeerJS. By default this uses the free public PeerJS signalling server and public STUN servers.
+These optional build-time environment variables change that (set them in Netlify under Site
+configuration → Environment variables, then redeploy):
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_PEERJS_HOST`, `VITE_PEERJS_PORT`, `VITE_PEERJS_PATH`, `VITE_PEERJS_SECURE` | Use your own [PeerServer](https://github.com/peers/peerjs-server) instead of the public one. |
+| `VITE_TURN_URLS` (comma-separated), `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` | Add a TURN relay for players whose network blocks direct connections. |
+| `VITE_PEERJS_DEBUG` | `1`–`3` logs PeerJS detail to the browser console. |
+
+The join screen says which stage a player is stuck on: reaching the lobby server, finding the
+lobby, or opening the direct connection to the host.
+
 ## Game data
 
 `src/compendium.ts` is generated; don't edit it by hand. It holds every subclass's Supers,
