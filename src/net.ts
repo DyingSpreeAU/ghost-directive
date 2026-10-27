@@ -28,7 +28,9 @@ type Bus = {
   last: [TransportStatus, string?]
 }
 function bus(): Bus { return { msg: [], status: [], last: ['connecting'] } }
+const DEBUG = Number(import.meta.env.VITE_PEERJS_DEBUG ?? 0) > 0
 function setStatus(b: Bus, s: TransportStatus, d?: string) {
+  if (DEBUG) console.log('[ghost-directive]', s, d ?? '')
   b.last = [s, d]
   b.status.forEach((f) => f(s, d))
 }
@@ -116,6 +118,23 @@ function peerOptions() {
 
 const DIAL_TIMEOUT_MS = 15000
 
+/** Explains why a direct connection did not open, from the WebRTC state of the attempt. */
+async function diagnoseDial(c: PeerConn): Promise<string> {
+  const pc = (c as unknown as { peerConnection?: RTCPeerConnection }).peerConnection
+  if (typeof RTCPeerConnection === 'undefined') return 'This browser has direct connections (WebRTC) turned off.'
+  if (!pc) return 'Could not start a direct connection to the host.'
+  const answered = !!pc.remoteDescription
+  let local = 0
+  try {
+    const stats = await pc.getStats()
+    stats.forEach((r) => { if (r.type === 'local-candidate') local++ })
+  } catch { /* stats unavailable */ }
+  const tech = `(answer: ${answered ? 'yes' : 'no'}, routes: ${local}, state: ${pc.iceConnectionState})`
+  if (!answered) return `The host\u2019s tab did not answer. Keep the host\u2019s tab open and in front, and check it isn\u2019t asleep. ${tech}`
+  if (local === 0) return `Your browser offered no network routes for a direct connection. A privacy setting, extension, VPN or Brave Shields is blocking WebRTC. ${tech}`
+  return `The host answered but no direct route worked. A browser privacy setting or extension, VPN, or firewall is blocking it. Try another browser; if that fails too, a TURN relay fixes it (see README). ${tech}`
+}
+
 function peerTransport(code: string, role: 'host' | 'guest'): Transport {
   const b = bus()
   const conns = new Map<string, PeerConn>()
@@ -123,26 +142,34 @@ function peerTransport(code: string, role: 'host' | 'guest'): Transport {
   let toHost: PeerConn | null = null
   let closed = false
   let timer: ReturnType<typeof setTimeout> | undefined
+  // The direct-connection timeout has its own timer so retries elsewhere can't cancel it.
+  let dialTimer: ReturnType<typeof setTimeout> | undefined
+  let dialStarted = 0
   const later = (fn: () => void, ms: number) => { clearTimeout(timer); timer = setTimeout(() => { if (!closed) fn() }, ms) }
 
   // Guest: open a data connection to the host, retrying until it opens.
   const dial = () => {
     if (closed || !peer || peer.destroyed) return
-    toHost?.close()
-    setStatus(b, 'connecting', 'Lobby server reached. Opening a direct connection to the host\u2026')
+    const prev = toHost
+    // Keep the first attempt's diagnosis message up while retrying, instead of resetting it.
+    if (!dialStarted) { dialStarted = Date.now(); setStatus(b, 'connecting', 'Lobby server reached. Opening a direct connection to the host\u2026') }
     const c = peer.connect(peerId(code), { reliable: true })
     toHost = c
-    later(() => {
-      if (c.open) return
-      setStatus(b, 'offline', 'Found the lobby server but could not open a direct connection to the host. A firewall or strict network may be blocking it. Retrying\u2026')
+    prev?.close()
+    clearTimeout(dialTimer)
+    dialTimer = setTimeout(async () => {
+      if (closed || c.open || toHost !== c) return
+      setStatus(b, 'offline', `${await diagnoseDial(c)} Retrying\u2026`)
       dial()
     }, DIAL_TIMEOUT_MS)
-    c.on('open', () => { clearTimeout(timer); setStatus(b, 'online') })
+    c.on('open', () => { clearTimeout(dialTimer); dialStarted = 0; setStatus(b, 'online') })
     c.on('data', (d) => b.msg.forEach((f) => f(d, c.peer)))
     c.on('close', () => {
       if (closed || toHost !== c) return
-      setStatus(b, 'offline', 'Lost the host. Reconnecting\u2026')
-      later(dial, 2000)
+      // A failed attempt also closes; let the dial timeout handle those so it can explain why.
+      if (!dialStarted) setStatus(b, 'offline', 'Lost the host. Reconnecting\u2026')
+      else if (DEBUG) console.log('[ghost-directive] attempt closed before opening')
+      if (!dialStarted) later(dial, 2000)
     })
     c.on('error', () => { /* surfaced through the peer's error or the dial timeout */ })
   }
@@ -206,7 +233,7 @@ function peerTransport(code: string, role: 'host' | 'guest'): Transport {
     },
     onMessage: (fn) => { b.msg.push(fn) },
     onStatus: (fn) => { b.status.push(fn); fn(...b.last) },
-    close: () => { closed = true; clearTimeout(timer); peer?.destroy() },
+    close: () => { closed = true; clearTimeout(timer); clearTimeout(dialTimer); peer?.destroy() },
   }
 }
 
