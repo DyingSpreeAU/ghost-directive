@@ -1,5 +1,5 @@
 import { useEffect, useState, useSyncExternalStore } from 'react'
-import { bungieConfigured, fetchSnapshot, isSignedIn, onAuthChange, reconcile, signOut, startSignIn } from './bungie'
+import { accountName, bungieConfigured, fetchSnapshot, isSignedIn, onAuthChange, reconcile, signOut, startSignIn, takeSignInResult } from './bungie'
 import type { Intent, Player } from './model'
 
 // Sync status shared by the panel and the automatic sync in the shell.
@@ -84,5 +84,45 @@ export function BungiePanel({ p, dispatch }: { p: Player; dispatch: (i: Intent, 
         <button className="link" onClick={() => { signOut(); if (p.bungie) dispatch({ type: 'bungie-unlink' }, p.id) }}>Sign out</button>
       </div>
     </div>
+  )
+}
+
+/** First step on the start screen: optional Bungie sign-in before hosting or joining. */
+export function BungieStart() {
+  const { signedIn } = useBungie()
+  const [name, setName] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  useEffect(() => {
+    const r = takeSignInResult()
+    if (r && !r.ok) setError(r.error)
+  }, [])
+  useEffect(() => {
+    if (!signedIn) { setName(null); return }
+    let live = true
+    accountName().then((n) => live && setName(n)).catch((e) => live && setError((e as Error).message))
+    return () => { live = false }
+  }, [signedIn])
+  if (!bungieConfigured) return null
+  return (
+    <section className={`panel bungie-start ${signedIn ? 'is-linked' : ''}`} aria-labelledby="bungie-start-title">
+      <div className="bungie-start-text">
+        <div className="eyebrow">Step 1 &middot; Bungie account <span className="muted">(optional)</span></div>
+        {signedIn ? (
+          <>
+            <h2 id="bungie-start-title">Signed in{name ? <> as <span className="bungie-name">{name}</span></> : null}</h2>
+            <p className="muted">Your Vault fills your reward choices once you&rsquo;re in a run. Read-only: nothing in your game is moved or equipped.</p>
+          </>
+        ) : (
+          <>
+            <h2 id="bungie-start-title">Sign in with Bungie</h2>
+            <p className="muted">Use your real Vault for reward choices and get warnings when your gear doesn&rsquo;t match the run. Read-only. You can also skip this and type your Vault in by hand.</p>
+          </>
+        )}
+        {error && <p className="small tone-danger">{error}</p>}
+      </div>
+      {signedIn
+        ? <button className="btn btn-ghost btn-sm" onClick={() => { signOut(); setError(null) }}>Sign out</button>
+        : <button className="btn btn-light" onClick={startSignIn}>Sign in with Bungie</button>}
+    </section>
   )
 }

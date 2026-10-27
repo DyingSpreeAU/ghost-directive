@@ -596,3 +596,9 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
 .bungie-box.is-linked { border-style: solid; border-color: color-mix(in srgb, var(--ok) 45%, var(--seam)); }
 .tag-bungie { border-color: color-mix(in srgb, var(--ok) 55%, transparent); color: var(--ok); margin-left: 0; }
 .seat-bungie { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.bungie-start { display: flex; justify-content: space-between; align-items: center; gap: 16px 24px; flex-wrap: wrap; padding: 20px 22px; border-top: 2px solid var(--light); }
+.bungie-start.is-linked { border-top-color: var(--ok); }
+.bungie-start-text { display: grid; gap: 6px; flex: 1 1 320px; min-width: 0; }
+.bungie-start .eyebrow .muted { letter-spacing: 0.08em; }
+.bungie-name { color: var(--ok); }
+.landing-step { margin-top: 4px; }

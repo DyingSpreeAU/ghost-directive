@@ -154,12 +154,9 @@ export type BungieSnapshot = {
   equipped: { slot: Slot; name: string; rarity: Rarity }[]
 }
 
-/** Reads the signed-in player's profile. Picks their most recently played character of this class. */
-export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
-  const [m, items] = await Promise.all([
-    api<{ destinyMemberships: Membership[]; primaryMembershipId?: string }>('/User/GetMembershipsForCurrentUser/'),
-    itemTable(),
-  ])
+/** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
+async function membership() {
+  const m = await api<{ destinyMemberships: Membership[]; primaryMembershipId?: string }>('/User/GetMembershipsForCurrentUser/')
   const ms = m.destinyMemberships ?? []
   const mem = ms.find((x) => x.membershipId === m.primaryMembershipId)
     ?? ms.find((x) => x.crossSaveOverride === x.membershipType)
@@ -168,6 +165,17 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
   const name = mem.bungieGlobalDisplayName
     ? `${mem.bungieGlobalDisplayName}#${String(mem.bungieGlobalDisplayNameCode ?? '').padStart(4, '0')}`
     : mem.displayName
+  return { mem, name }
+}
+
+/** The signed-in player's Bungie name, for showing who is signed in. */
+export async function accountName(): Promise<string> {
+  return (await membership()).name
+}
+
+/** Reads the signed-in player's profile. Picks their most recently played character of this class. */
+export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
+  const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
 
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,205`)
   const chars = Object.entries(p.characters?.data ?? {})

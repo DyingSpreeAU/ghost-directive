@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
-import { useAutoSync } from './BungiePanel'
-import { takeSignInResult } from './bungie'
+import { BungieStart, useAutoSync } from './BungiePanel'
+import { bungieConfigured, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView } from './Lobby'
@@ -65,6 +65,8 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
       <div className="landing-inner">
         <div className="brand big"><GhostGlyph /><div><div className="brand-name">Ghost Directive</div><div className="brand-sub">Destiny 2 roguelite companion</div></div></div>
         <p className="landing-lede">Play Destiny 2 as normal. The host keeps the run; every Guardian joins from their own device to pick rewards and manage their own gear.</p>
+        <BungieStart />
+        {bungieConfigured && <div className="eyebrow landing-step">Step 2 &middot; Host or join</div>}
         <div className="landing-grid">
           {saved && (
             <section className="panel landing-card is-resume">
