@@ -31,6 +31,13 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   const eq = useEquipped()
   useAutofill(eq, mine, (patch) => { if (mine) patchSeat(mine, patch) }, toast)
   const notice = mine && eq.active && eq.data ? <SyncNotice eq={eq} compact /> : undefined
+  // Fetch the active character fresh and fill the player's seat from it.
+  const syncSeat = () => eq.refresh().then((d) => {
+    if (!d || !mine) return
+    patchSeat(mine, { ...seatFromCharacter(d), auto: true })
+    toast(`Synced from your ${d.cls}${d.subclass ? ` (${d.subclass.name})` : ''}.`)
+  })
+  const others = lobby.seats.filter((s) => s.clientId && s.clientId !== me && isOnline(s.clientId))
 
   return (
     <div className="lobby">
@@ -65,6 +72,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               editable={editable}
               onPatch={(p) => patchSeat(s, p)}
               notice={s.clientId === me ? notice : undefined}
+              sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat } : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -88,13 +96,21 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       <EquippedNow eq={eq} seat={mine} onApply={(patch) => mine && patchSeat(mine, patch)} />
 
-      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} onBegin={() => {
+      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={() => {
         host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
         toast('Run started. Route locked.')
       }} /> : (
         <div className="panel waiting-bar">
-          <span className="scanner small" aria-hidden="true" />
-          {mine?.ready ? 'You\u2019re ready. Waiting for the host to begin.' : 'Choose your artifact, set up your starting gear, then mark yourself ready.'}
+          <div className="waiting-text">
+            <span>{mine?.ready ? <><span className="scanner small" aria-hidden="true" /> You&rsquo;re ready. Waiting for the host to begin.</> : 'Choose your artifact, set up your starting gear, then mark yourself ready.'}</span>
+            <ReadyRow lobby={lobby} isOnline={isOnline} me={me} />
+            {notice}
+          </div>
+          {mine && (
+            <button className={`btn ${mine.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!artifactByName(mine.artifact) && !mine.ready} onClick={() => patchSeat(mine, { ready: !mine.ready })}>
+              {mine.ready ? 'Not ready yet' : artifactByName(mine.artifact) ? 'I\u2019m ready' : 'Choose an artifact first'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -133,8 +149,10 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice }: {
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
+  /** Re-reads the active character from Bungie and fills this seat (signed-in player's own seat). */
+  sync?: { busy: boolean; run: () => void }
   /** Bungie sync status for the player's own seat, shown by the Ready button. */
   notice?: React.ReactNode
   onPatch: (p: Patch) => void
@@ -166,6 +184,14 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice }
 
       {editable ? (
         <>
+          {sync && (
+            <div className="seat-sync">
+              <span className="small muted">Class, subclass and abilities</span>
+              <button className="btn btn-ghost btn-sm" disabled={sync.busy} onClick={sync.run} title="Read your in-game character from Bungie and set your class, subclass, Super, melee and grenade to match.">
+                {sync.busy ? 'Syncing\u2026' : 'Sync from active character'}
+              </button>
+            </div>
+          )}
           <div className="seg" role="radiogroup" aria-label="Class">
             {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} onClick={() => onPatch({ cls: c })}>{c}</button>)}
           </div>
@@ -325,7 +351,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function BeginBar({ lobby, isOnline, onBegin, notice }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void; notice?: React.ReactNode }) {
+function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void; notice?: React.ReactNode; readyRow?: React.ReactNode }) {
   const [confirm, setConfirm] = useState(false)
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
@@ -335,7 +361,7 @@ function BeginBar({ lobby, isOnline, onBegin, notice }: { lobby: Lobby; isOnline
       <div>
         <strong>{lobby.seats.length} Guardian{lobby.seats.length === 1 ? '' : 's'}</strong>
         <span className="muted"> &middot; {lobby.route.length} dungeon{lobby.route.length === 1 ? '' : 's'} &middot; {lobby.ruleset.name}</span>
-        {notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>}
+        {readyRow ?? (notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>)}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
         {notice}
@@ -397,10 +423,12 @@ function useEquipped() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [now, setNow] = useState(Date.now())
-  const refresh = useCallback(() => {
+  const refresh = useCallback((): Promise<EquippedPreview | null> => {
     setBusy(true)
     setError(null)
-    fetchEquipped().then(setData, (e) => setError((e as Error).message)).finally(() => setBusy(false))
+    return fetchEquipped()
+      .then((d) => { setData(d); return d }, (e) => { setError((e as Error).message); return null })
+      .finally(() => setBusy(false))
   }, [])
   useEffect(() => {
     if (!signedIn || !bungieConfigured) return
@@ -477,7 +505,7 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
             </span>
           )}
           {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}
-          <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={eq.refresh}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
+          <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
         </div>
       </div>
       {eq.error && <p className="small tone-danger">{eq.error}</p>}
@@ -526,5 +554,22 @@ function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
       <strong>Wait before readying up.</strong>{' '}
       {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.extras.length && `${eq.extras.length} aspect${eq.extras.length > 1 ? 's or fragments' : ' or fragment'} still equipped`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
     </p>
+  )
+}
+
+/** Everyone's ready state at a glance, for the bottom bar. */
+function ReadyRow({ lobby, isOnline, me }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; me: string }) {
+  return (
+    <ul className="ready-row" aria-label="Who is ready">
+      {lobby.seats.map((s) => {
+        const state = s.isHost ? 'host' : s.clientId === null ? 'nodevice' : !isOnline(s.clientId) ? 'offline' : s.ready && artifactByName(s.artifact) ? 'ready' : 'waiting'
+        const label = { host: 'Host', nodevice: 'No device', offline: 'Offline', ready: 'Ready', waiting: 'Not ready' }[state]
+        return (
+          <li key={s.id} className={`ready-chip is-${state}`}>
+            <span className="ready-dot" aria-hidden="true" />{s.name}{s.clientId === me ? ' (you)' : ''}<span className="ready-state">{label}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }

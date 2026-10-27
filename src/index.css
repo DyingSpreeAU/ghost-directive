@@ -648,3 +648,19 @@ select.needs-pick { border-color: var(--warn); }
 .equipped-subclass dd { margin: 0; overflow-wrap: anywhere; }
 .online-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--ok); margin-right: 4px; vertical-align: 1px; }
 @media (max-width: 900px) { .equipped-subclass { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------------------------------------------------------------- ready row + seat sync */
+.ready-row { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ready-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border: 1px solid var(--seam); background: var(--ink); font-size: 0.8rem; }
+.ready-chip .ready-state { font-family: var(--f-display); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--dim); }
+.ready-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+.ready-chip.is-ready { border-color: color-mix(in srgb, var(--ok) 50%, var(--seam)); }
+.ready-chip.is-ready .ready-dot { background: var(--ok); }
+.ready-chip.is-ready .ready-state { color: var(--ok); }
+.ready-chip.is-waiting .ready-dot { background: var(--warn); }
+.ready-chip.is-waiting .ready-state { color: var(--warn); }
+.ready-chip.is-host .ready-dot { background: var(--light); }
+.waiting-bar { justify-content: space-between; color: var(--text); }
+.waiting-text { display: grid; gap: 4px; flex: 1 1 320px; min-width: 0; color: var(--dim); }
+.waiting-text .sync-notice { margin-top: 4px; }
+.seat-sync { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
