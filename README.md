@@ -131,7 +131,7 @@ and stops it being detected again. Signed-in players skip the manual drops step.
 convenience, not anti-cheat. The baseline lives in the player's browser
 (`ghost-directive:drop-baseline:<run>:<player>`), and a lost sync is re-sent next time.
 
-**Artifact.** Syncs also read the character's equipped artifact (profile component 202) and its
+**Artifact.** Syncs also read the character's equipped artifact (the item in the artifact bucket, 1506418338, and the perks in its sockets; the seasonal-artifact progression, component 202, is only a fallback because it keeps reporting the season's default artifact) and its
 active perks. In the lobby the seat's artifact defaults to the equipped one, and the "Equipped now"
 preview flags perks still switched on. During a run, a different artifact from the seat's choice, or
 an active perk that hasn't been researched in the run, is flagged.

@@ -459,17 +459,33 @@ function artifactName(hash: number) {
   return artifactNames.get(hash)!
 }
 
-/** The character's artifact (character progressions) and which of its perks are active. */
+const ARTIFACT_BUCKET = 1506418338
+
+/**
+ * The character's artifact and the perks slotted in it. Artifacts are now chosen and equipped as an
+ * item (artifact bucket) with perks in its sockets; the older seasonal-artifact progression keeps
+ * reporting the season's default artifact, so it's only a fallback.
+ */
 async function readArtifact(p: ProfileResponse, charId: string): Promise<EquippedArtifact | null> {
+  const item = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === ARTIFACT_BUCKET)
+  if (item) {
+    const name = await defName(item.itemHash)
+    if (name) {
+      const sockets = item.itemInstanceId ? p.itemComponents?.sockets?.data?.[item.itemInstanceId]?.sockets ?? [] : []
+      const hashes = [...new Set(sockets.map((x) => x.plugHash).filter((h): h is number => !!h))]
+      const plugs = (await Promise.all(hashes.map(defName))).filter((n): n is string => !!n)
+      return { name, matched: matchArtifact(name), activePerks: plugs.filter((n) => !/^Empty\b/i.test(n)) }
+    }
+  }
   const art = p.characterProgressions?.data?.[charId]?.seasonalArtifact
   if (!art?.artifactHash) return null
   const name = await artifactName(art.artifactHash)
   if (!name) return null
   const active = (art.tiers ?? []).flatMap((t) => t.items ?? []).filter((i) => i.isActive).map((i) => i.itemHash)
   const activePerks = (await Promise.all([...new Set(active)].map(defName))).filter((n): n is string => !!n)
-  const matched = ARTIFACTS.find((a) => normName(a.name) === normName(name))?.name
-  return { name, matched, activePerks }
+  return { name, matched: matchArtifact(name), activePerks }
 }
+const matchArtifact = (name: string) => ARTIFACTS.find((a) => normName(a.name) === normName(name))?.name
 
 // ------------------------------------------------------------------ restore a run's setup
 
