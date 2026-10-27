@@ -5,7 +5,7 @@ import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, SortableList, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, startSignIn, type EquippedPreview } from './bungie'
 import type { Rarity, Slot } from './data'
-import { reportLink, useBungie, useRefresher } from './BungiePanel'
+import { reportLink, useBungie } from './BungiePanel'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>> & { auto?: boolean }
 
@@ -434,7 +434,7 @@ function useEquipped() {
     setError(null)
     return fetchEquipped()
       .then(
-        (d) => { setData(d); reportLink({ mintedAt: d.mintedAt }); return d },
+        (d) => { setData(d); reportLink({ ok: true }); return d },
         (e) => { setError((e as Error).message); reportLink({ error: (e as Error).message }); return null },
       )
       .finally(() => setBusy(false))
@@ -446,8 +446,6 @@ function useEquipped() {
     return () => clearInterval(t)
   }, [signedIn, refresh])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
-  // The Synaptic Link's "sync everything" includes this preview.
-  useRefresher(signedIn && bungieConfigured ? refresh : null)
   const off = data ? data.items.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
   // The run starts with no aspects, fragments or artifact perks switched on.
   const extras = [...(data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []), ...(data?.artifact?.activePerks ?? [])]

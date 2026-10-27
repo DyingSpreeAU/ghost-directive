@@ -89,12 +89,10 @@ export type Item = {
 
 export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds: string[] }
 
-export type ChecklistKey = 'greyKinetic' | 'greyEnergy' | 'greenHeavy' | 'greyArmor' | 'noAspects' | 'noFragments'
+export type ChecklistKey = 'weapons' | 'greyArmor' | 'noAspects' | 'noFragments'
 
 export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
-  { key: 'greyKinetic', label: 'Grey or green kinetic weapon equipped', hint: 'A Common (grey) or Uncommon (green) weapon, from Collections where available.' },
-  { key: 'greyEnergy', label: 'Grey or green energy weapon equipped', hint: 'A Common (grey) or Uncommon (green) energy weapon.' },
-  { key: 'greenHeavy', label: 'Grey or green heavy weapon equipped', hint: 'A Common (grey) or Uncommon (green) Power weapon.' },
+  { key: 'weapons', label: 'Grey or Green Weapons', hint: 'Common (grey) or Uncommon (green) kinetic, energy and heavy weapons, from Collections where available.' },
   { key: 'greyArmor', label: 'Grey armor on every slot', hint: 'The lowest-rarity armor you can pull, in all five slots.' },
   { key: 'noAspects', label: 'No aspects', hint: 'Unequip all aspects. They unlock during the run.' },
   { key: 'noFragments', label: 'No fragments', hint: 'Unequip all fragments. They unlock during the run.' },
@@ -182,7 +180,7 @@ export function newPlayer(n: number, cls: ClassType, element: Element): Player {
   return {
     id: uid(), clientId: null, name: `Guardian ${n}`, cls, element, isHost: n === 1,
     unlocked: [], configured: [],
-    checklist: { greyKinetic: false, greyEnergy: false, greenHeavy: false, greyArmor: false, noAspects: false, noFragments: false },
+    checklist: { weapons: false, greyArmor: false, noAspects: false, noFragments: false },
     inventory: [], vault: [], artifact: [], capacityBonus: 0, loadoutBonus: 0, loadouts: [],
   }
 }
@@ -357,10 +355,8 @@ export function chestChoices(run: Run, p: Player): ChestReward[] {
   const out: ChestReward[] = []
   if (run.ruleset.rewards.chestArtifact) artifactChoices(p, 3).forEach((mod) => out.push({ kind: 'artifact', mod }))
   if (run.ruleset.rewards.chestUpgrades) {
-    // Arsenal Expansion is uncommon; Loadout Archive is rare by design.
-    const roll = Math.random()
-    if (roll < 0.12) out.splice(Math.min(out.length, 2), 1, { kind: 'archive' })
-    else if (roll < 0.4) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
+    // Arsenal Expansion is uncommon. Loadout Archive is off while saved loadouts are hidden.
+    if (Math.random() < 0.28) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
   }
   return out.slice(0, 3)
 }
@@ -386,9 +382,6 @@ export function computeWarnings(run: Run): Warning[] {
     }
     const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id))
     if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped but not unlocked: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}`, rule: `${outOfOrder.length === 1 ? 'It isn\u2019t' : 'They aren\u2019t'} unlocked in this run yet. Unequip ${outOfOrder.length === 1 ? 'it' : 'them'} in Destiny 2, or unlock ${outOfOrder.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'archive' })
-    for (const l of p.loadouts) {
-      if (!loadoutValid(p, l)) out.push({ id: `lo-${p.id}-${l.id}`, severity: 'warn', playerId: p.id, title: `Loadout “${l.name}” is invalid`, rule: 'It references an item that left the run inventory. Update it before using it.', where: 'arsenal' })
-    }
     if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
     const ga = p.bungie?.artifact
     if (ga && p.artifactName) {
@@ -401,7 +394,6 @@ export function computeWarnings(run: Run): Warning[] {
     }
     if (p.bungie?.missing.length) out.push({ id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
     if (p.bungie?.untracked.length) out.push({ id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
-    if (p.loadouts.length > loadoutSlotsOf(run, p)) out.push({ id: `los-${p.id}`, severity: 'warn', playerId: p.id, title: 'More loadouts saved than slots', rule: `${p.name} has ${loadoutSlotsOf(run, p)} loadout slot(s).`, where: 'arsenal' })
   }
   return out
 }
@@ -745,7 +737,7 @@ export function newSeat(n: number, clientId: string | null, isHost = false): Sea
   const element = ELEMENTS[(n - 1) % 5]
   return {
     id: uid(), clientId, name: `Guardian ${n}`, cls, element, starter: defaultStarter(cls, element),
-    checklist: { greyKinetic: false, greyEnergy: false, greenHeavy: false, greyArmor: false, noAspects: false, noFragments: false },
+    checklist: { weapons: false, greyArmor: false, noAspects: false, noFragments: false },
     artifact: '', ready: false, isHost,
   }
 }

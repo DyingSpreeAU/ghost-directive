@@ -140,7 +140,7 @@ function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Rules
         <legend>Inventory</legend>
         <div className="field-grid">
           <Num id="pr-cap" label="Items per slot" value={r.inventory.capacity} onChange={(n) => set((d) => { d.inventory.capacity = n })} hint="Includes the equipped item" />
-          <Num id="pr-lo" label="Starting loadout slots" value={r.loadouts.baseSlots} onChange={(n) => set((d) => { d.loadouts.baseSlots = n })} />
+          {/* Starting loadout slots: hidden while saved loadouts are. */}
           <div className="field">
             <label htmlFor="pr-ovf">When a reward overflows</label>
             <select id="pr-ovf" value={r.overflow} onChange={(e) => set((d) => { d.overflow = e.target.value as Ruleset['overflow'] })}>

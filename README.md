@@ -57,7 +57,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
   move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options. Signed-in players get a
   **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code
-  stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices.
+  stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices. With loadouts hidden, the
+  Loadout Archive chest reward, loadout warnings and the protocol's loadout-slot setting are off too.
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
 - **Combat Report**, **Run History**, and a **Protocol editor** (customize, duplicate,
   export/import JSON) with validation.
@@ -126,11 +127,9 @@ active perks. In the lobby the seat's artifact defaults to the equipped one, and
 preview flags perks still switched on. During a run, a different artifact from the seat's choice, or
 an active perk that hasn't been researched in the run, is flagged.
 
-**Synaptic Link.** The pill at the top of every lobby and run page shows the Bungie link: green when
-signed in and the last read succeeded within 5 minutes, red otherwise (signed out, an API error, or
-no recent read). It counts up from Bungie's minted timestamp, the time Bungie last updated the data.
-Hovering explains it; clicking runs every Bungie read on the page (run sync and the lobby preview)
-or starts sign-in when signed out. Sign out lives in its hover card.
+**Synaptic Link.** A Ghost icon at the top right of every lobby and run page shows the Bungie link:
+green when signed in and the last read succeeded within 5 minutes, red otherwise (signed out, an
+API error, or no recent read). It's status only. Hovering explains it and offers sign in or sign out.
 
 **Bungie app** (bungie.net/en/Application): OAuth Client Type *Confidential*; Redirect URL
 `https://<site>/auth/callback`; scope *Read your Destiny 2 information*; Origin Header
