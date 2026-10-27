@@ -199,6 +199,8 @@ export type RestorePoint = {
   /** Instance ids of the equipped weapons and armor. */
   equipped: string[]
   subclass?: { itemId: string; plugs: [socketIndex: number, plugHash: number][] }
+  /** The equipped artifact item and its perk sockets. */
+  artifact?: { itemId: string; plugs: [socketIndex: number, plugHash: number][] }
 }
 
 /** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
@@ -277,9 +279,15 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
 
 function restorePoint(p: ProfileResponse, charId: string, items: Record<string, ItemRow>): RestorePoint {
   const eq = p.characterEquipment?.data?.[charId]?.items ?? []
+  const withPlugs = (i: ItemComponent | undefined) => {
+    if (!i?.itemInstanceId) return undefined
+    const sockets = p.itemComponents?.sockets?.data?.[i.itemInstanceId]?.sockets ?? []
+    return { itemId: i.itemInstanceId, plugs: sockets.flatMap((s, idx): [number, number][] => (s.plugHash ? [[idx, s.plugHash]] : [])) }
+  }
   const sub = eq.find((i) => i.bucketHash === SUBCLASS_BUCKET)
   const sockets = sub?.itemInstanceId ? p.itemComponents?.sockets?.data?.[sub.itemInstanceId]?.sockets ?? [] : []
   return {
+    artifact: withPlugs(eq.find((i) => i.bucketHash === ARTIFACT_BUCKET)),
     characterId: charId,
     equipped: eq.filter((i) => items[i.itemHash] && i.itemInstanceId).map((i) => i.itemInstanceId!),
     subclass: sub?.itemInstanceId
@@ -598,16 +606,19 @@ export async function restoreGuardian(player: Player, point: RestorePoint | unde
   if (order.length || sub) {
     progress('Equipping your run setup…')
     try {
-      const r = await api<{ equipResults?: { itemInstanceId: string; equipStatus: number }[] }>('/Destiny2/Actions/Items/EquipItems/', { itemIds: [...(sub ? [sub.itemId] : []), ...order], characterId: charId, membershipType: mem.membershipType })
+      const art = point?.characterId === charId ? point.artifact : undefined
+      const r = await api<{ equipResults?: { itemInstanceId: string; equipStatus: number }[] }>('/Destiny2/Actions/Items/EquipItems/', { itemIds: [...(sub ? [sub.itemId] : []), ...(art ? [art.itemId] : []), ...order], characterId: charId, membershipType: mem.membershipType })
       const failed = (r.equipResults ?? []).filter((x) => x.equipStatus !== 1)
       report.equip = failed.length ? 'partial' : 'done'
       if (failed.some((f) => f.equipStatus === 1634)) report.equip = 'location'
-      if (sub && report.equip !== 'location') {
-        const now = p.itemComponents?.sockets?.data?.[sub.itemId]?.sockets ?? []
-        for (const [socketIndex, plugItemHash] of sub.plugs) {
+      // Subclass and artifact sockets back to how they were.
+      for (const target of report.equip === 'location' ? [] : [sub, art]) {
+        if (!target || report.equip === 'location') continue
+        const now = p.itemComponents?.sockets?.data?.[target.itemId]?.sockets ?? []
+        for (const [socketIndex, plugItemHash] of target.plugs) {
           if (now[socketIndex]?.plugHash === plugItemHash) continue
           try {
-            await api('/Destiny2/Actions/Items/InsertSocketPlugFree/', { plug: { socketIndex, socketArrayType: 0, plugItemHash }, itemId: sub.itemId, characterId: charId, membershipType: mem.membershipType })
+            await api('/Destiny2/Actions/Items/InsertSocketPlugFree/', { plug: { socketIndex, socketArrayType: 0, plugItemHash }, itemId: target.itemId, characterId: charId, membershipType: mem.membershipType })
           } catch (e) {
             if (wrongPlace(e)) { report.equip = 'location'; break }
             report.equip = 'partial'
@@ -636,7 +647,7 @@ export type SendReport = { character: string; applied: string[]; problems: strin
  * Super, melee and grenade, empties every aspect and fragment socket, and empties the artifact's
  * perk sockets. Bungie only allows this in orbit, a social space, or while offline.
  */
-export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[] }, progress: (msg: string) => void): Promise<SendReport> {
+export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[]; artifact?: string }, progress: (msg: string) => void): Promise<SendReport> {
   const { mem } = await membership()
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,201,204,205,305,310`)
   const picked = pickCharacter(p)
@@ -699,8 +710,22 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
     }
   }
 
-  // 3. Artifact perks off.
-  const art = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === ARTIFACT_BUCKET)
+  // 3. The seat's artifact, equipped, with every perk off.
+  let art = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === ARTIFACT_BUCKET)
+  const artName = art ? await defName(art.itemHash) : null
+  if (seat.artifact && (!artName || normName(artName) !== normName(seat.artifact))) {
+    const held = (p.characterInventories?.data?.[charId]?.items ?? []).filter((i) => i.bucketHash === ARTIFACT_BUCKET && i.itemInstanceId)
+    const names = await Promise.all(held.map((i) => defName(i.itemHash)))
+    const found = held.find((_, k) => names[k] && normName(names[k]!) === normName(seat.artifact!))
+    if (!found) report.problems.push(`${seat.artifact} isn’t on your ${cls}, so it couldn’t be equipped. Switch to it in game.`)
+    else {
+      progress(`Equipping ${seat.artifact}…`)
+      const r = await act('/Destiny2/Actions/Items/EquipItems/', { itemIds: [found.itemInstanceId] }) as { equipResults?: { equipStatus: number }[] }
+      if (r.equipResults?.some((x) => x.equipStatus === 1634)) throw new BungieError(LOCATION_MESSAGE)
+      if (r.equipResults?.some((x) => x.equipStatus !== 1)) report.problems.push(`${seat.artifact} couldn’t be equipped. Switch to it in game.`)
+      else { report.applied.push(seat.artifact); art = found }
+    }
+  }
   if (art?.itemInstanceId) {
     const artSockets = p.itemComponents?.sockets?.data?.[art.itemInstanceId]?.sockets ?? []
     const artOptions = p.itemComponents?.reusablePlugs?.data?.[art.itemInstanceId]?.plugs ?? {}

@@ -140,12 +140,12 @@ an active perk that hasn't been researched in the run, is flagged.
 character. *Send to* does the reverse with the move/equip scope: it switches the active character to
 the seat's subclass, slots its Super, melee and grenade, empties every aspect and fragment socket,
 and empties the artifact's perk sockets (InsertSocketPlugFree, using component 310 to find each
-socket's options). It doesn't change which artifact is equipped. Bungie only allows it in orbit, a
+socket's options), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
 social space or while offline; in an activity it stops and explains why.
 
 **Restore my Guardian** (Field Arsenal, signed-in players). Each sync where everything equipped is
 part of the run and the subclass matches records a restore point: the character, the equipped
-instance ids and the subclass's socket plugs (`BungieLink.restore`). Syncs while playing other gear
+instance ids, the subclass's socket plugs and the artifact with its perks (`BungieLink.restore`). Syncs while playing other gear
 leave it alone. Restore then, on the run's character: sends weapons and armor that aren't in the run
 inventory to the Vault, pulls run items from the Vault or other characters (manual entries are matched
 by name), equips the restore point (subclass first, Exotics last) and re-slots the subclass, then

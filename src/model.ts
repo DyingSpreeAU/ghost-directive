@@ -764,10 +764,11 @@ function cleanRestore(raw: unknown): BungieLink['restore'] | undefined {
   const r = (raw ?? {}) as Partial<RestorePoint>
   const id = (x: unknown) => (typeof x === 'string' && /^\d{1,30}$/.test(x) ? x : '')
   if (!id(r.characterId) || !Array.isArray(r.equipped)) return undefined
-  const sub = r.subclass && id(r.subclass.itemId) && Array.isArray(r.subclass.plugs)
-    ? { itemId: r.subclass.itemId, plugs: r.subclass.plugs.slice(0, 40).filter((x): x is [number, number] => Array.isArray(x) && Number.isInteger(x[0]) && Number.isInteger(x[1])).map(([a, b]) => [a, b] as [number, number]) }
+  const withPlugs = (x: RestorePoint['subclass']) => x && id(x.itemId) && Array.isArray(x.plugs)
+    ? { itemId: x.itemId, plugs: x.plugs.slice(0, 40).filter((y): y is [number, number] => Array.isArray(y) && Number.isInteger(y[0]) && Number.isInteger(y[1])).map(([a, b]) => [a, b] as [number, number]) }
     : undefined
-  return { characterId: r.characterId!, equipped: r.equipped.slice(0, 20).map(id).filter(Boolean), subclass: sub, at: Date.now() }
+  const sub = withPlugs(r.subclass)
+  return { characterId: r.characterId!, equipped: r.equipped.slice(0, 20).map(id).filter(Boolean), subclass: sub, artifact: withPlugs(r.artifact), at: Date.now() }
 }
 
 /**

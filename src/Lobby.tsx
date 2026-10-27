@@ -44,7 +44,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     setSend({ busy: true })
     try {
       const abilities = [mine.starter.super, mine.starter.melee, mine.starter.grenade].map((id) => id.split('|')[2])
-      const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities }, (step) => setSend({ busy: true, step }))
+      const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities, artifact: mine.artifact || undefined }, (step) => setSend({ busy: true, step }))
       setSend({ busy: false, report })
     } catch (e) { setSend({ busy: false, error: (e as Error).message }) }
     eq.refresh()
@@ -60,7 +60,6 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               <p>Your {send.report.character}:</p>
               <ul>{send.report.applied.length ? send.report.applied.map((a) => <li key={a}>{a}</li>) : <li>Already matched this seat. Nothing to change.</li>}</ul>
               {send.report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t apply:</p><ul className="small">{send.report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
-              {mine?.artifact && <p className="small muted">Send to doesn&rsquo;t change which artifact is equipped. Make sure {mine.artifact} is equipped in game.</p>}
             </div>
           )}
         </Modal>
