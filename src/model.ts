@@ -1,0 +1,756 @@
+import {
+  ALL_SLOTS, ARTIFACT_MODS, CLASSES, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
+  abilityById, dungeonById, subclassAbilities,
+  type ClassType, type Element, type Rarity, type Slot, type VaultEntry,
+} from './data'
+
+// ---------------------------------------------------------------- Rulesets
+
+export type Ruleset = {
+  id: string
+  name: string
+  description: string
+  preset: boolean
+  integrity: { start: number; max: number; clear: number; wipe: number }
+  inventory: { capacity: number; slots: Slot[] }
+  rewards: {
+    unlockChoices: number
+    finalBossGear: boolean
+    finalBossArtifact: boolean
+    chestArtifact: boolean
+    chestUpgrades: boolean
+  }
+  tradeUp: { enabled: boolean; inputs: number; options: number; sameRarity: boolean }
+  overflow: 'guided' | 'warn'
+  loadouts: { baseSlots: number }
+}
+
+export const PRESETS: Ruleset[] = [
+  {
+    id: 'standard', name: 'Standard Directive', preset: true,
+    description: 'The test baseline from the design spec: 100 Integrity, +5 per clear, −15 per wipe, four items per slot.',
+    integrity: { start: 100, max: 100, clear: 5, wipe: 15 },
+    inventory: { capacity: 4, slots: [...ALL_SLOTS] },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
+    tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
+    overflow: 'guided',
+    loadouts: { baseSlots: 1 },
+  },
+  {
+    id: 'grace', name: 'Guardian’s Grace', preset: true,
+    description: 'A softer run for learning a route: wipes cost 10, clears restore 10, and slots hold five items.',
+    integrity: { start: 100, max: 100, clear: 10, wipe: 10 },
+    inventory: { capacity: 5, slots: [...ALL_SLOTS] },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
+    tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
+    overflow: 'guided',
+    loadouts: { baseSlots: 2 },
+  },
+  {
+    id: 'iron', name: 'Iron Protocol', preset: true,
+    description: 'Start at 60 Integrity, wipes cost 20, three items per slot, and trade-ups need matching rarity.',
+    integrity: { start: 60, max: 80, clear: 5, wipe: 20 },
+    inventory: { capacity: 3, slots: [...ALL_SLOTS] },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
+    tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
+    overflow: 'warn',
+    loadouts: { baseSlots: 0 },
+  },
+]
+
+export function validateRuleset(r: Ruleset): string[] {
+  const errs: string[] = []
+  const { start, max, clear, wipe } = r.integrity
+  if (!r.name.trim()) errs.push('Give the protocol a name.')
+  if (max < 1) errs.push('Maximum Integrity must be at least 1.')
+  if (start < 1 || start > max) errs.push('Starting Integrity must be between 1 and the maximum.')
+  if (clear < 0) errs.push('Clear reward cannot be negative.')
+  if (wipe < 1) errs.push('Wipe penalty must be at least 1.')
+  if (r.inventory.capacity < 1 || r.inventory.capacity > 12) errs.push('Slot capacity must be 1–12.')
+  if (r.rewards.unlockChoices < 1 || r.rewards.unlockChoices > 5) errs.push('Unlock choices must be 1–5.')
+  if (r.tradeUp.inputs < 2 || r.tradeUp.inputs > 8) errs.push('Trade-up inputs must be 2–8.')
+  if (r.tradeUp.options < 1 || r.tradeUp.options > 8) errs.push('Trade-up options must be 1–8.')
+  if (r.loadouts.baseSlots < 0 || r.loadouts.baseSlots > 10) errs.push('Loadout slots must be 0–10.')
+  return errs
+}
+
+// ---------------------------------------------------------------- Run state
+
+export type Item = {
+  id: string
+  name: string
+  slot: Slot
+  rarity: Rarity
+  equipped: boolean
+  source: string
+}
+
+export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds: string[] }
+
+export type ChecklistKey = 'greyKinetic' | 'greyEnergy' | 'greenHeavy' | 'greyArmor' | 'noAspects' | 'noFragments'
+
+export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
+  { key: 'greyKinetic', label: 'Grey kinetic weapon equipped', hint: 'Pull a Common weapon from Collections where available.' },
+  { key: 'greyEnergy', label: 'Grey energy weapon equipped', hint: 'Common rarity, from Collections where available.' },
+  { key: 'greenHeavy', label: 'Green heavy weapon equipped', hint: 'An Uncommon Power weapon.' },
+  { key: 'greyArmor', label: 'Grey or common armor on every slot', hint: 'Use the lowest rarity armor you can pull.' },
+  { key: 'noAspects', label: 'All aspects unequipped', hint: 'Aspects unlock during the run.' },
+  { key: 'noFragments', label: 'All fragments unequipped', hint: 'Fragments unlock during the run.' },
+]
+
+export type Player = {
+  id: string
+  /** The device that controls this Guardian; null when no device is linked. */
+  clientId: string | null
+  name: string
+  cls: ClassType
+  element: Element
+  isHost: boolean
+  unlocked: string[]
+  /** What the player reports as configured in Destiny 2 (confirmed state). */
+  configured: string[]
+  checklist: Record<ChecklistKey, boolean>
+  inventory: Item[]
+  vault: VaultEntry[]
+  artifact: string[]
+  capacityBonus: number
+  loadoutBonus: number
+  loadouts: Loadout[]
+}
+
+export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
+
+export type LogEntry = { at: number; kind: LogKind; text: string; delta?: number; integrity?: number; where?: string }
+
+export type RunStatus = 'active' | 'victory' | 'defeat' | 'abandoned'
+
+export type Run = {
+  id: string
+  name: string
+  ruleset: Ruleset
+  expedition: 'custom' | 'chronological'
+  route: string[]
+  dIdx: number
+  eIdx: number
+  integrity: number
+  status: RunStatus
+  players: Player[]
+  claimed: string[]
+  chests: string[]
+  /** Rewards rolled by the host, waiting for each player to choose on their own device. */
+  pending: Pending[]
+  log: LogEntry[]
+  code: string
+  startedAt: number
+  endedAt?: number
+  example?: boolean
+}
+
+export const uid = () => Math.random().toString(36).slice(2, 10)
+
+export function newPlayer(n: number, cls: ClassType, element: Element): Player {
+  return {
+    id: uid(), clientId: null, name: `Guardian ${n}`, cls, element, isHost: n === 1,
+    unlocked: [], configured: [],
+    checklist: { greyKinetic: false, greyEnergy: false, greenHeavy: false, greyArmor: false, noAspects: false, noFragments: false },
+    inventory: [], vault: [], artifact: [], capacityBonus: 0, loadoutBonus: 0, loadouts: [],
+  }
+}
+
+export function createRun(opts: {
+  ruleset: Ruleset
+  players: Player[]
+  expedition: 'custom' | 'chronological'
+  route: string[]
+  code: string
+  name?: string
+}): Run {
+  const run: Run = {
+    id: uid(),
+    name: opts.name || `Run ${new Date().toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+    ruleset: structuredClone(opts.ruleset), // snapshot: later preset edits do not touch this run
+    expedition: opts.expedition,
+    route: opts.route,
+    dIdx: 0, eIdx: 0,
+    integrity: opts.ruleset.integrity.start,
+    status: 'active',
+    players: structuredClone(opts.players),
+    claimed: [], chests: [], pending: [], log: [],
+    startedAt: Date.now(),
+    code: opts.code,
+  }
+  for (const p of run.players) p.configured = [...p.unlocked]
+  log(run, 'run', `Run started under ${run.ruleset.name}. Route: ${run.route.map((d) => dungeonById(d).name).join(' → ')}.`)
+  return run
+}
+
+export const CHRONOLOGICAL_ROUTE = [...DUNGEONS].sort((a, b) => a.released.localeCompare(b.released)).map((d) => d.id)
+
+// ---------------------------------------------------------------- Queries
+
+export function current(run: Run) {
+  const dungeon = dungeonById(run.route[Math.min(run.dIdx, run.route.length - 1)])
+  const encounter = dungeon.encounters[Math.min(run.eIdx, dungeon.encounters.length - 1)]
+  const total = run.route.reduce((n, id) => n + dungeonById(id).encounters.length, 0)
+  let done = 0
+  for (let i = 0; i < run.dIdx; i++) done += dungeonById(run.route[i]).encounters.length
+  done += run.eIdx
+  return { dungeon, encounter, done: run.status === 'victory' ? total : done, total }
+}
+
+export function nextEncounter(run: Run) {
+  const d = dungeonById(run.route[run.dIdx])
+  if (run.eIdx + 1 < d.encounters.length) return { dungeon: d, encounter: d.encounters[run.eIdx + 1] }
+  if (run.dIdx + 1 < run.route.length) {
+    const nd = dungeonById(run.route[run.dIdx + 1])
+    return { dungeon: nd, encounter: nd.encounters[0] }
+  }
+  return null
+}
+
+export const capacityOf = (run: Run, p: Player) => run.ruleset.inventory.capacity + p.capacityBonus
+export const loadoutSlotsOf = (run: Run, p: Player) => run.ruleset.loadouts.baseSlots + p.loadoutBonus
+export const itemsIn = (p: Player, slot: Slot) => p.inventory.filter((i) => i.slot === slot)
+export const isOverCapacity = (run: Run, p: Player, slot: Slot) => itemsIn(p, slot).length > capacityOf(run, p)
+
+export function loadoutValid(p: Player, l: Loadout) {
+  return l.itemIds.every((id) => p.inventory.some((i) => i.id === id)) && l.abilityIds.every((id) => p.unlocked.includes(id))
+}
+
+// ---------------------------------------------------------------- Mutations (operate on a draft copy)
+
+export function log(run: Run, kind: LogKind, text: string, delta?: number) {
+  const { dungeon, encounter } = current(run)
+  run.log.unshift({ at: Date.now(), kind, text, delta, integrity: run.integrity, where: `${dungeon.name} · ${encounter.name}` })
+}
+
+export function changeIntegrity(run: Run, delta: number, reason: string, kind: LogKind) {
+  const before = run.integrity
+  run.integrity = Math.max(0, Math.min(run.ruleset.integrity.max, run.integrity + delta))
+  const applied = run.integrity - before
+  const capped = delta > 0 && applied < delta ? ` (capped at ${run.ruleset.integrity.max})` : ''
+  log(run, kind, `${reason}${capped}`, applied)
+  if (run.integrity <= 0 && run.status === 'active') {
+    run.status = 'defeat'
+    run.endedAt = Date.now()
+    log(run, 'run', 'Fireteam Integrity reached zero. The run has ended.')
+  }
+}
+
+export function advance(run: Run) {
+  const d = dungeonById(run.route[run.dIdx])
+  if (run.eIdx + 1 < d.encounters.length) run.eIdx++
+  else if (run.dIdx + 1 < run.route.length) { run.dIdx++; run.eIdx = 0 }
+  else {
+    run.status = 'victory'
+    run.endedAt = Date.now()
+    log(run, 'run', 'Route complete. The fireteam survived the Directive.')
+  }
+}
+
+export function addItem(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>) {
+  const it: Item = { ...item, id: uid(), equipped: false }
+  p.inventory.push(it)
+  log(run, 'gear', `${p.name} registered ${it.name} (${it.rarity} ${it.slot}) from ${it.source}.`)
+  return it
+}
+
+export function sendToVault(run: Run, p: Player, itemIds: string[], why: string) {
+  const gone = p.inventory.filter((i) => itemIds.includes(i.id))
+  p.inventory = p.inventory.filter((i) => !itemIds.includes(i.id))
+  if (gone.length) log(run, 'vault', `${p.name} moved ${gone.map((g) => g.name).join(', ')} to the Vault (${why}).`)
+}
+
+// ---------------------------------------------------------------- Reward generation
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+/** Synergy is a preference, not a filter: matching items sort first, ties random. */
+function favor<T>(items: T[], score: (t: T) => number): T[] {
+  return shuffle(items).map((t) => ({ t, s: score(t) + Math.random() * 0.9 })).sort((a, b) => b.s - a.s).map((x) => x.t)
+}
+
+export function unlockChoices(run: Run, p: Player) {
+  const eligible = subclassAbilities(p.cls, p.element).filter((a) => !p.unlocked.includes(a.id))
+  return shuffle(eligible).slice(0, run.ruleset.rewards.unlockChoices)
+}
+
+export function exoticChoices(p: Player): VaultEntry[] {
+  const owned = new Set(p.inventory.map((i) => i.name))
+  const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name))
+  // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
+  return favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
+    .slice(0, 3)
+    .map((e) => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
+}
+
+export const vaultPool = (p: Player) => (p.vault.length ? p.vault : EXAMPLE_VAULT)
+
+export function legendaryWeaponChoices(p: Player): VaultEntry[] {
+  const owned = new Set(p.inventory.map((i) => i.name))
+  const pool = vaultPool(p).filter((v) => v.rarity === 'Legendary' && WEAPON_SLOTS.includes(v.slot) && !owned.has(v.name))
+  return favor(pool, (v) => (v.element === p.element ? 1 : 0)).slice(0, 3)
+}
+
+export function tradeUpChoices(run: Run, p: Player, slot: Slot): VaultEntry[] {
+  const owned = new Set(p.inventory.map((i) => i.name))
+  const pool = vaultPool(p).filter((v) => v.rarity === 'Legendary' && v.slot === slot && !owned.has(v.name))
+  return favor(pool, (v) => (v.element === p.element ? 1 : 0)).slice(0, run.ruleset.tradeUp.options)
+}
+
+export function artifactChoices(p: Player, n = 3) {
+  return shuffle(ARTIFACT_MODS.filter((m) => !p.artifact.includes(m))).slice(0, n)
+}
+
+export type ChestReward =
+  | { kind: 'artifact'; mod: string }
+  | { kind: 'expansion' }
+  | { kind: 'archive' }
+
+export function chestChoices(run: Run, p: Player): ChestReward[] {
+  const out: ChestReward[] = []
+  if (run.ruleset.rewards.chestArtifact) artifactChoices(p, 3).forEach((mod) => out.push({ kind: 'artifact', mod }))
+  if (run.ruleset.rewards.chestUpgrades) {
+    // Arsenal Expansion is uncommon; Loadout Archive is rare by design.
+    const roll = Math.random()
+    if (roll < 0.12) out.splice(Math.min(out.length, 2), 1, { kind: 'archive' })
+    else if (roll < 0.4) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
+  }
+  return out.slice(0, 3)
+}
+
+// ---------------------------------------------------------------- Compliance
+
+export type Severity = 'critical' | 'warn' | 'info'
+export type Warning = { id: string; severity: Severity; playerId?: string; title: string; rule: string; where: string }
+
+export function computeWarnings(run: Run): Warning[] {
+  const out: Warning[] = []
+  const r = run.ruleset
+  if (run.status === 'active' && run.integrity <= r.integrity.wipe) {
+    out.push({ id: 'int-low', severity: 'critical', title: 'One more wipe ends the run', rule: `A wipe costs ${r.integrity.wipe} Integrity and the fireteam has ${run.integrity}.`, where: 'integrity' })
+  }
+  const firstClear = run.claimed.length === 0
+  for (const p of run.players) {
+    const cap = capacityOf(run, p)
+    for (const slot of r.inventory.slots) {
+      const n = itemsIn(p, slot).length
+      if (n > cap) out.push({ id: `cap-${p.id}-${slot}`, severity: 'critical', playerId: p.id, title: `${slot} over capacity (${n}/${cap})`, rule: `Each slot holds ${cap} run items, including the equipped one. Move extras to the Vault.`, where: 'arsenal' })
+      const eq = itemsIn(p, slot).filter((i) => i.equipped).length
+      if (eq > 1) out.push({ id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
+    }
+    if (firstClear && run.status === 'active') {
+      const missing = Object.values(p.checklist).filter((v) => !v).length
+      if (missing) out.push({ id: `setup-${p.id}`, severity: 'warn', playerId: p.id, title: `Starting gear: ${6 - missing} of 6 confirmed`, rule: 'Runs start with grey gear, a green heavy, and no aspects or fragments.', where: 'setup' })
+    }
+    const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id))
+    if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `${outOfOrder.length} ability ${outOfOrder.length === 1 ? 'is' : 'are'} configured but not unlocked`, rule: `Out of order: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}.`, where: 'archive' })
+    for (const l of p.loadouts) {
+      if (!loadoutValid(p, l)) out.push({ id: `lo-${p.id}-${l.id}`, severity: 'warn', playerId: p.id, title: `Loadout “${l.name}” is invalid`, rule: 'It references an item that left the run inventory. Update it before using it.', where: 'arsenal' })
+    }
+    if (p.loadouts.length > loadoutSlotsOf(run, p)) out.push({ id: `los-${p.id}`, severity: 'warn', playerId: p.id, title: 'More loadouts saved than slots', rule: `${p.name} has ${loadoutSlotsOf(run, p)} loadout slot(s).`, where: 'arsenal' })
+  }
+  return out
+}
+
+// ---------------------------------------------------------------- Pending rewards
+// The host rolls every option when a clear or chest is recorded, so a player who
+// reloads sees the same choices. Each player resolves theirs on their own device.
+
+export type Pending = {
+  id: string
+  playerId: string
+  kind: 'clear' | 'chest'
+  where: string
+  final: boolean
+  unlock: string[]
+  exotic: VaultEntry[]
+  legendary: VaultEntry[]
+  artifact: string[]
+  chest: ChestReward[]
+}
+
+/**
+ * Secret chests to ask about when the current encounter is cleared: the ones before the next
+ * encounter, plus any at the very start of the dungeon when this is its first encounter.
+ * Returns how many, and the number of the first one in the dungeon's own chest order.
+ */
+export function chestsAhead(run: Run): { count: number; first: number } {
+  const { dungeon } = current(run)
+  const i = run.eIdx
+  const before = dungeon.chestsAtStart + dungeon.chestsAfter.slice(0, i).reduce((a, b) => a + b, 0)
+  const lead = i === 0 ? dungeon.chestsAtStart : 0
+  return { count: lead + (dungeon.chestsAfter[i] ?? 0), first: i === 0 ? 1 : before + 1 }
+}
+
+/** Records a clear plus any secret chests found on the way to the next encounter, then advances. */
+export function recordClear(run: Run, chestsFound = 0) {
+  const { dungeon, encounter } = current(run)
+  const final = encounter.type === 'final'
+  const rw = run.ruleset.rewards
+  const { count: ahead, first: firstNo } = chestsAhead(run)
+  const found = Math.max(0, Math.min(ahead, Math.floor(chestsFound)))
+  run.claimed.push(encounter.id)
+  changeIntegrity(run, run.ruleset.integrity.clear, `Cleared ${encounter.name}.`, 'clear')
+  for (const p of run.players) {
+    run.pending.push({
+      id: uid(), playerId: p.id, kind: 'clear', where: `${dungeon.name} \u00b7 ${encounter.name}`, final,
+      unlock: unlockChoices(run, p).map((a) => a.id),
+      exotic: final && rw.finalBossGear ? exoticChoices(p) : [],
+      legendary: final && rw.finalBossGear ? legendaryWeaponChoices(p) : [],
+      artifact: final && rw.finalBossArtifact ? artifactChoices(p) : [],
+      chest: [],
+    })
+  }
+  if (ahead > 0) {
+    for (let k = 0; k < found; k++) {
+      const n = firstNo + k
+      run.chests.push(`${dungeon.id}#${n}`)
+      log(run, 'chest', `Secret Chest ${n} found in ${dungeon.name}.`)
+      for (const p of run.players) {
+        run.pending.push({
+          id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 secret chest ${n}`, final: false,
+          unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
+        })
+      }
+    }
+    if (found < ahead) log(run, 'chest', `${ahead - found} secret chest${ahead - found > 1 ? 's' : ''} skipped in ${dungeon.name}.`)
+  }
+  if (run.status === 'active') advance(run)
+}
+
+// ---------------------------------------------------------------- Player intents
+// Everything a player may change about their own Guardian. The host applies these,
+// whether they come from the host's own UI or from a player's device over the lobby.
+
+export type NewItem = Omit<Item, 'id' | 'equipped'>
+
+export type Intent =
+  | { type: 'checklist'; key: ChecklistKey; value: boolean }
+  | { type: 'configure'; abilityId: string }
+  | { type: 'register'; item: NewItem }
+  | { type: 'equip'; itemId: string }
+  | { type: 'vault'; itemIds: string[]; why: string }
+  | { type: 'tradeup'; inputIds: string[]; choice: VaultEntry }
+  | { type: 'loadout-save'; name: string }
+  | { type: 'loadout-update'; id: string }
+  | { type: 'loadout-delete'; id: string }
+  | { type: 'vault-add'; entry: VaultEntry }
+  | { type: 'vault-clear' }
+  | { type: 'artifact-remove'; mod: string }
+  | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
+
+const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+
+function cleanItem(raw: unknown): NewItem | string {
+  const it = (raw ?? {}) as Partial<NewItem>
+  const name = str(it.name)
+  if (!name) return 'Item needs a name.'
+  if (!ALL_SLOTS.includes(it.slot as Slot)) return 'Unknown slot.'
+  if (!RARITIES.includes(it.rarity as Rarity)) return 'Unknown rarity.'
+  return { name, slot: it.slot as Slot, rarity: it.rarity as Rarity, source: str(it.source, 30) || 'world drop' }
+}
+
+/** Applies one player's intent to the run. Returns an error message, or null on success. */
+export function applyIntent(run: Run, playerId: string, raw: Intent): string | null {
+  const p = run.players.find((x) => x.id === playerId)
+  if (!p) return 'Guardian not found.'
+  const it = raw as Intent & Record<string, unknown>
+  const active = run.status === 'active'
+  switch (it.type) {
+    case 'checklist': {
+      if (!(it.key in p.checklist)) return 'Unknown checklist item.'
+      p.checklist[it.key] = !!it.value
+      return null
+    }
+    case 'configure': {
+      if (!subclassAbilities(p.cls, p.element).some((a) => a.id === it.abilityId)) return 'That ability is not on your subclass.'
+      p.configured = p.configured.includes(it.abilityId) ? p.configured.filter((x) => x !== it.abilityId) : [...p.configured, it.abilityId]
+      return null
+    }
+    case 'register': {
+      if (!active) return 'The run has ended.'
+      const item = cleanItem(it.item)
+      if (typeof item === 'string') return item
+      addItem(run, p, item)
+      return null
+    }
+    case 'equip': {
+      const item = p.inventory.find((i) => i.id === it.itemId)
+      if (!item) return 'Item not in your run inventory.'
+      const was = item.equipped
+      p.inventory.forEach((i) => { if (i.slot === item.slot) i.equipped = false })
+      item.equipped = !was
+      return null
+    }
+    case 'vault': {
+      if (!Array.isArray(it.itemIds)) return 'Bad request.'
+      sendToVault(run, p, it.itemIds.filter((x) => typeof x === 'string'), str(it.why, 30) || 'player choice')
+      return null
+    }
+    case 'tradeup': {
+      if (!active) return 'The run has ended.'
+      const tu = run.ruleset.tradeUp
+      if (!tu.enabled) return 'Trade-ups are off in this protocol.'
+      const ids = Array.isArray(it.inputIds) ? [...new Set(it.inputIds)] : []
+      const inputs = p.inventory.filter((i) => ids.includes(i.id))
+      if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
+      const slot = inputs[0].slot
+      if (inputs.some((i) => i.slot !== slot || i.rarity === 'Exotic')) return 'Inputs must share a slot and cannot be Exotic.'
+      if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
+      const choice = vaultPool(p).find((v) => v.name === str(it.choice?.name) && v.slot === slot && v.rarity === 'Legendary')
+      if (!choice) return 'That Legendary is not in your Vault pool for this slot.'
+      p.inventory = p.inventory.filter((i) => !ids.includes(i.id))
+      log(run, 'trade', `${p.name} traded ${inputs.map((i) => i.name).join(', ')} (to Vault) for ${choice.name}.`)
+      addItem(run, p, { name: choice.name, slot, rarity: 'Legendary', source: 'trade-up' })
+      return null
+    }
+    case 'loadout-save': {
+      if (p.loadouts.length >= loadoutSlotsOf(run, p)) return 'All loadout slots are used.'
+      p.loadouts.push({
+        id: uid(), name: str(it.name, 40) || `Loadout ${p.loadouts.length + 1}`,
+        itemIds: p.inventory.filter((i) => i.equipped).map((i) => i.id),
+        abilityIds: p.configured.filter((id) => p.unlocked.includes(id)),
+      })
+      return null
+    }
+    case 'loadout-update': {
+      const l = p.loadouts.find((x) => x.id === it.id)
+      if (!l) return 'Loadout not found.'
+      l.itemIds = p.inventory.filter((i) => i.equipped).map((i) => i.id)
+      l.abilityIds = p.configured.filter((id) => p.unlocked.includes(id))
+      return null
+    }
+    case 'loadout-delete': {
+      p.loadouts = p.loadouts.filter((x) => x.id !== it.id)
+      return null
+    }
+    case 'vault-add': {
+      const e = (it.entry ?? {}) as Partial<VaultEntry>
+      const name = str(e.name)
+      if (!name) return 'Entry needs a name.'
+      if (!ALL_SLOTS.includes(e.slot as Slot)) return 'Unknown slot.'
+      if (p.vault.length >= 200) return 'Vault pool is full.'
+      p.vault.push({ name, slot: e.slot as Slot, rarity: 'Legendary', element: DAMAGE_ELEMENTS.includes(e.element as never) ? e.element : undefined })
+      return null
+    }
+    case 'vault-clear': {
+      p.vault = []
+      return null
+    }
+    case 'artifact-remove': {
+      p.artifact = p.artifact.filter((m) => m !== it.mod)
+      return null
+    }
+    case 'resolve': {
+      const pend = run.pending.find((x) => x.id === it.pendingId && x.playerId === p.id)
+      if (!pend) return 'That reward was already resolved.'
+      const drops: NewItem[] = []
+      for (const d of Array.isArray(it.drops) ? it.drops.slice(0, 12) : []) {
+        const c = cleanItem(d)
+        if (typeof c === 'string') return c
+        drops.push(c)
+      }
+      if (it.unlock && !pend.unlock.includes(it.unlock)) return 'That unlock was not offered.'
+      if (pend.unlock.length && !it.unlock) return 'Choose an unlock.'
+      const gear = it.gear ? [...pend.exotic, ...pend.legendary].find((g) => g.name === it.gear) : undefined
+      if (it.gear && !gear) return 'That item was not offered.'
+      if (it.mod && !pend.artifact.includes(it.mod)) return 'That mod was not offered.'
+      const chest = typeof it.chest === 'number' ? pend.chest[it.chest] : undefined
+      if (typeof it.chest === 'number' && !chest) return 'That chest reward was not offered.'
+
+      run.pending = run.pending.filter((x) => x.id !== pend.id)
+      if (it.unlock) {
+        p.unlocked.push(it.unlock)
+        const a = abilityById(it.unlock)
+        log(run, 'unlock', `${p.name} unlocked ${a.name} (${KIND_LABEL[a.kind]}).`)
+      }
+      if (gear) addItem(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' })
+      if (it.mod) { p.artifact.push(it.mod); log(run, 'artifact', `${p.name} researched ${it.mod}.`) }
+      if (chest?.kind === 'artifact') { p.artifact.push(chest.mod); log(run, 'artifact', `${p.name} researched ${chest.mod}.`) }
+      if (chest?.kind === 'expansion') { p.capacityBonus++; log(run, 'upgrade', `${p.name} earned Arsenal Expansion: +1 capacity per slot.`) }
+      if (chest?.kind === 'archive') { p.loadoutBonus++; log(run, 'upgrade', `${p.name} earned Loadout Archive: +1 loadout slot.`) }
+      drops.forEach((d) => addItem(run, p, d))
+      return null
+    }
+  }
+  return 'Unknown action.'
+}
+
+// ---------------------------------------------------------------- Lobby
+
+export type Seat = {
+  id: string
+  clientId: string | null
+  name: string
+  cls: ClassType
+  element: Element
+  starter: { super: string; melee: string; grenade: string }
+  checklist: Record<ChecklistKey, boolean>
+  ready: boolean
+  isHost: boolean
+}
+
+export type Lobby = {
+  code: string
+  name: string
+  protocolId: string
+  ruleset: Ruleset
+  expedition: 'custom' | 'chronological'
+  route: string[]
+  seats: Seat[]
+}
+
+export const MAX_SEATS = 3
+
+export function defaultStarter(cls: ClassType, el: Element): Seat['starter'] {
+  const a = subclassAbilities(cls, el)
+  const first = (k: string) => a.find((x) => x.kind === k)!.id
+  return { super: first('super'), melee: first('melee'), grenade: first('grenade') }
+}
+
+export function newSeat(n: number, clientId: string | null, isHost = false): Seat {
+  const cls = CLASSES[(n - 1) % 3]
+  const element = ELEMENTS[(n - 1) % 5]
+  return {
+    id: uid(), clientId, name: `Guardian ${n}`, cls, element, starter: defaultStarter(cls, element),
+    checklist: { greyKinetic: false, greyEnergy: false, greenHeavy: false, greyArmor: false, noAspects: false, noFragments: false },
+    ready: false, isHost,
+  }
+}
+
+export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lobby {
+  return {
+    code, name: '', protocolId: ruleset.id, ruleset: structuredClone(ruleset),
+    expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3),
+    seats: [newSeat(1, hostCid, true)],
+  }
+}
+
+export function runFromLobby(l: Lobby): Run {
+  const players: Player[] = l.seats.map((s, i) => {
+    const p = newPlayer(i + 1, s.cls, s.element)
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade], checklist: { ...s.checklist } }
+  })
+  return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
+}
+
+export type LobbyIntent =
+  | { type: 'seat-claim'; seatId: string | null }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready'>> }
+  | { type: 'seat-leave' }
+
+/** Seat changes from a player's device (or the host for their own seat). */
+export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, online: (cid: string) => boolean): string | null {
+  const it = raw as LobbyIntent & Record<string, unknown>
+  const mine = l.seats.find((s) => s.clientId === clientId)
+  switch (it.type) {
+    case 'seat-claim': {
+      if (mine) return null
+      if (it.seatId === null) {
+        if (l.seats.length >= MAX_SEATS) return 'The fireteam is full.'
+        l.seats.push(newSeat(l.seats.length + 1, clientId))
+        return null
+      }
+      const seat = l.seats.find((s) => s.id === it.seatId)
+      if (!seat) return 'Seat not found.'
+      if (seat.clientId && online(seat.clientId)) return 'Someone is already in that seat.'
+      seat.clientId = clientId
+      seat.ready = false
+      return null
+    }
+    case 'seat-update': {
+      if (!mine) return 'Join a seat first.'
+      const pt = (it.patch ?? {}) as Record<string, unknown>
+      if (typeof pt.name === 'string') mine.name = pt.name.slice(0, 24)
+      if (CLASSES.includes(pt.cls as ClassType) && pt.cls !== mine.cls) { mine.cls = pt.cls as ClassType; mine.starter = defaultStarter(mine.cls, mine.element) }
+      if (ELEMENTS.includes(pt.element as Element) && pt.element !== mine.element) { mine.element = pt.element as Element; mine.starter = defaultStarter(mine.cls, mine.element) }
+      if (pt.starter && typeof pt.starter === 'object') {
+        const ids = subclassAbilities(mine.cls, mine.element)
+        const st = pt.starter as Record<string, unknown>
+        for (const k of ['super', 'melee', 'grenade'] as const) {
+          if (typeof st[k] === 'string' && ids.some((a) => a.id === st[k] && a.kind === k)) mine.starter[k] = st[k] as string
+        }
+      }
+      if (pt.checklist && typeof pt.checklist === 'object') {
+        for (const [k, v] of Object.entries(pt.checklist as Record<string, unknown>)) if (k in mine.checklist) mine.checklist[k as ChecklistKey] = !!v
+      }
+      if (typeof pt.ready === 'boolean') mine.ready = pt.ready
+      return null
+    }
+    case 'seat-leave': {
+      if (!mine || mine.isHost) return null
+      l.seats = l.seats.filter((s) => s !== mine)
+      return null
+    }
+  }
+  return 'Unknown action.'
+}
+
+/** A player reclaiming their Guardian mid-run from a new device or browser. */
+export function claimRunSeat(run: Run, clientId: string, playerId: string, online: (cid: string) => boolean): string | null {
+  if (run.players.some((p) => p.clientId === clientId)) return null
+  const p = run.players.find((x) => x.id === playerId)
+  if (!p) return 'Guardian not found.'
+  if (p.clientId && online(p.clientId)) return 'That Guardian is already controlled by a connected device.'
+  p.clientId = clientId
+  log(run, 'run', `${p.name} linked a device.`)
+  return null
+}
+
+// ---------------------------------------------------------------- Example run
+
+export function exampleRun(code: string, hostCid: string): Run {
+  const a = newPlayer(1, 'Warlock', 'Solar')
+  a.name = 'Ikora’s Pupil'
+  a.clientId = hostCid
+  const b = newPlayer(2, 'Titan', 'Void')
+  b.name = 'Shieldwall'
+  b.isHost = false
+  const c = newPlayer(3, 'Hunter', 'Strand')
+  c.name = 'Threadrunner'
+  c.isHost = false
+  const starters: [Player, string[]][] = [
+    [a, ['Solar|super|Well of Radiance', 'Solar|melee|Incinerator Snap', 'Solar|grenade|Healing Grenade']],
+    [b, ['Void|super|Sentinel Shield', 'Void|melee|Shield Throw', 'Void|grenade|Suppressor Grenade']],
+    [c, ['Strand|super|Silkstrike', 'Strand|melee|Threaded Spike', 'Strand|grenade|Grapple']],
+  ]
+  for (const [p, ids] of starters) {
+    p.unlocked = ids
+    for (const k of Object.keys(p.checklist) as ChecklistKey[]) p.checklist[k] = true
+  }
+  const run = createRun({ ruleset: PRESETS[0], players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
+  run.example = true
+  const [pa, pb, pc] = run.players
+  const gear: [Player, string, Slot, Rarity][] = [
+    [pa, 'Prosecutor', 'Energy', 'Uncommon'], [pa, 'Pillager', 'Kinetic', 'Common'], [pa, 'Tarantula', 'Power', 'Uncommon'],
+    [pb, 'Bad Neighbors', 'Kinetic', 'Common'], [pb, 'Chain of Command', 'Energy', 'Common'], [pb, 'Pentatonic-48', 'Power', 'Uncommon'],
+    [pc, 'Nightshade', 'Kinetic', 'Common'], [pc, 'Dead-Eye', 'Energy', 'Common'], [pc, 'Pentatonic-48', 'Power', 'Uncommon'],
+  ]
+  for (const [p, name, slot, rarity] of gear) addItem(run, p, { name, slot, rarity, source: 'starting gear' }).equipped = true
+  const resolveFirst = (picks: string[]) => {
+    run.players.forEach((p, i) => {
+      const pend = run.pending.find((x) => x.playerId === p.id)!
+      pend.unlock = [picks[i], ...pend.unlock.filter((x) => x !== picks[i])].slice(0, 3)
+      applyIntent(run, p.id, { type: 'resolve', pendingId: pend.id, unlock: picks[i], drops: [] })
+    })
+  }
+  changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+  recordClear(run, 1)
+  resolveFirst(['Solar|aspect|Touch of Flame', 'Void|aspect|Controlled Demolition', 'Strand|aspect|Whirling Maelstrom'])
+  addItem(run, pb, { name: 'Dreaded Venture', slot: 'Energy', rarity: 'Rare', source: 'encounter drop' })
+  recordClear(run)
+  // The host resolves their own reward; the other two are still choosing.
+  const mine = run.pending.filter((x) => x.playerId === pa.id && x.kind === 'clear').pop()!
+  applyIntent(run, pa.id, { type: 'resolve', pendingId: mine.id, unlock: mine.unlock[0], drops: [] })
+  changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+  pc.configured.push("Strand|aspect|Widow's Silk")
+  return run
+}
