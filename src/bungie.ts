@@ -1,6 +1,7 @@
-// Bungie sign-in and read-only profile access (Mode B, Level 3 Integration).
+// Bungie sign-in and profile access (Mode B, Level 3 Integration).
 // Tokens live only in this browser (localStorage). The client secret lives in the
-// Netlify Function at /api/bungie-token. Nothing here equips or moves items.
+// Netlify Function at /api/bungie-token. Only restoreGuardian moves or equips items,
+// and only when the player asks for it.
 
 import { ALL_SLOTS, ARTIFACTS, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
@@ -35,6 +36,11 @@ export function isSignedIn() {
 }
 
 export function signOut() { saveTokens(null) }
+
+/** The signed-in Bungie.net account id, used to match a player back to their Guardian in a run. */
+export function bungieAccountId(): string | null {
+  return isSignedIn() ? loadTokens()?.membershipId ?? null : null
+}
 
 /** Sends the browser to Bungie's sign-in page. It comes back to /auth/callback. */
 export function startSignIn() {
@@ -100,18 +106,31 @@ async function accessToken(): Promise<string | null> {
 
 export class BungieError extends Error {}
 
-async function api<T>(path: string): Promise<T> {
-  const token = await accessToken()
-  if (!token) throw new BungieError('Your Bungie sign-in has expired. Sign in again.')
-  const res = await fetch(ROOT + path, { headers: { 'X-API-Key': API_KEY!, Authorization: `Bearer ${token}` } })
-  const data = await res.json().catch(() => null) as { ErrorCode?: number; Message?: string; ErrorStatus?: string; Response?: T } | null
-  if (res.status === 401) { saveTokens(null); throw new BungieError('Your Bungie sign-in has expired. Sign in again.') }
-  if (!data || data.ErrorCode !== 1) {
-    if (data?.ErrorStatus === 'SystemDisabled') throw new BungieError('Bungie’s API is down for maintenance. Try again later.')
+/** A refused item action; `status` is Bungie's ErrorStatus. */
+export class BungieActionError extends BungieError {
+  status: string
+  constructor(message: string, status: string) { super(message); this.status = status }
+}
+
+async function api<T>(path: string, body?: object): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const token = await accessToken()
+    if (!token) throw new BungieError('Your Bungie sign-in has expired. Sign in again.')
+    const res = await fetch(ROOT + path, body
+      ? { method: 'POST', headers: { 'X-API-Key': API_KEY!, Authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) }
+      : { headers: { 'X-API-Key': API_KEY!, Authorization: `Bearer ${token}` } })
+    const data = await res.json().catch(() => null) as { ErrorCode?: number; Message?: string; ErrorStatus?: string; ThrottleSeconds?: number; Response?: T } | null
+    if (res.status === 401) { saveTokens(null); throw new BungieError('Your Bungie sign-in has expired. Sign in again.') }
+    if (data && data.ErrorCode === 1) return data.Response as T
+    const status = data?.ErrorStatus ?? ''
+    // Item actions are rate limited; Bungie says how long to wait.
+    if (/Throttle/.test(status) && attempt < 4) { await wait(Math.max(1, data?.ThrottleSeconds ?? 1) * 1000); continue }
+    if (status === 'SystemDisabled') throw new BungieError('Bungie’s API is down for maintenance. Try again later.')
+    if (body) throw new BungieActionError(data?.Message || `Bungie returned HTTP ${res.status}.`, status)
     throw new BungieError(data?.Message || `Bungie returned HTTP ${res.status}.`)
   }
-  return data.Response as T
 }
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 // ------------------------------------------------------------------ item table
 
@@ -166,6 +185,16 @@ export type BungieSnapshot = {
   artifact: EquippedArtifact | null
   /** When Bungie generated the inventory data. */
   mintedAt: number | null
+  /** The synced character's gear and subclass setup, for putting it back later. */
+  restore: RestorePoint | null
+}
+
+/** A character's equipped gear and subclass sockets, recorded so the run's setup can be re-equipped. */
+export type RestorePoint = {
+  characterId: string
+  /** Instance ids of the equipped weapons and armor. */
+  equipped: string[]
+  subclass?: { itemId: string; plugs: [socketIndex: number, plugHash: number][] }
 }
 
 /** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
@@ -238,6 +267,20 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     subclass: charId ? await readSubclass(p, charId, cls).catch(() => null) : null,
     artifact: charId ? await readArtifact(p, charId).catch(() => null) : null,
     mintedAt: (() => { const m = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp; return m ? Date.parse(m) : null })(),
+    restore: charId ? restorePoint(p, charId, items) : null,
+  }
+}
+
+function restorePoint(p: ProfileResponse, charId: string, items: Record<string, ItemRow>): RestorePoint {
+  const eq = p.characterEquipment?.data?.[charId]?.items ?? []
+  const sub = eq.find((i) => i.bucketHash === SUBCLASS_BUCKET)
+  const sockets = sub?.itemInstanceId ? p.itemComponents?.sockets?.data?.[sub.itemInstanceId]?.sockets ?? [] : []
+  return {
+    characterId: charId,
+    equipped: eq.filter((i) => items[i.itemHash] && i.itemInstanceId).map((i) => i.itemInstanceId!),
+    subclass: sub?.itemInstanceId
+      ? { itemId: sub.itemInstanceId, plugs: sockets.flatMap((s, idx): [number, number][] => (s.plugHash ? [[idx, s.plugHash]] : [])) }
+      : undefined,
   }
 }
 
@@ -426,4 +469,138 @@ async function readArtifact(p: ProfileResponse, charId: string): Promise<Equippe
   const activePerks = (await Promise.all([...new Set(active)].map(defName))).filter((n): n is string => !!n)
   const matched = ARTIFACTS.find((a) => normName(a.name) === normName(name))?.name
   return { name, matched, activePerks }
+}
+
+// ------------------------------------------------------------------ restore a run's setup
+
+const POSTMASTER_BUCKET = 215593132
+
+export type RestoreReport = {
+  character: string
+  vaulted: string[]
+  pulled: string[]
+  /** 'location': Bungie only equips in orbit, a social space, or while offline. */
+  equip: 'done' | 'partial' | 'location' | 'skipped'
+  /** Tracked items that couldn't be found on the account, or couldn't be moved. */
+  problems: string[]
+}
+
+type Held = { instanceId: string; itemHash: number; name: string; where: 'vault' | 'postmaster' | string; equipped: boolean; exotic: boolean }
+
+/** Every weapon and armor instance on the account and where it is. */
+function holdings(p: ProfileResponse, items: Record<string, ItemRow>): Held[] {
+  const out: Held[] = []
+  const add = (list: ItemComponent[] | undefined, where: (i: ItemComponent) => Held['where'] | null, equipped: boolean) => list?.forEach((i) => {
+    const r = items[i.itemHash]
+    const w = where(i)
+    if (r && i.itemInstanceId && w) out.push({ instanceId: i.itemInstanceId, itemHash: i.itemHash, name: r[0], where: w, equipped, exotic: r[2] === 4 })
+  })
+  add(p.profileInventory?.data?.items, (i) => (i.bucketHash === VAULT_BUCKET ? 'vault' : null), false)
+  for (const [id, c] of Object.entries(p.characterInventories?.data ?? {})) add(c.items, (i) => (i.bucketHash === POSTMASTER_BUCKET ? 'postmaster' : id), false)
+  for (const [id, c] of Object.entries(p.characterEquipment?.data ?? {})) add(c.items, () => id, true)
+  return out
+}
+
+const noScope = (e: unknown) => e instanceof BungieActionError && /Scope/.test(e.status)
+const actionMessage = (e: unknown) => {
+  if (!(e instanceof BungieActionError)) return (e as Error).message
+  if (/Scope/.test(e.status)) return 'This Bungie app isn’t allowed to move items yet. Enable “Move or equip Destiny gear” for the app on bungie.net, then sign out and back in.'
+  if (/NoRoom|Full/.test(e.status)) return 'No room: your Vault or character inventory is full.'
+  return e.message
+}
+/** True when Bungie refused because the character is in an activity. */
+const wrongPlace = (e: unknown) => e instanceof BungieActionError && /Location|Activity|InCombat/.test(e.status)
+
+/**
+ * Puts a run's setup back on the run's character: sends weapons and armor that aren't part of the
+ * run to the Vault, pulls the run's items onto the character, then equips the last recorded
+ * setup and subclass. Bungie only allows equipping in orbit, a social space, or while offline;
+ * moving items works anywhere.
+ */
+export async function restoreGuardian(player: Player, point: RestorePoint | undefined, progress: (msg: string) => void): Promise<RestoreReport> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const read = () => api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205,305`)
+  let p = await read()
+  const chars = p.characters?.data ?? {}
+  const charId = point && chars[point.characterId]?.classType === CLASS_TYPE[player.cls] ? point.characterId : pickCharacter(p, player.cls)?.id
+  if (!charId) throw new BungieError(`There's no ${player.cls} on this account.`)
+  const report: RestoreReport = { character: `${player.cls}, ${chars[charId].light} Power`, vaulted: [], pulled: [], equip: 'skipped', problems: [] }
+  const move = (h: Held, toVault: boolean, characterId: string) =>
+    api('/Destiny2/Actions/Items/TransferItem/', { itemReferenceHash: h.itemHash, stackSize: 1, transferToVault: toVault, itemId: h.instanceId, characterId, membershipType: mem.membershipType })
+
+  // Which instances are the run's items: by instance id, else the best copy with the same name.
+  const held = holdings(p, items)
+  const tracked = new Set<string>()
+  for (const it of player.inventory) {
+    const exact = it.instanceId ? held.find((h) => h.instanceId === it.instanceId) : undefined
+    const byName = exact ?? held
+      .filter((h) => h.name === it.name && !tracked.has(h.instanceId) && h.where !== 'postmaster')
+      .sort((a, b) => Number(b.where === charId) - Number(a.where === charId) || Number(b.where === 'vault') - Number(a.where === 'vault'))[0]
+    if (byName) tracked.add(byName.instanceId)
+    else report.problems.push(`${it.name}: not found on your account`)
+  }
+
+  const vaultExtras = async () => {
+    for (const h of holdings(p, items).filter((x) => x.where === charId && !x.equipped && !tracked.has(x.instanceId))) {
+      progress(`Sending ${h.name} to the Vault…`)
+      try { await move(h, true, charId); report.vaulted.push(h.name) } catch (e) {
+        // Without the move/equip permission nothing will work, so stop at the first refusal.
+        if (noScope(e)) throw new BungieError(actionMessage(e))
+        report.problems.push(`${h.name}: ${actionMessage(e)}`)
+      }
+    }
+  }
+
+  // 1. Clear room on the character.
+  await vaultExtras()
+  // 2. Bring the run's items over (via the Vault from other characters).
+  for (const h of held.filter((x) => tracked.has(x.instanceId) && x.where !== charId)) {
+    if (h.where === 'postmaster') { report.problems.push(`${h.name}: in the Postmaster, collect it in game`); continue }
+    if (h.equipped) { report.problems.push(`${h.name}: equipped on another character`); continue }
+    progress(`Pulling ${h.name} to your ${player.cls}…`)
+    try {
+      if (h.where !== 'vault') await move(h, true, h.where)
+      await move(h, false, charId)
+      report.pulled.push(h.name)
+    } catch (e) {
+      if (noScope(e)) throw new BungieError(actionMessage(e))
+      report.problems.push(`${h.name}: ${actionMessage(e)}`)
+    }
+  }
+  // 3. Equip the last recorded setup (or the run's equipped items), then the subclass sockets.
+  const wanted = (point?.characterId === charId ? point.equipped : [])
+    .filter((id) => tracked.has(id))
+  const fallback = player.inventory.filter((i) => i.equipped).map((i) => i.instanceId).filter((id): id is string => !!id && tracked.has(id))
+  const ids = wanted.length ? wanted : fallback
+  const exoticFirst = new Set(held.filter((h) => h.exotic).map((h) => h.instanceId))
+  const order = [...ids.filter((id) => !exoticFirst.has(id)), ...ids.filter((id) => exoticFirst.has(id))]
+  const sub = point?.characterId === charId ? point.subclass : undefined
+  if (order.length || sub) {
+    progress('Equipping your run setup…')
+    try {
+      const r = await api<{ equipResults?: { itemInstanceId: string; equipStatus: number }[] }>('/Destiny2/Actions/Items/EquipItems/', { itemIds: [...(sub ? [sub.itemId] : []), ...order], characterId: charId, membershipType: mem.membershipType })
+      const failed = (r.equipResults ?? []).filter((x) => x.equipStatus !== 1)
+      report.equip = failed.length ? 'partial' : 'done'
+      if (failed.some((f) => f.equipStatus === 1634)) report.equip = 'location'
+      if (sub && report.equip !== 'location') {
+        const now = p.itemComponents?.sockets?.data?.[sub.itemId]?.sockets ?? []
+        for (const [socketIndex, plugItemHash] of sub.plugs) {
+          if (now[socketIndex]?.plugHash === plugItemHash) continue
+          try {
+            await api('/Destiny2/Actions/Items/InsertSocketPlugFree/', { plug: { socketIndex, socketArrayType: 0, plugItemHash }, itemId: sub.itemId, characterId: charId, membershipType: mem.membershipType })
+          } catch (e) {
+            if (wrongPlace(e)) { report.equip = 'location'; break }
+            report.equip = 'partial'
+          }
+        }
+      }
+    } catch (e) {
+      if (noScope(e)) throw new BungieError(actionMessage(e))
+      if (wrongPlace(e)) report.equip = 'location'
+      else { report.equip = 'partial'; report.problems.push(`Equip: ${actionMessage(e)}`) }
+    }
+  }
+  // 4. Whatever the equip swapped out goes to the Vault too.
+  if (report.equip === 'done' || report.equip === 'partial') { p = await read(); await vaultExtras() }
+  return report
 }

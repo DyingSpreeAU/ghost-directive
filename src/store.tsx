@@ -8,6 +8,8 @@ export type HostStore = {
   hostCid: string
   lobby: Lobby | null
   active: Run | null
+  /** Unfinished runs put aside; any of them can be resumed. */
+  saved: Run[]
   history: Run[]
   protocols: Ruleset[]
   hideIntro: boolean
@@ -22,14 +24,60 @@ export function loadHostStore(): HostStore {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const s = JSON.parse(raw) as HostStore
-      if (s && Array.isArray(s.history) && Array.isArray(s.protocols) && s.hostCid) return s
+      if (s && Array.isArray(s.history) && Array.isArray(s.protocols) && s.hostCid) return { ...s, saved: Array.isArray(s.saved) ? s.saved : [] }
     }
   } catch { /* storage unavailable */ }
-  return { hostCid: uid() + uid(), lobby: null, active: null, history: [], protocols: [], hideIntro: false }
+  return { hostCid: uid() + uid(), lobby: null, active: null, saved: [], history: [], protocols: [], hideIntro: false }
 }
 
 export function saveHostStore(s: HostStore) {
   try { localStorage.setItem(KEY, JSON.stringify(s)) } catch { /* ignore */ }
+  if (s.active || s.saved.length) askPersistentStorage()
+}
+
+let askedPersist = false
+/** Asks the browser not to clear this site's storage when space runs low (runs are only stored here). */
+function askPersistentStorage() {
+  if (askedPersist) return
+  askedPersist = true
+  navigator.storage?.persist?.().catch(() => {})
+}
+/** Whether the browser has agreed to keep this site's storage; null when it can't say. */
+export async function storageIsPersistent(): Promise<boolean | null> {
+  try { return (await navigator.storage?.persisted?.()) ?? null } catch { return null }
+}
+
+/** Unfinished runs this browser can resume: the current one first. */
+export const resumableRuns = (s: HostStore) => [...(s.active && s.active.status === 'active' && !s.active.example ? [s.active] : []), ...s.saved]
+
+/** Puts the current run aside: unfinished runs are kept to resume, finished ones go to history. */
+export function shelveActive(s: HostStore) {
+  const r = s.active
+  if (r && !r.example) {
+    if (r.status === 'active') s.saved = [r, ...s.saved.filter((x) => x.id !== r.id)]
+    else if (!s.history.some((h) => h.id === r.id)) s.history.unshift({ ...r, endedAt: r.endedAt ?? Date.now() })
+  }
+  s.active = null
+}
+
+/** Makes a saved run the one being hosted. The run being hosted, if any, is saved. */
+export function resumeRun(s: HostStore, runId: string) {
+  if (s.active?.id === runId) { s.lobby = null; return }
+  const run = s.saved.find((x) => x.id === runId)
+  if (!run) return
+  shelveActive(s)
+  s.saved = s.saved.filter((x) => x.id !== runId)
+  s.active = run
+  s.lobby = null
+}
+
+/** Deletes a saved run for good, with its drop-detection baselines. */
+export function deleteRun(s: HostStore, runId: string) {
+  if (s.active?.id === runId) s.active = null
+  s.saved = s.saved.filter((x) => x.id !== runId)
+  try {
+    for (const k of Object.keys(localStorage)) if (k.startsWith(`ghost-directive:drop-baseline:${runId}:`)) localStorage.removeItem(k)
+  } catch { /* ignore */ }
 }
 
 export const hasHostSession = (s: HostStore) => !!(s.lobby || s.active)

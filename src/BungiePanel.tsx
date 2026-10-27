@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { accountName, bungieConfigured, detectDrops, fetchSnapshot, isSignedIn, onAuthChange, reconcile, signOut, startSignIn, takeSignInResult } from './bungie'
+import { accountName, bungieConfigured, detectDrops, fetchSnapshot, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
+import { Modal } from './ui'
 import type { Intent, Player, Run } from './model'
 import { useGD } from './store'
 
@@ -48,6 +49,7 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
       subclass: sub ? { name: sub.name, element: sub.element } : null,
       configured: sub && sub.element === p.element ? sub.abilityIds : [],
       artifact: snap.artifact,
+      restore: snap.restore,
     }, p.id)
     const found = drops.filter((d) => !d.starting)
     if (found.length) notify?.(`New drop${found.length > 1 ? 's' : ''} detected: ${found.map((d) => d.name).join(', ')}`)
@@ -155,12 +157,12 @@ export function BungieStart() {
         {signedIn ? (
           <>
             <h2 id="bungie-start-title">Signed in{name ? <> as <span className="bungie-name">{name}</span></> : null}</h2>
-            <p className="muted">Once you&rsquo;re in a run, new drops are tracked automatically and your Vault fills your reward choices. Read-only: nothing in your game is moved or equipped.</p>
+            <p className="muted">Once you&rsquo;re in a run, new drops are tracked automatically and your Vault fills your reward choices. Nothing in your game is moved or equipped unless you ask for it with Restore my Guardian.</p>
           </>
         ) : (
           <>
             <h2 id="bungie-start-title">Sign in with Bungie</h2>
-            <p className="muted">Drops are tracked automatically, reward choices come from your real Vault, and you get warnings when your gear doesn&rsquo;t match the run. Read-only. You can also skip this and enter drops and your Vault by hand.</p>
+            <p className="muted">Drops are tracked automatically, reward choices come from your real Vault, and you get warnings when your gear doesn&rsquo;t match the run. It can also put a saved run&rsquo;s gear back on your character when you ask. You can also skip this and enter drops and your Vault by hand.</p>
           </>
         )}
         {error && <p className="small tone-danger">{error}</p>}
@@ -199,12 +201,79 @@ export function SynapticLink({ onSignOut }: { onSignOut?: () => void }) {
       </span>
       <div className="synaptic-tip" id="synaptic-tip" role="tooltip">
         <strong>Synaptic Link</strong>
-        <p>Your Ghost&rsquo;s link to Bungie&rsquo;s servers. While it&rsquo;s green, the app reads what you have equipped, your subclass and artifact, and new drops during a run. Read-only.</p>
+        <p>Your Ghost&rsquo;s link to Bungie&rsquo;s servers. While it&rsquo;s green, the app reads what you have equipped, your subclass and artifact, and new drops during a run. It only moves or equips items when you use Restore my Guardian.</p>
         <p className={ok ? 'tone-ok' : 'tone-danger'}>{state}</p>
         {signedIn
           ? onSignOut && <button className="link" onClick={onSignOut}>Sign out of Bungie</button>
           : <button className="link" onClick={startSignIn}>Sign in with Bungie</button>}
       </div>
     </div>
+  )
+}
+
+/**
+ * Puts the run's setup back on the player's character in Destiny 2: weapons and armor outside the
+ * run go to the Vault, run items come to the character, and the last recorded setup is equipped.
+ */
+export function RestoreGuardian({ run, p }: { run: Run; p: Player }) {
+  const { signedIn } = useBungie()
+  const { dispatch, toast } = useGD()
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [step, setStep] = useState('')
+  const [report, setReport] = useState<RestoreReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  if (!bungieConfigured || !signedIn || run.status !== 'active') return null
+  const point = p.bungie?.restore
+  const go = async () => {
+    setBusy(true); setError(null); setReport(null)
+    try {
+      setReport(await restoreGuardian(p, point, setStep))
+      await syncBungie(run, p, dispatch, toast)
+    } catch (e) { setError((e as Error).message) }
+    setBusy(false); setStep('')
+  }
+  const close = () => { if (!busy) { setOpen(false); setReport(null); setError(null) } }
+  return (
+    <>
+      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>Restore my Guardian</button>
+      {open && (
+        <Modal
+          title="Restore my Guardian"
+          kicker={`${p.name} · ${p.cls}`}
+          onClose={busy ? undefined : close}
+          footer={report || error
+            ? <button className="btn btn-light" onClick={close}>Done</button>
+            : <><button className="btn btn-ghost" disabled={busy} onClick={close}>Cancel</button><button className="btn btn-light" disabled={busy} onClick={go}>{busy ? 'Working…' : 'Restore'}</button></>}
+        >
+          {!report && !error && (
+            <div className="stack restore-info">
+              <p>Puts this run&rsquo;s setup back on your {p.cls} in Destiny 2:</p>
+              <ul>
+                <li><strong>To the Vault:</strong> weapons and armor on your {p.cls} that aren&rsquo;t in your run inventory.</li>
+                <li><strong>To your {p.cls}:</strong> your {p.inventory.length} run item{p.inventory.length === 1 ? '' : 's'}, from the Vault or your other characters.</li>
+                <li><strong>Equip:</strong> {point ? `your last run setup (recorded ${new Date(point.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}) and its subclass` : 'the items marked equipped in your run inventory'}. Bungie only allows this in orbit, a social space like the Tower, or while you&rsquo;re offline.</li>
+              </ul>
+              <p className="small muted">Nothing is deleted or dismantled. Items in the Postmaster stay there. If your Vault is full, some items can&rsquo;t move.</p>
+              {busy && <p className="small"><span className="scanner small" aria-hidden="true" /> {step || 'Reading your account…'}</p>}
+            </div>
+          )}
+          {error && <p className="tone-danger">{error}</p>}
+          {report && (
+            <div className="stack restore-info">
+              <p>Your {report.character}:</p>
+              <ul>
+                <li>{report.vaulted.length ? `Sent to the Vault: ${report.vaulted.join(', ')}` : 'Nothing needed to go to the Vault.'}</li>
+                <li>{report.pulled.length ? `Pulled to your ${p.cls}: ${report.pulled.join(', ')}` : `Your run items were already on your ${p.cls}.`}</li>
+                <li className={report.equip === 'done' ? 'tone-ok' : report.equip === 'skipped' ? '' : 'tone-warn'}>
+                  {{ done: 'Run setup equipped.', partial: 'Some of your run setup couldn’t be equipped; check your character.', location: 'Not equipped: you’re in an activity. Go to orbit or a social space (or log off) and run this again to equip.', skipped: 'No recorded setup to equip yet.' }[report.equip]}
+                </li>
+              </ul>
+              {report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t handle:</p><ul className="small">{report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
+            </div>
+          )}
+        </Modal>
+      )}
+    </>
   )
 }

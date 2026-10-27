@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
-import { bungieConfigured, signOut, takeSignInResult } from './bungie'
+import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView } from './Lobby'
 import { Protocols } from './Protocols'
 import {
-  GDContext, useGD, guestSession, hasHostSession, lastCode, loadHostStore, saveGuestSession, saveHostStore,
+  GDContext, useGD, deleteRun, guestSession, hasHostSession, lastCode, loadHostStore, resumableRuns, resumeRun, saveGuestSession, saveHostStore, shelveActive, storageIsPersistent,
   type Ctx, type Flow, type HostStore, type Snapshot, type View,
 } from './store'
 import {
-  PRESETS, applyIntent, applyLobbyIntent, capacityOf, claimRunSeat, computeWarnings, createLobby, exampleRun, itemsIn,
+  PRESETS, applyIntent, applyLobbyIntent, bindBungieId, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
   type Intent, type LobbyIntent, type Run,
 } from './model'
 import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, normalizeCode, snapshotAssembler, type StateChunk, type Transport, type TransportStatus } from './net'
@@ -40,12 +40,14 @@ function markHostingTab(on: boolean) { try { if (on) sessionStorage.setItem(ROLE
 function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string) => void }) {
   const [code, setCode] = useState(lastCode())
   const [err, setErr] = useState('')
-  const [saved] = useState(() => { const s = loadHostStore(); return hasHostSession(s) ? s : null })
+  const [store, setStore] = useState(loadHostStore)
+  const runs = resumableRuns(store)
+  // An open lobby, or a finished run not yet archived, resumes from its own card.
+  const saved = hasHostSession(store) && !(store.active && runs.includes(store.active)) ? store : null
   const host = (example: boolean) => {
     const s = loadHostStore()
-    // Starting fresh archives whatever this browser was hosting.
-    if (s.active && !s.active.example) s.history.unshift({ ...s.active, status: s.active.status === 'active' ? 'abandoned' : s.active.status, endedAt: s.active.endedAt ?? Date.now() })
-    s.active = null
+    // Starting fresh keeps an unfinished run in Saved runs.
+    shelveActive(s)
     s.lobby = null
     const c = makeLobbyCode()
     if (example) s.active = exampleRun(c, s.hostCid)
@@ -67,6 +69,11 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
         <p className="landing-lede">Play Destiny 2 as normal. The host keeps the run; every Guardian joins from their own device to pick rewards and manage their own gear.</p>
         <BungieStart />
         {bungieConfigured && <div className="eyebrow landing-step">Step 2 &middot; Host or join</div>}
+        <SavedRuns
+          runs={runs}
+          onResume={(id) => { const s = loadHostStore(); resumeRun(s, id); saveHostStore(s); onHost() }}
+          onDelete={(id) => { const s = loadHostStore(); deleteRun(s, id); saveHostStore(s); setStore(s) }}
+        />
         <div className="landing-grid">
           {saved && (
             <section className="panel landing-card is-resume">
@@ -81,10 +88,10 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
           )}
           <section className="panel landing-card">
             <div className="eyebrow">Host</div>
-            <h2>{saved ? 'Start a new lobby' : 'Start a lobby'}</h2>
+            <h2>{saved || runs.length ? 'Start a new lobby' : 'Start a lobby'}</h2>
             <p className="muted">Your browser stores the run, so you can close the window and pick it up later. You get a code to share with your fireteam.</p>
-            <button className={`btn ${saved ? 'btn-ghost' : 'btn-light'}`} onClick={() => host(false)}>{saved ? 'Create new lobby' : 'Create lobby'}</button>
-            {saved?.active && saved.active.status === 'active' && !saved.active.example && <p className="small muted">Creating a new lobby archives your saved run.</p>}
+            <button className={`btn ${saved || runs.length ? 'btn-ghost' : 'btn-light'}`} onClick={() => host(false)}>{saved || runs.length ? 'Create new lobby' : 'Create lobby'}</button>
+            {runs.length > 0 && <p className="small muted">Unfinished runs stay in Saved runs.</p>}
             <button className="link" onClick={() => host(true)}>Or explore an example run</button>
           </section>
           <section className="panel landing-card">
@@ -102,6 +109,58 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
         {!inClaudeViewer() && <p className="small muted">Outside claude.ai, lobbies connect browsers directly (WebRTC) through the public PeerJS broker.</p>}
       </div>
     </div>
+  )
+}
+
+function SavedRuns({ runs, onResume, onDelete }: { runs: Run[]; onResume: (id: string) => void; onDelete: (id: string) => void }) {
+  const [confirm, setConfirm] = useState<string | null>(null)
+  const [persistent, setPersistent] = useState<boolean | null>(null)
+  const me = bungieAccountId()
+  useEffect(() => { storageIsPersistent().then(setPersistent) }, [runs.length])
+  if (!runs.length) return null
+  const when = (t: number) => new Date(t).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+  return (
+    <section className="panel saved-runs" aria-labelledby="saved-runs-title">
+      <header className="saved-runs-head">
+        <div>
+          <div className="eyebrow">Saved in this browser</div>
+          <h2 id="saved-runs-title">Saved runs</h2>
+        </div>
+        <p className="small muted">
+          Unlocks, route progress, inventory and each Guardian&rsquo;s last setup are kept in this browser&rsquo;s storage
+          {persistent ? ', which the browser has agreed not to clear.' : '. Clearing site data removes them.'}
+        </p>
+      </header>
+      <ul className="saved-list">
+        {runs.map((r) => {
+          const { dungeon, encounter, done, total } = current(r)
+          const mine = !!me && r.players.some((p) => p.bungieId === me)
+          return (
+            <li key={r.id} className="saved-run">
+              <div className="saved-run-main">
+                <span className="saved-run-title"><strong>{r.name}</strong>{mine && <span className="tag tag-bungie">You played</span>}</span>
+                <span className="muted small">
+                  Lobby <span className="mono">{r.code}</span> &middot; {dungeon.name}, {encounter.name} ({done}/{total}) &middot; {r.integrity} Integrity &middot; last played {when(r.log[0]?.at ?? r.startedAt)}
+                </span>
+                <span className="small">{r.players.map((p) => p.bungie ? `${p.name} (${p.bungie.name})` : p.name).join(', ')}</span>
+              </div>
+              {confirm === r.id ? (
+                <div className="row-acts">
+                  <span className="small tone-danger">Delete this run for good?</span>
+                  <button className="btn btn-danger btn-sm" onClick={() => { onDelete(r.id); setConfirm(null) }}>Delete</button>
+                  <button className="btn btn-ghost btn-sm" onClick={() => setConfirm(null)}>Keep</button>
+                </div>
+              ) : (
+                <div className="row-acts">
+                  <button className="btn btn-light btn-sm" onClick={() => onResume(r.id)}>Resume</button>
+                  <button className="link" onClick={() => setConfirm(r.id)}>Delete</button>
+                </div>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -160,7 +219,7 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
     tRef.current = t
     t.onStatus((status, detail) => { setNet({ status, detail }); if (status === 'online') scheduleBroadcast(300) })
     t.onMessage((raw, from) => {
-      const m = raw as { r?: string; k?: string; cid?: unknown; id?: unknown; scope?: unknown; intent?: unknown; playerId?: unknown }
+      const m = raw as { r?: string; k?: string; cid?: unknown; id?: unknown; scope?: unknown; intent?: unknown; playerId?: unknown; bid?: unknown }
       if (m?.r !== 'g' || typeof m.cid !== 'string' || m.cid.length > 40) return
       const cid = m.cid
       const prev = seen.current.get(cid)
@@ -168,6 +227,13 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
       if (prev && prev.peer !== from && Date.now() - prev.at < SEEN_MS / 2) return
       seen.current.set(cid, { peer: from, at: Date.now() })
       refreshOnline()
+      // A signed-in player's Bungie account finds their Guardian again from a new device or session.
+      const bindBid = () => {
+        if (typeof m.bid !== 'string' || !(ref.current.active || ref.current.lobby)) return
+        const probe = structuredClone({ run: ref.current.active, lobby: ref.current.lobby })
+        if (bindBungieId(probe, cid, m.bid, isOnline)) mutate((d) => { bindBungieId({ run: d.active, lobby: d.lobby }, cid, m.bid as string, isOnline) })
+      }
+      bindBid()
       if (m.k === 'hello' || m.k === 'sync') return scheduleBroadcast(50)
       if (m.k !== 'intent') return
       let err: string | null = null
@@ -182,6 +248,7 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
         else mutate((d) => { err = applyIntent(d.active!, p.id, m.intent as Intent) })
       } else err = 'The lobby has moved on. Refreshing…'
       if (err) { ref.current = s; setStore(s) }
+      else bindBid() // a seat just claimed gets the player's Bungie account straight away
       t.send({ r: 'h', k: 'ack', to: cid, id: m.id, err })
     })
     const tick = setInterval(() => {
@@ -206,6 +273,17 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
       onLeave()
     },
   }), [store, mutate, onLeave])
+
+  // The host's own Bungie account goes on their seat or Guardian too.
+  useEffect(() => {
+    const bind = () => {
+      const bid = bungieAccountId()
+      const s = ref.current
+      if (bid && bindBungieId(structuredClone({ run: s.active, lobby: s.lobby }), s.hostCid, bid, isOnline)) mutate((d) => { bindBungieId({ run: d.active, lobby: d.lobby }, d.hostCid, bid, isOnline) })
+    }
+    bind()
+    return onAuthChange(bind)
+  }, [code, isOnline, mutate])
 
   const myPlayerId = store.active?.players.find((p) => p.clientId === store.hostCid)?.id ?? null
   const ctx: Omit<Ctx, 'openFlow' | 'go' | 'toast'> = {
@@ -258,7 +336,7 @@ function GuestApp({ code, onLeave }: { code: string; onLeave: () => void }) {
   useEffect(() => {
     const t = connect(code, 'guest')
     tRef.current = t
-    const send = (m: object) => t.send({ r: 'g', cid: g.cid, ...m })
+    const send = (m: object) => t.send({ r: 'g', cid: g.cid, bid: bungieAccountId() ?? undefined, ...m })
     const sync = () => { if (Date.now() - syncAt.current > 1500) { syncAt.current = Date.now(); send({ k: 'sync' }) } }
     const assemble = snapshotAssembler((v, value) => { vRef.current = v; setSnap(value as Snapshot); setClosed(false) })
     t.onStatus((status, detail) => { setNet({ status, detail }); if (status === 'online') send({ k: 'hello' }) })
@@ -275,7 +353,7 @@ function GuestApp({ code, onLeave }: { code: string; onLeave: () => void }) {
     return () => { clearInterval(ping); t.close() }
   }, [code, g.cid])
 
-  const send = (m: object) => tRef.current?.send({ r: 'g', cid: g.cid, id: Math.random().toString(36).slice(2, 8), ...m })
+  const send = (m: object) => tRef.current?.send({ r: 'g', cid: g.cid, bid: bungieAccountId() ?? undefined, id: Math.random().toString(36).slice(2, 8), ...m })
   const leave = () => {
     if (snap?.phase === 'lobby') send({ k: 'intent', scope: 'lobby', intent: { type: 'seat-leave' } })
     saveGuestSession({ cid: g.cid, code: null })

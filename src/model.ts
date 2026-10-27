@@ -1,3 +1,4 @@
+import type { RestorePoint } from './bungie'
 import {
   ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
   abilityById, baseKit, dungeonById, subclassAbilities,
@@ -123,6 +124,8 @@ export type Player = {
   bungie?: BungieLink
   /** Bungie instances the player removed from the run (app only), so they aren't detected again. */
   dismissed?: string[]
+  /** The Bungie.net account of the player's device, so a new device or session finds this Guardian again. */
+  bungieId?: string
 }
 
 /** A weapon or armor piece that appeared on the player's account during the run. */
@@ -142,6 +145,8 @@ export type BungieLink = {
   subclass?: { name: string; element: Element }
   /** The artifact equipped in game at the last sync and the perks switched on in it. */
   artifact?: { name: string; matched?: string; activePerks: string[] }
+  /** The last synced setup where everything equipped was part of the run, for "Restore my Guardian". */
+  restore?: RestorePoint & { at: number }
 }
 
 export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
@@ -489,7 +494,7 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null }
   | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
@@ -615,6 +620,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         .map((u) => ({ slot: (u as { slot: Slot }).slot, name: str((u as { name: unknown }).name) }))
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
+      const prevRestore = p.bungie?.restore
       p.vault = vault
       const sub = it.subclass && typeof it.subclass === 'object' && ELEMENTS.includes((it.subclass as { element: Element }).element)
         ? { name: str((it.subclass as { name: unknown }).name, 40), element: (it.subclass as { element: Element }).element } : undefined
@@ -626,6 +632,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (art && str(art.name)) {
         p.bungie.artifact = { name: str(art.name, 60), matched: artifactByName(str(art.matched, 60))?.name, activePerks: strs(art.activePerks, 30) }
       }
+      // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
+      p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
       if (sub && Array.isArray(it.configured)) {
         const valid = new Set(subclassAbilities(p.cls, p.element).map((a) => a.id))
@@ -709,6 +717,8 @@ export type Seat = {
   artifact: string
   /** The player changed class, subclass or abilities themselves, so Bungie auto-fill leaves the seat alone. */
   custom?: boolean
+  /** The Bungie.net account of the seat's device (see bindBungieId). */
+  bungieId?: string
   ready: boolean
   isHost: boolean
 }
@@ -750,10 +760,42 @@ export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lo
   }
 }
 
+function cleanRestore(raw: unknown): BungieLink['restore'] | undefined {
+  const r = (raw ?? {}) as Partial<RestorePoint>
+  const id = (x: unknown) => (typeof x === 'string' && /^\d{1,30}$/.test(x) ? x : '')
+  if (!id(r.characterId) || !Array.isArray(r.equipped)) return undefined
+  const sub = r.subclass && id(r.subclass.itemId) && Array.isArray(r.subclass.plugs)
+    ? { itemId: r.subclass.itemId, plugs: r.subclass.plugs.slice(0, 40).filter((x): x is [number, number] => Array.isArray(x) && Number.isInteger(x[0]) && Number.isInteger(x[1])).map(([a, b]) => [a, b] as [number, number]) }
+    : undefined
+  return { characterId: r.characterId!, equipped: r.equipped.slice(0, 20).map(id).filter(Boolean), subclass: sub, at: Date.now() }
+}
+
+/**
+ * Records which Bungie account a device belongs to, and puts a returning player (new device or
+ * session) back on their Guardian or seat when its old device isn't connected. Returns whether
+ * anything changed.
+ */
+export function bindBungieId(target: { run: Run | null; lobby: Lobby | null }, clientId: string, bungieId: string, online: (cid: string) => boolean): boolean {
+  if (!/^\d{1,30}$/.test(bungieId)) return false
+  const list: (Player | Seat)[] = target.run ? target.run.players : target.lobby ? target.lobby.seats : []
+  const mine = list.find((x) => x.clientId === clientId)
+  if (mine) {
+    if (mine.bungieId === bungieId) return false
+    mine.bungieId = bungieId
+    return true
+  }
+  const match = list.find((x) => x.bungieId === bungieId && !(x.clientId && online(x.clientId)))
+  if (!match) return false
+  match.clientId = clientId
+  if (target.run) log(target.run, 'run', `${match.name} rejoined (matched by Bungie account).`)
+  else if ('ready' in match) match.ready = false
+  return true
+}
+
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade, ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined }
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade, ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }

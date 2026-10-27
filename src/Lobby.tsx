@@ -382,7 +382,7 @@ function SeatBungie() {
   if (!bungieConfigured) return null
   return signedIn
     ? <p className="small seat-bungie"><span className="tag tag-bungie">Bungie</span> Signed in. Your Vault syncs when the run starts.</p>
-    : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional, read-only).</span></p>
+    : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional).</span></p>
 }
 
 /** How to prepare in Destiny 2 before the first encounter. Information only; nothing to tick. */

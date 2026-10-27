@@ -60,6 +60,15 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices. With loadouts hidden, the
   Loadout Archive chest reward, loadout warnings and the protocol's loadout-slot setting are off too.
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
+- **Saved runs**: every unfinished run is kept in the host's browser (`saved` in the host store,
+  localStorage; the app asks the browser for persistent storage). Starting a new lobby or switching
+  runs puts the current one aside instead of ending it. The start screen lists them with route
+  progress, Integrity, Guardians and last played, and offers Resume or Delete (deleting is permanent).
+  Ending a run from the Briefing still archives it to Run History.
+- **Players are matched by Bungie account.** Each device sends its Bungie.net account id with its
+  lobby messages; the host stores it on the seat and the Guardian (`bungieId`). A signed-in player
+  coming back on a new device or session is put back on their Guardian automatically once the old
+  device has been gone ~15 s. No claim screen.
 - **Combat Report**, **Run History**, and a **Protocol editor** (customize, duplicate,
   export/import JSON) with validation.
 - State persists in `localStorage`. First launch loads a clearly marked example run.
@@ -127,12 +136,23 @@ active perks. In the lobby the seat's artifact defaults to the equipped one, and
 preview flags perks still switched on. During a run, a different artifact from the seat's choice, or
 an active perk that hasn't been researched in the run, is flagged.
 
+**Restore my Guardian** (Field Arsenal, signed-in players). Each sync where everything equipped is
+part of the run and the subclass matches records a restore point: the character, the equipped
+instance ids and the subclass's socket plugs (`BungieLink.restore`). Syncs while playing other gear
+leave it alone. Restore then, on the run's character: sends weapons and armor that aren't in the run
+inventory to the Vault, pulls run items from the Vault or other characters (manual entries are matched
+by name), equips the restore point (subclass first, Exotics last) and re-slots the subclass, then
+vaults whatever the equip swapped out. Bungie only equips in orbit, a social space or while offline;
+moving works anywhere, and the result says which happened. Postmaster items and items equipped on
+another character are reported, not moved. Needs the app scope below.
+
 **Synaptic Link.** A Ghost icon at the top right of every lobby and run page shows the Bungie link:
 green when signed in and the last read succeeded within 5 minutes, red otherwise (signed out, an
 API error, or no recent read). It's status only. Hovering explains it and offers sign in or sign out.
 
 **Bungie app** (bungie.net/en/Application): OAuth Client Type *Confidential*; Redirect URL
-`https://<site>/auth/callback`; scope *Read your Destiny 2 information*; Origin Header
+`https://<site>/auth/callback`; scopes *Read your Destiny 2 information* and *Move or equip Destiny gear* (the second is only for
+Restore my Guardian; after adding it, players sign out and back in); Origin Header
 `https://<site>`.
 
 **Netlify environment variables**

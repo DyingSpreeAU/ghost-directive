@@ -8,7 +8,7 @@ import {
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
-import { BungiePanel, syncBungie, useBungie } from './BungiePanel'
+import { BungiePanel, RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter, rarityClass } from './ui'
 
@@ -365,6 +365,7 @@ function FieldArsenal({ run }: { run: Run }) {
             <div className="auto-drops">
               <span><span className="tag tag-bungie">Bungie</span> Drops are checked automatically every minute. <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Add one manually</button></span>
               {bungie.signedIn && <button className="btn btn-ghost btn-sm" disabled={bungie.busy} onClick={() => syncBungie(run, p, dispatch, (m) => toast(m))}>{bungie.busy ? 'Syncing…' : 'Sync drops now'}</button>}
+              <RestoreGuardian run={run} p={p} />
             </div>
           )
           : <button className="btn btn-light" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Register drop</button>}
