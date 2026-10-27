@@ -648,7 +648,11 @@ export async function restoreGuardian(player: Player, point: RestorePoint | unde
 
 export const LOCATION_MESSAGE = 'You’re in an activity. Bungie only lets apps change your subclass and artifact in orbit, a social space like the Tower or H.E.L.M., or while you’re offline. Go to orbit and try again.'
 
-export type SendReport = { character: string; applied: string[]; already: string[]; problems: string[] }
+export type SendReport = {
+  character: string; applied: string[]; already: string[]; problems: string[]
+  /** The character's equipped weapons and armor as read at send time, with instance ids. */
+  gear: { slot: Slot; name: string; rarity: Rarity; instanceId?: string }[]
+}
 
 /**
  * Applies a seat's setup to the active character: switches to the seat's subclass, slots its
@@ -656,14 +660,16 @@ export type SendReport = { character: string; applied: string[]; already: string
  * perk sockets. Bungie only allows this in orbit, a social space, or while offline.
  */
 export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[]; artifact?: string }, progress: (msg: string) => void): Promise<SendReport> {
-  const { mem } = await membership()
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,201,204,205,305,310`)
   const picked = pickCharacter(p)
   if (!picked) throw new BungieError('No characters found on this account.')
   const charId = picked.id
+  const gear = (p.characterEquipment?.data?.[charId]?.items ?? [])
+    .flatMap((i) => { const row = items[i.itemHash]; return row ? [{ slot: ALL_SLOTS[row[1]], name: row[0], rarity: TIERS[row[2]], instanceId: i.itemInstanceId }] : [] })
   const cls = CLASS_NAME[picked.char.classType]
   if (cls !== seat.cls) throw new BungieError(`Your active character is your ${cls}. Switch to your ${seat.cls} in game, or change this seat to ${cls}.`)
-  const report: SendReport = { character: `${cls}, ${picked.char.light} Power`, applied: [], already: [], problems: [] }
+  const report: SendReport = { character: `${cls}, ${picked.char.light} Power`, applied: [], already: [], problems: [], gear }
   const act = (path: string, body: object) => api(path, { ...body, characterId: charId, membershipType: mem.membershipType }).catch((e) => {
     if (wrongPlace(e)) throw new BungieError(LOCATION_MESSAGE)
     if (noScope(e)) throw new BungieError(actionMessage(e))

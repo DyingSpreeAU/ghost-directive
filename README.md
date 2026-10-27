@@ -141,7 +141,10 @@ character. *Send to* does the reverse with the move/equip scope: it switches the
 the seat's subclass, slots its Super, melee and grenade, empties every aspect and fragment socket,
 and empties the artifact's perk sockets (InsertSocketPlugFree, using component 310 to find each
 socket's options), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
-social space or while offline; in an activity it stops and explains why.
+social space or while offline; in an activity it stops and explains why. When Send to finishes with no problems and
+its own read shows a grey/green weapon and grey armor piece (with an instance id) in all eight slots,
+the seat is marked ready straight away, and the lobby trusts the subclass and artifact until Bungie
+returns data minted after the send.
 
 **Restore my Guardian** (Field Arsenal, signed-in players). Each sync where everything equipped is
 part of the run and the subclass matches records a restore point: the character, the equipped

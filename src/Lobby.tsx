@@ -38,14 +38,19 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     toast(`Synced from your ${d.cls}${d.subclass ? ` (${d.subclass.name})` : ''}.`)
   })
   // Apply the seat's setup to the character in game, then re-read it.
-  const [send, setSend] = useState<{ busy: boolean; step?: string; report?: SendReport; error?: string } | null>(null)
+  const [send, setSend] = useState<{ busy: boolean; step?: string; report?: SendReport & { readied?: boolean; gearOk?: boolean }; error?: string } | null>(null)
   const sendSeat = async () => {
     if (!mine) return
     setSend({ busy: true })
     try {
       const abilities = [mine.starter.super, mine.starter.melee, mine.starter.grenade].map((id) => id.split('|')[2])
       const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities, artifact: mine.artifact || undefined }, (step) => setSend({ busy: true, step }))
-      setSend({ busy: false, report })
+      // Everything applied and the gear is starting gear in every slot: ready up now, no need to wait for Bungie.
+      const gearOk = GEAR_SLOTS.every((slot) => report.gear.some((g) => g.slot === slot && g.instanceId && EXPECTED[slot].includes(g.rarity)))
+      const readied = report.problems.length === 0 && gearOk && !!artifactByName(mine.artifact)
+      if (report.problems.length === 0) eq.setSent({ at: Date.now(), gear: report.gear })
+      if (readied && !mine.ready) patchSeat(mine, { ready: true })
+      setSend({ busy: false, report: { ...report, readied, gearOk } })
     } catch (e) { setSend({ busy: false, error: (e as Error).message }) }
     eq.refresh()
   }
@@ -59,6 +64,11 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
             <div className="stack restore-info">
               <p>Your {send.report.character}:</p>
               <ul>{send.report.applied.length ? send.report.applied.map((a) => <li key={a}>{a}</li>) : <li>Already matched this seat. Nothing to change.</li>}</ul>
+              {send.report.readied
+                ? <p className="tone-ok">&#10003; Everything checks out and your gear is starting gear in every slot. You&rsquo;re marked ready.</p>
+                : send.report.problems.length === 0 && !send.report.gearOk
+                  ? <p className="tone-warn">Your subclass and artifact are set, but your gear isn&rsquo;t starting gear in every slot yet, so you&rsquo;re not marked ready.</p>
+                  : null}
               {send.report.already.length > 0 && <><p className="small muted">Already set:</p><ul className="small muted">{send.report.already.map((x) => <li key={x}>{x}</li>)}</ul></>}
               {send.report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t apply:</p><ul className="small">{send.report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
             </div>
@@ -435,6 +445,7 @@ function SetupGuide() {
 /** Starting-gear rarity per slot: grey or green weapons in every slot, grey armor. */
 const WEAPON_OK: Rarity[] = ['Common', 'Uncommon']
 const ARMOR_OK: Rarity[] = ['Common']
+const GEAR_SLOTS: Slot[] = ['Kinetic', 'Energy', 'Power', 'Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
 const EXPECTED: Record<Slot, Rarity[]> = {
   Kinetic: WEAPON_OK, Energy: WEAPON_OK, Power: WEAPON_OK,
   Helmet: ARMOR_OK, Gauntlets: ARMOR_OK, Chest: ARMOR_OK, Legs: ARMOR_OK, 'Class Item': ARMOR_OK,
@@ -476,13 +487,19 @@ function useEquipped() {
     return () => clearInterval(t)
   }, [signedIn, refresh])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
-  const off = data ? data.items.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
+  // A Send to that passed every check vouches for the subclass and artifact until Bungie's data
+  // catches up (data minted after the send), and its own read of the gear stands in for the preview's.
+  const [sent, setSent] = useState<{ at: number; gear: SendReport['gear'] } | null>(null)
+  const vouched = !!sent && (!data?.mintedAt || data.mintedAt < sent.at)
+  const gear = vouched ? sent!.gear : data?.items
+  const off = gear ? gear.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
+  const empty = gear ? GEAR_SLOTS.filter((slot) => !gear.some((i) => i.slot === slot)) : []
   // The run starts with no aspects, fragments or artifact perks switched on.
-  const extras = [...(data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []), ...(data?.artifact?.activePerks ?? [])]
+  const extras = vouched ? [] : [...(data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []), ...(data?.artifact?.activePerks ?? [])]
   const stale = !data?.mintedAt || now - data.mintedAt > STALE_MS
-  // "Synced" here means Bungie's data shows starting gear and no aspects or fragments.
-  const ready = !!data && off.length === 0 && extras.length === 0
-  return { active: bungieConfigured && signedIn, data, busy, error, now, refresh, off, extras, stale, ready }
+  // "Synced" here means starting gear in every slot and no aspects, fragments or artifact perks.
+  const ready = (!!data || vouched) && off.length === 0 && empty.length === 0 && extras.length === 0
+  return { active: bungieConfigured && signedIn, data, busy, error, now, refresh, off, empty, extras, stale, ready, vouched, setSent }
 }
 
 /** Seat settings matching the character: class, subclass, and its slotted Super, melee and grenade. */
@@ -595,12 +612,12 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
 function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
   if (!eq.data) return null
   if (eq.ready) {
-    return <p className={`sync-notice is-ok ${compact ? 'small' : ''}`}><span aria-hidden="true">&#10003;</span> Bungie shows your starting gear. Safe to ready up or start.</p>
+    return <p className={`sync-notice is-ok ${compact ? 'small' : ''}`}><span aria-hidden="true">&#10003;</span> {eq.vouched ? 'Send to set your subclass and artifact, and your gear is starting gear. Safe to ready up or start. Bungie’s data here can show your old setup for a minute or two.' : 'Bungie shows your starting gear. Safe to ready up or start.'}</p>
   }
   return (
     <p className={`sync-notice is-wait ${compact ? 'small' : ''}`}>
       <strong>Wait before readying up.</strong>{' '}
-      {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.extras.length && `${eq.extras.length} aspect, fragment or artifact perk${eq.extras.length > 1 ? 's' : ''} still on`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
+      {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.empty.length && `${eq.empty.length} gear slot${eq.empty.length > 1 ? 's' : ''} empty`, eq.extras.length && `${eq.extras.length} aspect, fragment or artifact perk${eq.extras.length > 1 ? 's' : ''} still on`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
     </p>
   )
 }
