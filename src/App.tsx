@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
-import { BungieStart, useAutoSync } from './BungiePanel'
-import { bungieConfigured, takeSignInResult } from './bungie'
+import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
+import { bungieConfigured, signOut, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView } from './Lobby'
@@ -427,6 +427,11 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
         </aside>
 
         <main className="main">
+          {bungieConfigured && (
+            <div className="main-top">
+              <SynapticLink onSignOut={() => { signOut(); if (me?.bungie) base.dispatch({ type: 'bungie-unlink' }, me.id) }} />
+            </div>
+          )}
           {view === 'protocols' && role === 'host' ? <Protocols />
             : view === 'history' && role === 'host' ? <History />
             : run ? <Briefing run={run} warnings={warnings} pendingDeferred={myPending.length} onOpenRewards={() => { setDeferred([]); if (myPending[0]) setFlow({ type: 'reward', pendingId: myPending[0].id }) }} />

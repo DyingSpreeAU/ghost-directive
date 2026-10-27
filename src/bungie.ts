@@ -2,7 +2,7 @@
 // Tokens live only in this browser (localStorage). The client secret lives in the
 // Netlify Function at /api/bungie-token. Nothing here equips or moves items.
 
-import { ALL_SLOTS, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, ARTIFACTS, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
 import { inClaudeViewer } from './net'
 
@@ -142,6 +142,7 @@ type ProfileResponse = {
   profileInventory?: { data?: { items: ItemComponent[] } }
   characters?: { data?: Record<string, { classType: number; light: number; dateLastPlayed: string }> }
   characterActivities?: { data?: Record<string, { currentActivityHash?: number }> }
+  characterProgressions?: { data?: Record<string, { seasonalArtifact?: { artifactHash?: number; tiers?: { items?: { itemHash: number; isActive?: boolean }[] }[] } }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
   itemComponents?: { sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> } }
@@ -161,6 +162,10 @@ export type BungieSnapshot = {
   instances: { instanceId: string; name: string; slot: Slot; rarity: Rarity }[]
   /** The synced character's equipped subclass and what's slotted in it, or null if unreadable. */
   subclass: EquippedSubclass | null
+  /** The character's equipped artifact and its active perks, or null if unreadable. */
+  artifact: EquippedArtifact | null
+  /** When Bungie generated the inventory data. */
+  mintedAt: number | null
 }
 
 /** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
@@ -186,7 +191,7 @@ export async function accountName(): Promise<string> {
 export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
   const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
 
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205,305`)
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,202,204,205,305`)
   if (p.profileInventory?.data === undefined) throw new BungieError('Bungie did not return your Vault. Check your privacy settings at bungie.net (show my non-equipped inventory).')
   const picked = pickCharacter(p, cls)
   const [charId, char] = picked ? [picked.id, picked.char] : []
@@ -231,6 +236,8 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     character: char ? `${cls}, ${char.light} Power` : `No ${cls} on this account`,
     vault, vaultItems: vaultItems.length, owned, equipped, instances,
     subclass: charId ? await readSubclass(p, charId, cls).catch(() => null) : null,
+    artifact: charId ? await readArtifact(p, charId).catch(() => null) : null,
+    mintedAt: (() => { const m = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp; return m ? Date.parse(m) : null })(),
   }
 }
 
@@ -284,6 +291,7 @@ export type EquippedPreview = {
   online: boolean
   /** The equipped subclass and what's slotted in it. */
   subclass: EquippedSubclass | null
+  artifact: EquippedArtifact | null
   items: { slot: Slot; name: string; rarity: Rarity }[]
   /** When Bungie produced the inventory data (it can lag the game by a minute or more). */
   mintedAt: number | null
@@ -293,7 +301,7 @@ export type EquippedPreview = {
 /** What the active character has equipped right now, for the lobby preview. */
 export async function fetchEquipped(): Promise<EquippedPreview> {
   const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,204,205,305`)
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,202,204,205,305`)
   const picked = pickCharacter(p)
   if (!picked) throw new BungieError('No characters found on this account.')
   const { id, char: c, online } = picked
@@ -304,7 +312,7 @@ export async function fetchEquipped(): Promise<EquippedPreview> {
     .sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot))
   const minted = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp
   const cls = CLASS_NAME[c.classType] ?? 'Hunter'
-  return { name, cls, light: c.light, online, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
+  return { name, cls, light: c.light, online, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), artifact: await readArtifact(p, id).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
 }
 
 // ------------------------------------------------------------------ equipped subclass
@@ -385,4 +393,37 @@ function pickCharacter(p: ProfileResponse, cls?: ClassType) {
     .map(([id, char]) => ({ id, char, online: (acts[id]?.currentActivityHash ?? 0) !== 0 }))
     .sort((a, b) => Number(b.online) - Number(a.online) || b.char.dateLastPlayed.localeCompare(a.char.dateLastPlayed))
   return list[0] ?? null
+}
+
+// ------------------------------------------------------------------ equipped artifact
+
+export type EquippedArtifact = {
+  /** Bungie's name for the artifact. */
+  name: string
+  /** The matching artifact in our data, when the names line up. */
+  matched?: string
+  /** Names of the perks switched on in game. */
+  activePerks: string[]
+}
+
+const artifactNames = new Map<number, Promise<string | null>>()
+function artifactName(hash: number) {
+  if (!artifactNames.has(hash)) {
+    artifactNames.set(hash, api<{ displayProperties?: { name?: string } }>(`/Destiny2/Manifest/DestinyArtifactDefinition/${hash >>> 0}/`)
+      .then((d) => d.displayProperties?.name?.trim() || null)
+      .catch(() => null))
+  }
+  return artifactNames.get(hash)!
+}
+
+/** The character's artifact (character progressions) and which of its perks are active. */
+async function readArtifact(p: ProfileResponse, charId: string): Promise<EquippedArtifact | null> {
+  const art = p.characterProgressions?.data?.[charId]?.seasonalArtifact
+  if (!art?.artifactHash) return null
+  const name = await artifactName(art.artifactHash)
+  if (!name) return null
+  const active = (art.tiers ?? []).flatMap((t) => t.items ?? []).filter((i) => i.isActive).map((i) => i.itemHash)
+  const activePerks = (await Promise.all([...new Set(active)].map(defName))).filter((n): n is string => !!n)
+  const matched = ARTIFACTS.find((a) => normName(a.name) === normName(name))?.name
+  return { name, matched, activePerks }
 }

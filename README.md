@@ -37,7 +37,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Lobby**: Protocol Ruleset (snapshot locked per run), up to 3 seats with host. Each player picks
   their committed subclass, starting Super/melee/grenade and **artifact** on their own device; no one
   can ready up or start without an artifact. Starting-gear rules are shown as instructions (nothing
-  to tick). The host picks the chronological or custom expedition (route locks on start).
+  to tick). Starting weapons may be grey or green; armor grey. Prismatic seats always have their
+  class's Prismatic grenade (Freezing Singularity, Hailfire Spike or Electrified Snare) as base kit,
+  so it's unlocked from the start and not offered as the starting grenade. The host picks the
+  chronological expedition (defaults to every dungeon) or a custom one; the route locks on start.
 - **Artifacts** (7, from the compendium's Artifact Perks tab, 21 perks each in three tiers): all
   Artifact research (final bosses and secret chests) offers perks from the player's chosen artifact only.
 - **Mission Briefing**: shared Fireteam Integrity, current encounter with generated destination
@@ -52,8 +55,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   its first encounter. A found chest gives every player a chest reward. **Record Wipe** asks for
   confirmation, and the run fails at 0 Integrity.
 - **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
-  move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options, saved loadouts that go
-  invalid when an item leaves, per-player Vault pool (an example pool stands in until entered).
+  move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options. Signed-in players get a
+  **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code
+  stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices.
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
 - **Combat Report**, **Run History**, and a **Protocol editor** (customize, duplicate,
   export/import JSON) with validation.
@@ -109,13 +113,24 @@ not unlocked". A different subclass from the one the run is committed to is also
 
 **Automatic drops.** On a signed-in player's first sync of a run, their device records every
 weapon and armor instance on the account as a baseline, and registers what their character has
-equipped as starting gear. From then on, any new instance (checked every 2 minutes during a run
+equipped as starting gear. From then on, any new instance (checked every minute during a run
 and about 45 s after each clear) is registered as a detected drop. Transfers keep the same
 instance ID, so they don't count. Pulling a fresh copy from Collections does count; players can
 remove a wrong entry with **Remove**, which changes only the app (the item stays in Destiny 2)
 and stops it being detected again. Signed-in players skip the manual drops step. This is a
 convenience, not anti-cheat. The baseline lives in the player's browser
 (`ghost-directive:drop-baseline:<run>:<player>`), and a lost sync is re-sent next time.
+
+**Artifact.** Syncs also read the character's equipped artifact (profile component 202) and its
+active perks. In the lobby the seat's artifact defaults to the equipped one, and the "Equipped now"
+preview flags perks still switched on. During a run, a different artifact from the seat's choice, or
+an active perk that hasn't been researched in the run, is flagged.
+
+**Synaptic Link.** The pill at the top of every lobby and run page shows the Bungie link: green when
+signed in and the last read succeeded within 5 minutes, red otherwise (signed out, an API error, or
+no recent read). It counts up from Bungie's minted timestamp, the time Bungie last updated the data.
+Hovering explains it; clicking runs every Bungie read on the page (run sync and the lobby preview)
+or starts sign-in when signed out. Sign out lives in its hover card.
 
 **Bungie app** (bungie.net/en/Application): OAuth Client Type *Confidential*; Redirect URL
 `https://<site>/auth/callback`; scope *Read your Destiny 2 information*; Origin Header

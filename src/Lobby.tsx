@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
-import { ARTIFACTS, CLASSES, DUNGEONS, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
+import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, SortableList, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, startSignIn, type EquippedPreview } from './bungie'
 import type { Rarity, Slot } from './data'
-import { useBungie } from './BungiePanel'
+import { reportLink, useBungie, useRefresher } from './BungiePanel'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>> & { auto?: boolean }
 
@@ -206,8 +206,11 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
             <div key={k} className="field">
               <label htmlFor={`${k}-${seat.id}`}>Starting {KIND_LABEL[k].toLowerCase()}</label>
               <select id={`${k}-${seat.id}`} value={seat.starter[k]} onChange={(e) => onPatch({ starter: { ...seat.starter, [k]: e.target.value } })}>
-                {abil.filter((a) => a.kind === k).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                {abil.filter((a) => a.kind === k && !baseKit(seat.cls, seat.element).includes(a.id)).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
               </select>
+              {k === 'grenade' && baseKit(seat.cls, seat.element).length > 0 && (
+                <small className="muted">{baseKit(seat.cls, seat.element).map((id) => id.split('|')[2]).join(', ')} is always available on Prismatic, on top of this.</small>
+              )}
             </div>
           ))}
           <div className="field">
@@ -247,7 +250,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
 
 function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
   const { host } = useGD()
-  const [chronoCount, setChronoCount] = useState(lobby.expedition === 'chronological' ? lobby.route.length : 3)
+  const [chronoCount, setChronoCount] = useState(lobby.expedition === 'chronological' ? lobby.route.length : DUNGEONS.length)
   const set = host?.updateLobby
   const protocols = host ? allProtocols(host.store) : []
   const r = lobby.ruleset
@@ -393,15 +396,18 @@ function SetupGuide() {
       </div>
       <ul className="guide-list">
         {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
+        <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
       </ul>
     </section>
   )
 }
 
-/** Starting-gear rarity per slot: grey weapons and armor, a green heavy. */
-const EXPECTED: Record<Slot, Rarity> = {
-  Kinetic: 'Common', Energy: 'Common', Power: 'Uncommon',
-  Helmet: 'Common', Gauntlets: 'Common', Chest: 'Common', Legs: 'Common', 'Class Item': 'Common',
+/** Starting-gear rarity per slot: grey or green weapons in every slot, grey armor. */
+const WEAPON_OK: Rarity[] = ['Common', 'Uncommon']
+const ARMOR_OK: Rarity[] = ['Common']
+const EXPECTED: Record<Slot, Rarity[]> = {
+  Kinetic: WEAPON_OK, Energy: WEAPON_OK, Power: WEAPON_OK,
+  Helmet: ARMOR_OK, Gauntlets: ARMOR_OK, Chest: ARMOR_OK, Legs: ARMOR_OK, 'Class Item': ARMOR_OK,
 }
 const COLOR_WORD: Partial<Record<Rarity, string>> = { Common: 'grey', Uncommon: 'green', Rare: 'blue', Legendary: 'purple', Exotic: 'Exotic' }
 /** Bungie data older than this is treated as possibly behind the game. */
@@ -427,7 +433,10 @@ function useEquipped() {
     setBusy(true)
     setError(null)
     return fetchEquipped()
-      .then((d) => { setData(d); return d }, (e) => { setError((e as Error).message); return null })
+      .then(
+        (d) => { setData(d); reportLink({ mintedAt: d.mintedAt }); return d },
+        (e) => { setError((e as Error).message); reportLink({ error: (e as Error).message }); return null },
+      )
       .finally(() => setBusy(false))
   }, [])
   useEffect(() => {
@@ -437,8 +446,11 @@ function useEquipped() {
     return () => clearInterval(t)
   }, [signedIn, refresh])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
-  const off = data ? data.items.filter((i) => i.rarity !== EXPECTED[i.slot]) : []
-  const extras = data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []
+  // The Synaptic Link's "sync everything" includes this preview.
+  useRefresher(signedIn && bungieConfigured ? refresh : null)
+  const off = data ? data.items.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
+  // The run starts with no aspects, fragments or artifact perks switched on.
+  const extras = [...(data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []), ...(data?.artifact?.activePerks ?? [])]
   const stale = !data?.mintedAt || now - data.mintedAt > STALE_MS
   // "Synced" here means Bungie's data shows starting gear and no aspects or fragments.
   const ready = !!data && off.length === 0 && extras.length === 0
@@ -448,11 +460,13 @@ function useEquipped() {
 /** Seat settings matching the character: class, subclass, and its slotted Super, melee and grenade. */
 function seatFromCharacter(d: EquippedPreview): Patch {
   const cls = d.cls as ClassType
-  if (!d.subclass) return { cls }
+  const artifact = d.artifact?.matched ? { artifact: d.artifact.matched } : {}
+  if (!d.subclass) return { cls, ...artifact }
   const { element, abilityIds } = d.subclass
   const base = defaultStarter(cls, element)
-  const pick = (kind: 'super' | 'melee' | 'grenade') => abilityIds.find((id) => id.split('|')[1] === kind) ?? base[kind]
-  return { cls, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') } }
+  const always = baseKit(cls, element)
+  const pick = (kind: 'super' | 'melee' | 'grenade') => abilityIds.find((id) => id.split('|')[1] === kind && !always.includes(id)) ?? base[kind]
+  return { cls, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') }, ...artifact }
 }
 
 /**
@@ -515,13 +529,13 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
         <>
           <ul className="equipped-grid">
             {data.items.map((i) => {
-              const ok = i.rarity === EXPECTED[i.slot]
+              const ok = EXPECTED[i.slot].includes(i.rarity)
               return (
                 <li key={i.slot} className={`item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`}>
                   <div className="item-main">
                     <span className="item-meta">{i.slot}</span>
                     <span className="item-name">{i.name}</span>
-                    <span className={`item-meta ${ok ? 'tone-ok' : 'tone-warn'}`}>{ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${COLOR_WORD[EXPECTED[i.slot]]}`}</span>
+                    <span className={`item-meta ${ok ? 'tone-ok' : 'tone-warn'}`}>{ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${EXPECTED[i.slot].map((r) => COLOR_WORD[r]).join(' or ')}`}</span>
                   </div>
                 </li>
               )
@@ -536,6 +550,12 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
               <div className={data.subclass.fragments.length ? 'is-off' : ''}><dt>Fragments</dt><dd>{data.subclass.fragments.length ? <span className="tone-warn">{data.subclass.fragments.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
             </dl>
           ) : <p className="small muted">Couldn&rsquo;t read your subclass, so aspects and fragments aren&rsquo;t checked.</p>}
+          {data.artifact ? (
+            <dl className="equipped-subclass equipped-artifact">
+              <div><dt>Artifact</dt><dd>{data.artifact.name}{seat?.artifact && data.artifact.matched && data.artifact.matched !== seat.artifact && <span className="tone-warn"> (your seat has {seat.artifact})</span>}</dd></div>
+              <div className={data.artifact.activePerks.length ? 'is-off' : ''}><dt>Active perks</dt><dd>{data.artifact.activePerks.length ? <span className="tone-warn">{data.artifact.activePerks.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
+            </dl>
+          ) : <p className="small muted">Couldn&rsquo;t read your artifact.</p>}
           <p className="small muted">Refreshes every minute.</p>
         </>
       )}
@@ -552,7 +572,7 @@ function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
   return (
     <p className={`sync-notice is-wait ${compact ? 'small' : ''}`}>
       <strong>Wait before readying up.</strong>{' '}
-      {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.extras.length && `${eq.extras.length} aspect${eq.extras.length > 1 ? 's or fragments' : ' or fragment'} still equipped`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
+      {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.extras.length && `${eq.extras.length} aspect, fragment or artifact perk${eq.extras.length > 1 ? 's' : ''} still on`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
     </p>
   )
 }

@@ -8,7 +8,7 @@ import {
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
-import { BungiePanel } from './BungiePanel'
+import { BungiePanel, syncBungie, useBungie } from './BungiePanel'
 import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter, rarityClass } from './ui'
 
@@ -217,7 +217,6 @@ function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warn
       </div>
       <div className="player-foot">
         <span title={artifactByName(p.artifactName)?.focus}>{p.artifactName ?? 'No artifact'} &middot; {p.artifact.length} perk{p.artifact.length === 1 ? '' : 's'}</span>
-        <span>{p.loadouts.length}/{loadoutSlotsOf(run, p)} loadouts</span>
         {p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} \u00b7 ${p.bungie.character}`}>Bungie linked</span>}
       </div>
       {warnings.length > 0 && (
@@ -343,6 +342,7 @@ function FieldArsenal({ run }: { run: Run }) {
   const control = canControl(p.id)
   const active = run.status === 'active' && control
   const toggleEquip = (itemId: string) => dispatch({ type: 'equip', itemId }, p.id)
+  const bungie = useBungie()
   // Which item is showing its "remove from the app only" confirmation.
   const [removing, setRemoving] = useState<string | null>(null)
 
@@ -361,7 +361,12 @@ function FieldArsenal({ run }: { run: Run }) {
           <p className="section-note">Only items declared as run acquisitions count. Each slot holds {run.ruleset.inventory.capacity} items including the equipped one{p.capacityBonus ? `, +${p.capacityBonus} from Arsenal Expansion for ${p.name}` : ''}. Keep extras in the Vault; nothing needs dismantling.</p>
         </div>
         {!control ? <span className="muted small">Viewing {p.name}. Only their player can change this.</span>
-          : p.bungie ? <span className="auto-drops"><span className="tag tag-bungie">Bungie</span> Drops are detected automatically. <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Add one manually</button></span>
+          : p.bungie ? (
+            <div className="auto-drops">
+              <span><span className="tag tag-bungie">Bungie</span> Drops are checked automatically every minute. <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Add one manually</button></span>
+              {bungie.signedIn && <button className="btn btn-ghost btn-sm" disabled={bungie.busy} onClick={() => syncBungie(run, p, dispatch, (m) => toast(m))}>{bungie.busy ? 'Syncing…' : 'Sync drops now'}</button>}
+            </div>
+          )
           : <button className="btn btn-light" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Register drop</button>}
       </header>
       <PlayerTabs run={run} value={p.id} onChange={setId} />
@@ -416,15 +421,12 @@ function FieldArsenal({ run }: { run: Run }) {
           )
         })}
       </div>
-      <div className="arsenal-lower">
-        <Loadouts run={run} p={p} />
-        <VaultPool p={p} />
-      </div>
     </section>
   )
 }
 
-function Loadouts({ run, p }: { run: Run; p: Player }) {
+/** Hidden for now (not rendered); kept so it can come back. */
+export function Loadouts({ run, p }: { run: Run; p: Player }) {
   const { dispatch, canControl } = useGD()
   const [name, setName] = useState('')
   const slots = loadoutSlotsOf(run, p)
@@ -467,7 +469,8 @@ function Loadouts({ run, p }: { run: Run; p: Player }) {
   )
 }
 
-function VaultPool({ p }: { p: Player }) {
+/** Hidden for now (not rendered); the Vault pool still feeds rewards, filled by Bungie sync or the example pool. */
+export function VaultPool({ p }: { p: Player }) {
   const { dispatch, canControl, myPlayerId } = useGD()
   const [name, setName] = useState('')
   const [slot, setSlot] = useState<Slot>('Kinetic')

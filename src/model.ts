@@ -1,6 +1,6 @@
 import {
   ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
-  abilityById, dungeonById, subclassAbilities,
+  abilityById, baseKit, dungeonById, subclassAbilities,
   type ClassType, type Element, type Rarity, type Slot, type VaultEntry,
 } from './data'
 
@@ -92,9 +92,9 @@ export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds:
 export type ChecklistKey = 'greyKinetic' | 'greyEnergy' | 'greenHeavy' | 'greyArmor' | 'noAspects' | 'noFragments'
 
 export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
-  { key: 'greyKinetic', label: 'Grey kinetic weapon equipped', hint: 'Pull a Common (grey) weapon from Collections where available.' },
-  { key: 'greyEnergy', label: 'Grey energy weapon equipped', hint: 'A Common (grey) energy weapon, from Collections where available.' },
-  { key: 'greenHeavy', label: 'Green heavy weapon equipped', hint: 'An Uncommon (green) Power weapon.' },
+  { key: 'greyKinetic', label: 'Grey or green kinetic weapon equipped', hint: 'A Common (grey) or Uncommon (green) weapon, from Collections where available.' },
+  { key: 'greyEnergy', label: 'Grey or green energy weapon equipped', hint: 'A Common (grey) or Uncommon (green) energy weapon.' },
+  { key: 'greenHeavy', label: 'Grey or green heavy weapon equipped', hint: 'A Common (grey) or Uncommon (green) Power weapon.' },
   { key: 'greyArmor', label: 'Grey armor on every slot', hint: 'The lowest-rarity armor you can pull, in all five slots.' },
   { key: 'noAspects', label: 'No aspects', hint: 'Unequip all aspects. They unlock during the run.' },
   { key: 'noFragments', label: 'No fragments', hint: 'Unequip all fragments. They unlock during the run.' },
@@ -142,6 +142,8 @@ export type BungieLink = {
   untracked: { slot: Slot; name: string }[]
   /** The subclass equipped in game at the last sync; while set, `configured` comes from Bungie. */
   subclass?: { name: string; element: Element }
+  /** The artifact equipped in game at the last sync and the perks switched on in it. */
+  artifact?: { name: string; matched?: string; activePerks: string[] }
 }
 
 export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
@@ -388,6 +390,15 @@ export function computeWarnings(run: Run): Warning[] {
       if (!loadoutValid(p, l)) out.push({ id: `lo-${p.id}-${l.id}`, severity: 'warn', playerId: p.id, title: `Loadout “${l.name}” is invalid`, rule: 'It references an item that left the run inventory. Update it before using it.', where: 'arsenal' })
     }
     if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
+    const ga = p.bungie?.artifact
+    if (ga && p.artifactName) {
+      if (ga.matched !== p.artifactName) {
+        out.push({ id: `ba-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong artifact equipped: ${ga.name}`, rule: `This run uses ${p.artifactName}. Switch artifacts in Destiny 2.`, where: 'artifact' })
+      } else {
+        const extra = ga.activePerks.filter((n) => !p.artifact.includes(n))
+        if (extra.length) out.push({ id: `bp-${p.id}`, severity: 'critical', playerId: p.id, title: `Artifact perks on but not researched: ${extra.join(', ')}`, rule: `Only perks researched in this run should be active. Turn ${extra.length === 1 ? 'it' : 'them'} off in Destiny 2, or research ${extra.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'artifact' })
+      }
+    }
     if (p.bungie?.missing.length) out.push({ id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
     if (p.bungie?.untracked.length) out.push({ id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
     if (p.loadouts.length > loadoutSlotsOf(run, p)) out.push({ id: `los-${p.id}`, severity: 'warn', playerId: p.id, title: 'More loadouts saved than slots', rule: `${p.name} has ${loadoutSlotsOf(run, p)} loadout slot(s).`, where: 'arsenal' })
@@ -486,7 +497,7 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null }
   | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
@@ -619,6 +630,10 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         name: str(it.name, 40) || 'Guardian', character: str(it.character, 40), syncedAt: Date.now(),
         vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked, subclass: sub,
       }
+      const art = it.artifact && typeof it.artifact === 'object' ? it.artifact as { name?: unknown; matched?: unknown; activePerks?: unknown } : null
+      if (art && str(art.name)) {
+        p.bungie.artifact = { name: str(art.name, 60), matched: artifactByName(str(art.matched, 60))?.name, activePerks: strs(art.activePerks, 30) }
+      }
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
       if (sub && Array.isArray(it.configured)) {
         const valid = new Set(subclassAbilities(p.cls, p.element).map((a) => a.id))
@@ -719,7 +734,8 @@ export type Lobby = {
 export const MAX_SEATS = 3
 
 export function defaultStarter(cls: ClassType, el: Element): Seat['starter'] {
-  const a = subclassAbilities(cls, el)
+  const base = baseKit(cls, el)
+  const a = subclassAbilities(cls, el).filter((x) => !base.includes(x.id))
   const first = (k: string) => a.find((x) => x.kind === k)!.id
   return { super: first('super'), melee: first('melee'), grenade: first('grenade') }
 }
@@ -737,7 +753,7 @@ export function newSeat(n: number, clientId: string | null, isHost = false): Sea
 export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lobby {
   return {
     code, name: '', protocolId: ruleset.id, ruleset: structuredClone(ruleset),
-    expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3),
+    expedition: 'chronological', route: [...CHRONOLOGICAL_ROUTE],
     seats: [newSeat(1, hostCid, true)],
   }
 }
@@ -745,7 +761,7 @@ export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lo
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade], checklist: { ...s.checklist }, artifactName: s.artifact || undefined }
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade, ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }
@@ -785,7 +801,7 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
         const ids = subclassAbilities(mine.cls, mine.element)
         const st = pt.starter as Record<string, unknown>
         for (const k of ['super', 'melee', 'grenade'] as const) {
-          if (typeof st[k] === 'string' && ids.some((a) => a.id === st[k] && a.kind === k)) mine.starter[k] = st[k] as string
+          if (typeof st[k] === 'string' && ids.some((a) => a.id === st[k] && a.kind === k) && !baseKit(mine.cls, mine.element).includes(st[k] as string)) mine.starter[k] = st[k] as string
         }
       }
       if (pt.checklist && typeof pt.checklist === 'object') {

@@ -664,3 +664,30 @@ select.needs-pick { border-color: var(--warn); }
 .waiting-text { display: grid; gap: 4px; flex: 1 1 320px; min-width: 0; color: var(--dim); }
 .waiting-text .sync-notice { margin-top: 4px; }
 .seat-sync { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.equipped-artifact { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
+@media (max-width: 520px) { .equipped-artifact { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------------------------------------------------------------- synaptic link */
+.main > .main-top { display: flex; justify-content: flex-end; margin-bottom: 10px; position: relative; z-index: 20; }
+.synaptic { position: relative; }
+.synaptic-btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 5px 10px;
+  background: var(--hull-2); border: 1px solid var(--seam); border-radius: 999px; color: var(--text); cursor: pointer; font: inherit;
+}
+.synaptic-btn svg circle { fill: currentColor; }
+.synaptic-btn svg path { stroke: currentColor; stroke-width: 1.4; fill: none; }
+.synaptic.is-ok .synaptic-btn { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+.synaptic.is-ok .synaptic-btn svg { filter: drop-shadow(0 0 4px var(--ok)); }
+.synaptic.is-down .synaptic-btn { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.synaptic.is-busy .synaptic-btn svg { animation: synaptic-pulse 0.9s ease-in-out infinite alternate; }
+@keyframes synaptic-pulse { from { opacity: 1; } to { opacity: 0.35; } }
+.synaptic-time { font-size: 0.78rem; min-width: 4ch; }
+.synaptic-tip {
+  position: absolute; right: 0; top: 100%; padding-top: 6px; width: min(300px, calc(100vw - 32px));
+  visibility: hidden; opacity: 0; transition: opacity 0.12s;
+}
+.synaptic-tip > * { margin: 0; }
+.synaptic-tip::before { content: ''; position: absolute; inset: 6px 0 0; background: var(--hull); border: 1px solid var(--seam); border-radius: var(--radius); box-shadow: 0 10px 30px #0009; z-index: -1; }
+.synaptic-tip { display: grid; gap: 6px; padding: 18px 14px 12px; font-size: 0.82rem; }
+.synaptic:hover .synaptic-tip, .synaptic:focus-within .synaptic-tip { visibility: visible; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .synaptic.is-busy .synaptic-btn svg { animation: none; } }
