@@ -1,6 +1,7 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import { accountName, bungieConfigured, fetchSnapshot, isSignedIn, onAuthChange, reconcile, signOut, startSignIn, takeSignInResult } from './bungie'
-import type { Intent, Player } from './model'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { accountName, bungieConfigured, detectDrops, fetchSnapshot, isSignedIn, onAuthChange, reconcile, signOut, startSignIn, takeSignInResult } from './bungie'
+import type { Intent, Player, Run } from './model'
+import { useGD } from './store'
 
 // Sync status shared by the panel and the automatic sync in the shell.
 type SyncState = { busy: boolean; error: string | null }
@@ -15,36 +16,60 @@ export function useBungie() {
   return { ...state, signedIn }
 }
 
-/** Reads the player's Destiny profile on this device and sends the result to the host. */
-export async function syncBungie(p: Player, dispatch: (i: Intent, pid?: string) => void) {
+/**
+ * Reads the player's Destiny profile on this device and sends the result to the host:
+ * Vault pool, mismatch checks, and any drops detected since the run started.
+ */
+export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?: string) => void, notify?: (msg: string) => void) {
   if (sync.busy || !isSignedIn()) return
   setSync({ busy: true, error: null })
   try {
     const snap = await fetchSnapshot(p.cls)
-    const { missing, untracked } = reconcile(snap, p)
-    dispatch({ type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked }, p.id)
+    const drops = run.status === 'active' ? detectDrops(run.id, p, snap) : []
+    // Check mismatches as if the detected drops were already registered.
+    const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
+    const { missing, untracked } = reconcile(snap, withDrops)
+    dispatch({ type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, drops }, p.id)
+    const found = drops.filter((d) => !d.starting)
+    if (found.length) notify?.(`New drop${found.length > 1 ? 's' : ''} detected: ${found.map((d) => d.name).join(', ')}`)
+    else if (drops.length) notify?.(`Starting gear registered from Bungie: ${drops.map((d) => d.name).join(', ')}`)
     setSync({ busy: false, error: null })
   } catch (e) {
     setSync({ busy: false, error: (e as Error).message })
   }
 }
 
-const AUTO_SYNC_MS = 10 * 60_000
+/** During a run, drops are checked every 2 minutes; otherwise every 10. */
+const RUN_SYNC_MS = 2 * 60_000
+const IDLE_SYNC_MS = 10 * 60_000
+/** Bungie's profile data lags the game a little, so check again shortly after each clear. */
+const AFTER_CLEAR_MS = 45_000
 
-/** Keeps a signed-in player's Bungie data fresh: on load, after sign-in, and every 10 minutes. */
-export function useAutoSync(me: Player | undefined, dispatch: (i: Intent, pid?: string) => void) {
+/** Keeps a signed-in player's Bungie data fresh: on load, after sign-in, on a timer, and after clears. */
+export function useAutoSync(run: Run | null, me: Player | undefined, dispatch: (i: Intent, pid?: string) => void, notify: (msg: string) => void) {
   const { signedIn } = useBungie()
   const [tick, setTick] = useState(0)
   useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 60_000)
+    const t = setInterval(() => setTick((n) => n + 1), 30_000)
     return () => clearInterval(t)
   }, [])
-  const stale = !me?.bungie || Date.now() - me.bungie.syncedAt > AUTO_SYNC_MS
+  const live = run?.status === 'active'
+  const stale = !me?.bungie || Date.now() - me.bungie.syncedAt > (live ? RUN_SYNC_MS : IDLE_SYNC_MS)
+  const ready = bungieConfigured && signedIn && !!run && !!me
   useEffect(() => {
-    if (bungieConfigured && signedIn && me && stale) syncBungie(me, dispatch)
-    // Re-run when the player, sign-in state or the clock changes; dispatch is stable enough here.
+    if (ready && stale) syncBungie(run!, me!, dispatch, notify)
+    // Re-run when the player, sign-in state or the clock changes; run/dispatch are read fresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me?.id, signedIn, stale, tick])
+  }, [me?.id, ready, stale, tick])
+  const progress = (run?.claimed.length ?? 0) + (run?.chests.length ?? 0)
+  const latest = useRef({ run, me })
+  latest.current = { run, me }
+  useEffect(() => {
+    if (!ready || progress === 0) return
+    const t = setTimeout(() => { const { run: r, me: m } = latest.current; if (r && m) syncBungie(r, m, dispatch, notify) }, AFTER_CLEAR_MS)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [progress, ready])
 }
 
 const ago = (t: number) => {
@@ -55,13 +80,14 @@ const ago = (t: number) => {
 /** Sign-in and sync controls for the player's own Guardian. */
 export function BungiePanel({ p, dispatch }: { p: Player; dispatch: (i: Intent, pid?: string) => void }) {
   const { busy, error, signedIn } = useBungie()
+  const { run, toast } = useGD()
   if (!bungieConfigured) return null
   if (!signedIn) {
     return (
       <div className="bungie-box">
         <div>
-          <strong>Use your real Vault</strong>
-          <p className="small muted">Sign in with Bungie to fill this pool from your Vault and check your run gear against your account. Read-only: nothing is moved or equipped.</p>
+          <strong>Use your real Vault and track drops automatically</strong>
+          <p className="small muted">Sign in with Bungie to fill this pool from your Vault, pick up new drops without typing them in, and check your run gear against your account. Read-only: nothing is moved or equipped.</p>
           {error && <p className="small tone-danger">{error}</p>}
         </div>
         <button className="btn btn-light btn-sm" onClick={startSignIn}>Sign in with Bungie</button>
@@ -74,13 +100,13 @@ export function BungiePanel({ p, dispatch }: { p: Player; dispatch: (i: Intent, 
         <strong>{p.bungie ? p.bungie.name : 'Signed in with Bungie'}</strong>
         <p className="small muted">
           {busy ? 'Reading your Destiny profile…'
-            : p.bungie ? `${p.bungie.character} · ${p.vault.length} eligible of ${p.bungie.vaultItems} Vault items · synced ${ago(p.bungie.syncedAt)}`
+            : p.bungie ? `${p.bungie.character} · ${p.vault.length} eligible of ${p.bungie.vaultItems} Vault items · drops tracked automatically · synced ${ago(p.bungie.syncedAt)}`
             : 'Not synced yet.'}
         </p>
         {error && <p className="small tone-danger">{error}</p>}
       </div>
       <div className="row-acts">
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => syncBungie(p, dispatch)}>{busy ? 'Syncing…' : 'Sync now'}</button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => run && syncBungie(run, p, dispatch, toast)}>{busy ? 'Syncing…' : 'Sync now'}</button>
         <button className="link" onClick={() => { signOut(); if (p.bungie) dispatch({ type: 'bungie-unlink' }, p.id) }}>Sign out</button>
       </div>
     </div>
@@ -110,12 +136,12 @@ export function BungieStart() {
         {signedIn ? (
           <>
             <h2 id="bungie-start-title">Signed in{name ? <> as <span className="bungie-name">{name}</span></> : null}</h2>
-            <p className="muted">Your Vault fills your reward choices once you&rsquo;re in a run. Read-only: nothing in your game is moved or equipped.</p>
+            <p className="muted">Once you&rsquo;re in a run, new drops are tracked automatically and your Vault fills your reward choices. Read-only: nothing in your game is moved or equipped.</p>
           </>
         ) : (
           <>
             <h2 id="bungie-start-title">Sign in with Bungie</h2>
-            <p className="muted">Use your real Vault for reward choices and get warnings when your gear doesn&rsquo;t match the run. Read-only. You can also skip this and type your Vault in by hand.</p>
+            <p className="muted">Drops are tracked automatically, reward choices come from your real Vault, and you get warnings when your gear doesn&rsquo;t match the run. Read-only. You can also skip this and enter drops and your Vault by hand.</p>
           </>
         )}
         {error && <p className="small tone-danger">{error}</p>}

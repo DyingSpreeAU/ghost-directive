@@ -82,7 +82,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     ...(gearAvail ? ['gear' as const] : []),
     ...(pend.artifact.length ? ['artifact' as const] : []),
     ...(pend.chest.length ? ['chest' as const] : []),
-    'drops', 'confirm',
+    // Signed-in players' drops are detected from Bungie, so they skip typing them in.
+    ...(p.bungie ? [] : ['drops' as const]), 'confirm',
   ]
   const [i, setI] = useState(0)
   const [unlock, setUnlock] = useState<string | undefined>()
@@ -202,7 +203,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
           {gear && <li><span className="eyebrow">Item</span> {gear.name} ({gear.rarity} {gear.slot})</li>}
           {mod && <li><span className="eyebrow">Artifact</span> {mod}</li>}
           {chest !== undefined && <li><span className="eyebrow">Chest</span> {chestLabel(pend.chest[chest])}</li>}
-          <li><span className="eyebrow">Drops</span> {drops.length ? drops.map((d) => d.name).join(', ') : 'none'}</li>
+          <li><span className="eyebrow">Drops</span> {p.bungie ? 'Detected automatically from your Bungie account' : drops.length ? drops.map((d) => d.name).join(', ') : 'none'}</li>
         </ul>
       )}
     </Modal>

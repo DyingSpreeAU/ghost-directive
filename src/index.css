@@ -614,3 +614,10 @@ select.needs-pick { border-color: var(--warn); }
 .guide-list li::before { content: ''; position: absolute; left: 0; top: 0.5em; width: 6px; height: 6px; background: var(--light); transform: rotate(45deg); }
 .guide-list .muted { font-size: 0.8rem; }
 @media (max-width: 900px) { .setup-guide, .guide-list { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------------------------------------------------------------- auto drops + remove */
+.auto-drops { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.86rem; color: var(--dim); }
+.chip-quiet { color: var(--dim); }
+.chip-danger { border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: #ffd9d2; background: color-mix(in srgb, var(--danger) 18%, var(--hull-2)); }
+.item-confirm { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, var(--ink)); }
+.item-confirm .item-name { font-size: 0.84rem; }

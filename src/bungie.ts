@@ -151,7 +151,9 @@ export type BungieSnapshot = {
   /** Names of every weapon and armor piece the account holds, anywhere. */
   owned: Set<string>
   /** What the synced character has equipped. */
-  equipped: { slot: Slot; name: string; rarity: Rarity }[]
+  equipped: { slot: Slot; name: string; rarity: Rarity; instanceId?: string }[]
+  /** Every weapon and armor instance on the account (Vault, characters, Postmaster), for drop detection. */
+  instances: { instanceId: string; name: string; slot: Slot; rarity: Rarity }[]
 }
 
 /** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
@@ -206,14 +208,23 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
   }
 
   const equipped = (charId ? p.characterEquipment?.data?.[charId]?.items ?? [] : [])
-    .map((i) => items[i.itemHash])
-    .filter((r): r is ItemRow => !!r)
-    .map((r) => ({ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]] }))
+    .map((i) => ({ i, r: items[i.itemHash] }))
+    .filter((x): x is { i: ItemComponent; r: ItemRow } => !!x.r)
+    .map(({ i, r }) => ({ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]], instanceId: i.itemInstanceId }))
+
+  const instances: BungieSnapshot['instances'] = []
+  const collect = (list: ItemComponent[] | undefined) => list?.forEach((i) => {
+    const r = items[i.itemHash]
+    if (r && i.itemInstanceId) instances.push({ instanceId: i.itemInstanceId, name: r[0], slot: ALL_SLOTS[r[1]], rarity: TIERS[r[2]] })
+  })
+  collect(p.profileInventory.data.items)
+  Object.values(p.characterInventories?.data ?? {}).forEach((c) => collect(c.items))
+  Object.values(p.characterEquipment?.data ?? {}).forEach((c) => collect(c.items))
 
   return {
     name,
     character: char ? `${cls}, ${char.light} Power` : `No ${cls} on this account`,
-    vault, vaultItems: vaultItems.length, owned, equipped,
+    vault, vaultItems: vaultItems.length, owned, equipped, instances,
   }
 }
 
@@ -224,4 +235,33 @@ export function reconcile(snap: BungieSnapshot, p: Player) {
     missing: p.inventory.filter((i) => !snap.owned.has(i.name)).map((i) => i.name),
     untracked: snap.equipped.filter((e) => !tracked.has(e.name)).map(({ slot, name }) => ({ slot, name })),
   }
+}
+
+// ------------------------------------------------------------------ drop detection
+
+type Baseline = { ids: string[]; starting: string[] }
+const baselineKey = (runId: string, playerId: string) => `ghost-directive:drop-baseline:${runId}:${playerId}`
+
+/**
+ * Works out drops by comparing the account with what it held when this run started on this device.
+ * The first sync of a run records that baseline (and the equipped gear as starting gear). Each sync
+ * then reports every instance that is new since the baseline and not already known to the run, so
+ * a sync lost in transit is simply re-sent next time. Moving an item between Vault and character
+ * keeps its instance id, so transfers don't count; pulling a fresh copy from Collections does.
+ */
+export function detectDrops(runId: string, p: Player, snap: BungieSnapshot) {
+  const key = baselineKey(runId, p.id)
+  let base: Baseline | null = null
+  try { base = JSON.parse(localStorage.getItem(key) ?? 'null') } catch { /* fresh baseline */ }
+  if (!base) {
+    const starting = p.inventory.length === 0 ? snap.equipped.map((e) => e.instanceId).filter((x): x is string => !!x) : []
+    base = { ids: snap.instances.map((i) => i.instanceId).filter((id) => !starting.includes(id)), starting }
+    try { localStorage.setItem(key, JSON.stringify(base)) } catch { /* detection still works this session */ }
+  }
+  const baseline = new Set(base.ids)
+  const known = new Set([...p.inventory.map((i) => i.instanceId), ...(p.dismissed ?? [])])
+  const seen = new Set<string>()
+  return snap.instances
+    .filter((i) => !baseline.has(i.instanceId) && !known.has(i.instanceId) && !seen.has(i.instanceId) && (seen.add(i.instanceId), true))
+    .map((i) => ({ ...i, starting: base!.starting.includes(i.instanceId) }))
 }

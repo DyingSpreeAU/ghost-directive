@@ -370,7 +370,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
 
   // Decisions that belong to this device open by themselves: your rewards first, then overflow swaps.
   const me = run?.players.find((p) => p.id === myPlayerId)
-  useAutoSync(me, base.dispatch)
+  useAutoSync(run, me, base.dispatch, setToastMsg)
   const myPending = run && me ? run.pending.filter((x) => x.playerId === me.id) : []
   const autoReward = myPending.find((x) => !deferred.includes(x.id))
   const swapSlot = run && me && run.ruleset.overflow === 'guided'

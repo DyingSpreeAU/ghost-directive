@@ -83,6 +83,8 @@ export type Item = {
   rarity: Rarity
   equipped: boolean
   source: string
+  /** Bungie item instance, when the item was detected from the player's account. */
+  instanceId?: string
 }
 
 export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds: string[] }
@@ -121,7 +123,12 @@ export type Player = {
   loadouts: Loadout[]
   /** Set when the player's device has synced their Bungie account (Netlify build only). */
   bungie?: BungieLink
+  /** Bungie instances the player removed from the run (app only), so they aren't detected again. */
+  dismissed?: string[]
 }
+
+/** A weapon or armor piece that appeared on the player's account during the run. */
+export type DetectedDrop = { name: string; slot: Slot; rarity: Rarity; instanceId: string; starting?: boolean }
 
 /** What a player's device reports after reading their Destiny profile. Tokens never leave that device. */
 export type BungieLink = {
@@ -275,8 +282,15 @@ export function addItem(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>
   return it
 }
 
+/** Items leaving the run; detected ones are remembered so a Bungie sync doesn't add them back. */
+function dismiss(p: Player, items: Item[]) {
+  const ids = items.map((i) => i.instanceId).filter((x): x is string => !!x)
+  if (ids.length) p.dismissed = [...(p.dismissed ?? []), ...ids].slice(-500)
+}
+
 export function sendToVault(run: Run, p: Player, itemIds: string[], why: string) {
   const gone = p.inventory.filter((i) => itemIds.includes(i.id))
+  dismiss(p, gone)
   p.inventory = p.inventory.filter((i) => !itemIds.includes(i.id))
   if (gone.length) log(run, 'vault', `${p.name} moved ${gone.map((g) => g.name).join(', ')} to the Vault (${why}).`)
 }
@@ -469,7 +483,8 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[] }
+  | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
 const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -533,6 +548,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const choice = vaultPool(p).find((v) => v.name === str(it.choice?.name) && v.slot === slot && v.rarity === 'Legendary')
       if (!choice) return 'That Legendary is not in your Vault pool for this slot.'
+      dismiss(p, inputs)
       p.inventory = p.inventory.filter((i) => !ids.includes(i.id))
       log(run, 'trade', `${p.name} traded ${inputs.map((i) => i.name).join(', ')} (to Vault) for ${choice.name}.`)
       addItem(run, p, { name: choice.name, slot, rarity: 'Legendary', source: 'trade-up' })
@@ -599,6 +615,26 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked,
       }
       if (first) log(run, 'run', `${p.name} linked their Bungie account (${vault.length} eligible Vault items).`)
+      // New items on the account since the run started count as drops; equipped gear at the start is starting gear.
+      const dismissed = new Set(p.dismissed ?? [])
+      for (const raw of Array.isArray(it.drops) ? it.drops.slice(0, 40) : []) {
+        const d = (raw ?? {}) as Partial<DetectedDrop>
+        const instanceId = str(d.instanceId, 30)
+        if (!instanceId || dismissed.has(instanceId) || p.inventory.some((x) => x.instanceId === instanceId)) continue
+        const item = cleanItem({ name: d.name, slot: d.slot, rarity: d.rarity, source: d.starting ? 'starting gear' : 'detected drop' })
+        if (typeof item === 'string') continue
+        const added = addItem(run, p, item)
+        added.instanceId = instanceId
+        added.equipped = !!d.starting
+      }
+      return null
+    }
+    case 'remove-item': {
+      const item = p.inventory.find((x) => x.id === it.itemId)
+      if (!item) return 'Item not in your run inventory.'
+      p.inventory = p.inventory.filter((x) => x !== item)
+      dismiss(p, [item])
+      log(run, 'vault', `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
       return null
     }
     case 'bungie-unlink': {

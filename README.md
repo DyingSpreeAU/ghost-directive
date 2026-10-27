@@ -92,6 +92,16 @@ that browser. The player's device reads their profile and sends the host:
 
 The host turns the last two into warnings.
 
+**Automatic drops.** On a signed-in player's first sync of a run, their device records every
+weapon and armor instance on the account as a baseline, and registers what their character has
+equipped as starting gear. From then on, any new instance (checked every 2 minutes during a run
+and about 45 s after each clear) is registered as a detected drop. Transfers keep the same
+instance ID, so they don't count. Pulling a fresh copy from Collections does count; players can
+remove a wrong entry with **Remove**, which changes only the app (the item stays in Destiny 2)
+and stops it being detected again. Signed-in players skip the manual drops step. This is a
+convenience, not anti-cheat. The baseline lives in the player's browser
+(`ghost-directive:drop-baseline:<run>:<player>`), and a lost sync is re-sent next time.
+
 **Bungie app** (bungie.net/en/Application): OAuth Client Type *Confidential*; Redirect URL
 `https://<site>/auth/callback`; scope *Read your Destiny 2 information*; Origin Header
 `https://<site>`.

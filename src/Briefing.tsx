@@ -129,7 +129,9 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
             <div className="guest-actions">
               <p className="muted small">When the host records a clear, your reward screen opens here.</p>
               {waitingOn.length > 0 && <p className="small">Still choosing: {waitingOn.map((p) => p.name).join(', ')}</p>}
-              {myPlayerId && active && <button className="btn btn-ghost btn-big" onClick={() => openFlow({ type: 'register', playerId: myPlayerId })}>Register my drop<small>Weapons and armor you earned</small></button>}
+              {myPlayerId && active && (run.players.find((x) => x.id === myPlayerId)?.bungie
+                ? <p className="small"><span className="tag tag-bungie">Bungie</span> Your drops are detected automatically.</p>
+                : <button className="btn btn-ghost btn-big" onClick={() => openFlow({ type: 'register', playerId: myPlayerId })}>Register my drop<small>Weapons and armor you earned</small></button>)}
             </div>
           ) : <>
           <ProgressControl run={run} disabled={!active || claimed} />
@@ -338,6 +340,8 @@ function FieldArsenal({ run }: { run: Run }) {
   const control = canControl(p.id)
   const active = run.status === 'active' && control
   const toggleEquip = (itemId: string) => dispatch({ type: 'equip', itemId }, p.id)
+  // Which item is showing its "remove from the app only" confirmation.
+  const [removing, setRemoving] = useState<string | null>(null)
 
   const eligibleForTrade = (slot: Slot) => {
     const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
@@ -353,7 +357,9 @@ function FieldArsenal({ run }: { run: Run }) {
           <h2>Run inventory</h2>
           <p className="section-note">Only items declared as run acquisitions count. Each slot holds {run.ruleset.inventory.capacity} items including the equipped one{p.capacityBonus ? `, +${p.capacityBonus} from Arsenal Expansion for ${p.name}` : ''}. Keep extras in the Vault; nothing needs dismantling.</p>
         </div>
-        {control ? <button className="btn btn-light" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Register drop</button> : <span className="muted small">Viewing {p.name}. Only their player can change this.</span>}
+        {!control ? <span className="muted small">Viewing {p.name}. Only their player can change this.</span>
+          : p.bungie ? <span className="auto-drops"><span className="tag tag-bungie">Bungie</span> Drops are detected automatically. <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Add one manually</button></span>
+          : <button className="btn btn-light" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Register drop</button>}
       </header>
       <PlayerTabs run={run} value={p.id} onChange={setId} />
       <div className="slot-grid">
@@ -371,7 +377,18 @@ function FieldArsenal({ run }: { run: Run }) {
               </div>
               {items.length === 0 ? <Empty>Empty</Empty> : (
                 <ul className="items">
-                  {items.map((it) => (
+                  {items.map((it) => removing === it.id ? (
+                    <li key={it.id} className={`item item-confirm ${rarityClass(it.rarity)}`} role="group" aria-label={`Remove ${it.name}`}>
+                      <div className="item-main">
+                        <span className="item-name">Remove {it.name} from the app?</span>
+                        <span className="item-meta">Only Ghost Directive changes. The item stays in Destiny 2, and Bungie sync won&rsquo;t add it back.</span>
+                      </div>
+                      <div className="item-acts">
+                        <button className="chip chip-danger" onClick={() => { dispatch({ type: 'remove-item', itemId: it.id }, p.id); setRemoving(null); toast(`${it.name} removed from the run (still in Destiny 2)`) }}>Remove</button>
+                        <button className="chip" onClick={() => setRemoving(null)}>Keep</button>
+                      </div>
+                    </li>
+                  ) : (
                     <li key={it.id} className={`item ${rarityClass(it.rarity)} ${it.equipped ? 'is-eq' : ''}`}>
                       <div className="item-main">
                         <span className="item-name">{it.name}</span>
@@ -381,6 +398,7 @@ function FieldArsenal({ run }: { run: Run }) {
                         <div className="item-acts">
                           <button className="chip" onClick={() => toggleEquip(it.id)} aria-pressed={it.equipped}>{it.equipped ? 'Equipped' : 'Equip'}</button>
                           <button className="chip" onClick={() => { dispatch({ type: 'vault', itemIds: [it.id], why: 'player choice' }, p.id); toast(`${it.name} moved to the Vault`) }}>To Vault</button>
+                          <button className="chip chip-quiet" title="Remove from Ghost Directive only. Nothing changes in Destiny 2." onClick={() => setRemoving(it.id)}>Remove</button>
                         </div>
                       ) : it.equipped && <span className="chip static">Equipped</span>}
                     </li>
@@ -388,7 +406,7 @@ function FieldArsenal({ run }: { run: Run }) {
                 </ul>
               )}
               {control && <div className="slot-foot">
-                <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>+ Add</button>
+                {!p.bungie ? <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>+ Add</button> : <span />}
                 {tu.enabled && <button className="link" disabled={!active || !eligibleForTrade(slot)} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>Trade up {tu.inputs}&rarr;1</button>}
               </div>}
             </div>
