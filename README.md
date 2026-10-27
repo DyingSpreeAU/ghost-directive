@@ -92,14 +92,20 @@ that browser. The player's device reads their profile and sends the host:
 
 The host turns the last two into warnings.
 
-**Lobby: Equipped now.** Signed-in players see their most recently played character's equipped
-weapons and armor, checked against the starting rules. The panel refreshes every minute and has a
+**Lobby: Equipped now.** Signed-in players see their active character (the one in game now, or else the most recently
+played) with its equipped weapons, armor and subclass, checked against the starting rules
+(including no aspects or fragments). The panel refreshes every minute and has a
 Refresh button. Hovering "Updated X ago" shows when Bungie generated the data (the profile's
 minted timestamp), since it can lag the game. Until the gear matches, the panel, the Ready button
 and the host's begin bar say to wait: the run records equipped gear as starting gear, and anything
 new after that counts as a drop. The seat is filled once from the character (class, subclass,
 Super, melee, grenade from the equipped subclass's sockets) unless the player already set it up.
 "Use my character's setup" re-applies it.
+
+**Abilities.** During a run each sync reads the equipped subclass and what's slotted in it. That
+replaces the manual "equipped" ticks in the Subclass Archive, and anything equipped that isn't
+unlocked in the run (players start with only their Super, melee and grenade) shows "Equipped but
+not unlocked". A different subclass from the one the run is committed to is also flagged.
 
 **Automatic drops.** On a signed-in player's first sync of a run, their device records every
 weapon and armor instance on the account as a baseline, and registers what their character has

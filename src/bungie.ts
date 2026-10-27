@@ -2,7 +2,7 @@
 // Tokens live only in this browser (localStorage). The client secret lives in the
 // Netlify Function at /api/bungie-token. Nothing here equips or moves items.
 
-import { ALL_SLOTS, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
 import { inClaudeViewer } from './net'
 
@@ -141,6 +141,7 @@ type ProfileResponse = {
   secondaryComponentsMintedTimestamp?: string
   profileInventory?: { data?: { items: ItemComponent[] } }
   characters?: { data?: Record<string, { classType: number; light: number; dateLastPlayed: string }> }
+  characterActivities?: { data?: Record<string, { currentActivityHash?: number }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
   itemComponents?: { sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> } }
@@ -158,6 +159,8 @@ export type BungieSnapshot = {
   equipped: { slot: Slot; name: string; rarity: Rarity; instanceId?: string }[]
   /** Every weapon and armor instance on the account (Vault, characters, Postmaster), for drop detection. */
   instances: { instanceId: string; name: string; slot: Slot; rarity: Rarity }[]
+  /** The synced character's equipped subclass and what's slotted in it, or null if unreadable. */
+  subclass: EquippedSubclass | null
 }
 
 /** The Destiny membership to read (the cross-save primary where there is one) and its Bungie name. */
@@ -183,12 +186,10 @@ export async function accountName(): Promise<string> {
 export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
   const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
 
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,205`)
-  const chars = Object.entries(p.characters?.data ?? {})
-    .filter(([, c]) => c.classType === CLASS_TYPE[cls])
-    .sort((a, b) => b[1].dateLastPlayed.localeCompare(a[1].dateLastPlayed))
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205,305`)
   if (p.profileInventory?.data === undefined) throw new BungieError('Bungie did not return your Vault. Check your privacy settings at bungie.net (show my non-equipped inventory).')
-  const [charId, char] = chars[0] ?? []
+  const picked = pickCharacter(p, cls)
+  const [charId, char] = picked ? [picked.id, picked.char] : []
 
   const owned = new Set<string>()
   const note = (list: ItemComponent[] | undefined) => list?.forEach((i) => { const r = items[i.itemHash]; if (r) owned.add(r[0]) })
@@ -229,6 +230,7 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     name,
     character: char ? `${cls}, ${char.light} Power` : `No ${cls} on this account`,
     vault, vaultItems: vaultItems.length, owned, equipped, instances,
+    subclass: charId ? await readSubclass(p, charId, cls).catch(() => null) : null,
   }
 }
 
@@ -278,21 +280,23 @@ export type EquippedPreview = {
   name: string
   cls: ClassType
   light: number
-  /** The equipped subclass and the ability names slotted in it (names as Bungie spells them). */
-  subclass: { name: string; element: Element; plugs: string[] } | null
+  /** True when this character is in game right now; otherwise it's the most recently played one. */
+  online: boolean
+  /** The equipped subclass and what's slotted in it. */
+  subclass: EquippedSubclass | null
   items: { slot: Slot; name: string; rarity: Rarity }[]
   /** When Bungie produced the inventory data (it can lag the game by a minute or more). */
   mintedAt: number | null
   fetchedAt: number
 }
 
-/** What the most recently played character has equipped right now, for the lobby preview. */
+/** What the active character has equipped right now, for the lobby preview. */
 export async function fetchEquipped(): Promise<EquippedPreview> {
   const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,205,305`)
-  const chars = Object.entries(p.characters?.data ?? {}).sort((a, b) => b[1].dateLastPlayed.localeCompare(a[1].dateLastPlayed))
-  if (!chars.length) throw new BungieError('No characters found on this account.')
-  const [id, c] = chars[0]
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,204,205,305`)
+  const picked = pickCharacter(p)
+  if (!picked) throw new BungieError('No characters found on this account.')
+  const { id, char: c, online } = picked
   const equipped = (p.characterEquipment?.data?.[id]?.items ?? [])
     .map((i) => items[i.itemHash])
     .filter((r): r is ItemRow => !!r)
@@ -300,7 +304,7 @@ export async function fetchEquipped(): Promise<EquippedPreview> {
     .sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot))
   const minted = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp
   const cls = CLASS_NAME[c.classType] ?? 'Hunter'
-  return { name, cls, light: c.light, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
+  return { name, cls, light: c.light, online, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
 }
 
 // ------------------------------------------------------------------ equipped subclass
@@ -337,5 +341,48 @@ async function readSubclass(p: ProfileResponse, charId: string, cls: ClassType) 
   const sockets = sub.itemInstanceId ? p.itemComponents?.sockets?.data?.[sub.itemInstanceId]?.sockets ?? [] : []
   const hashes = [...new Set(sockets.map((s) => s.plugHash).filter((h): h is number => !!h))]
   const plugs = (await Promise.all(hashes.map(defName))).filter((n): n is string => !!n)
-  return { name, element, plugs }
+  return classifySubclass(cls, name, element, plugs)
+}
+
+export type EquippedSubclass = {
+  name: string
+  element: Element
+  /** Ability ids (our data) for everything recognised in the subclass's sockets. */
+  abilityIds: string[]
+  super?: string
+  melee?: string
+  grenade?: string
+  aspects: string[]
+  fragments: string[]
+}
+
+const normName = (x: string) => x.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '')
+
+/** Sorts a subclass's slotted plugs into Super, melee, grenade, aspects and fragments by name. */
+export function classifySubclass(cls: ClassType, name: string, element: Element, plugs: string[]): EquippedSubclass {
+  const byName = new Map(subclassAbilities(cls, element).map((a) => [normName(a.name), a]))
+  const out: EquippedSubclass = { name, element, abilityIds: [], aspects: [], fragments: [] }
+  for (const plug of plugs) {
+    const a = byName.get(normName(plug))
+    if (!a || out.abilityIds.includes(a.id)) continue
+    out.abilityIds.push(a.id)
+    const k: AbilityKind = a.kind
+    if (k === 'aspect') out.aspects.push(a.name)
+    else if (k === 'fragment') out.fragments.push(a.name)
+    else out[k] ??= a.name
+  }
+  return out
+}
+
+/**
+ * The character to read: the one in game right now (its current activity is set while online,
+ * in orbit or an activity), otherwise the most recently played. Optionally limited to a class.
+ */
+function pickCharacter(p: ProfileResponse, cls?: ClassType) {
+  const acts = p.characterActivities?.data ?? {}
+  const list = Object.entries(p.characters?.data ?? {})
+    .filter(([, c]) => cls === undefined || c.classType === CLASS_TYPE[cls])
+    .map(([id, char]) => ({ id, char, online: (acts[id]?.currentActivityHash ?? 0) !== 0 }))
+    .sort((a, b) => Number(b.online) - Number(a.online) || b.char.dateLastPlayed.localeCompare(a.char.dateLastPlayed))
+  return list[0] ?? null
 }

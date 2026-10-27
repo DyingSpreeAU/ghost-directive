@@ -140,6 +140,8 @@ export type BungieLink = {
   missing: string[]
   /** Equipped in game on the synced character but not in the run inventory. */
   untracked: { slot: Slot; name: string }[]
+  /** The subclass equipped in game at the last sync; while set, `configured` comes from Bungie. */
+  subclass?: { name: string; element: Element }
 }
 
 export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
@@ -381,10 +383,11 @@ export function computeWarnings(run: Run): Warning[] {
       if (eq > 1) out.push({ id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
     }
     const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id))
-    if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `${outOfOrder.length} ability ${outOfOrder.length === 1 ? 'is' : 'are'} configured but not unlocked`, rule: `Out of order: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}.`, where: 'archive' })
+    if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped but not unlocked: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}`, rule: `${outOfOrder.length === 1 ? 'It isn\u2019t' : 'They aren\u2019t'} unlocked in this run yet. Unequip ${outOfOrder.length === 1 ? 'it' : 'them'} in Destiny 2, or unlock ${outOfOrder.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'archive' })
     for (const l of p.loadouts) {
       if (!loadoutValid(p, l)) out.push({ id: `lo-${p.id}-${l.id}`, severity: 'warn', playerId: p.id, title: `Loadout “${l.name}” is invalid`, rule: 'It references an item that left the run inventory. Update it before using it.', where: 'arsenal' })
     }
+    if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
     if (p.bungie?.missing.length) out.push({ id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
     if (p.bungie?.untracked.length) out.push({ id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
     if (p.loadouts.length > loadoutSlotsOf(run, p)) out.push({ id: `los-${p.id}`, severity: 'warn', playerId: p.id, title: 'More loadouts saved than slots', rule: `${p.name} has ${loadoutSlotsOf(run, p)} loadout slot(s).`, where: 'arsenal' })
@@ -483,7 +486,7 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[] }
   | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
@@ -610,9 +613,16 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
       p.vault = vault
+      const sub = it.subclass && typeof it.subclass === 'object' && ELEMENTS.includes((it.subclass as { element: Element }).element)
+        ? { name: str((it.subclass as { name: unknown }).name, 40), element: (it.subclass as { element: Element }).element } : undefined
       p.bungie = {
         name: str(it.name, 40) || 'Guardian', character: str(it.character, 40), syncedAt: Date.now(),
-        vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked,
+        vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked, subclass: sub,
+      }
+      // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
+      if (sub && Array.isArray(it.configured)) {
+        const valid = new Set(subclassAbilities(p.cls, p.element).map((a) => a.id))
+        p.configured = it.configured.filter((x): x is string => typeof x === 'string' && valid.has(x))
       }
       if (first) log(run, 'run', `${p.name} linked their Bungie account (${vault.length} eligible Vault items).`)
       // New items on the account since the run started count as drops; equipped gear at the start is starting gear.

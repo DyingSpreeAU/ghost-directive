@@ -410,22 +410,21 @@ function useEquipped() {
   }, [signedIn, refresh])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
   const off = data ? data.items.filter((i) => i.rarity !== EXPECTED[i.slot]) : []
+  const extras = data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []
   const stale = !data?.mintedAt || now - data.mintedAt > STALE_MS
-  // "Synced" here means Bungie's data shows gear that fits the starting rules.
-  const ready = !!data && off.length === 0
-  return { active: bungieConfigured && signedIn, data, busy, error, now, refresh, off, stale, ready }
+  // "Synced" here means Bungie's data shows starting gear and no aspects or fragments.
+  const ready = !!data && off.length === 0 && extras.length === 0
+  return { active: bungieConfigured && signedIn, data, busy, error, now, refresh, off, extras, stale, ready }
 }
-
-const norm = (x: string) => x.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '')
 
 /** Seat settings matching the character: class, subclass, and its slotted Super, melee and grenade. */
 function seatFromCharacter(d: EquippedPreview): Patch {
-  if (!d.subclass) return { cls: d.cls as ClassType }
-  const { element, plugs } = d.subclass
-  const abil = subclassAbilities(d.cls as ClassType, element)
-  const base = defaultStarter(d.cls as ClassType, element)
-  const pick = (kind: 'super' | 'melee' | 'grenade') => abil.find((a) => a.kind === kind && plugs.some((n) => norm(n) === norm(a.name)))?.id ?? base[kind]
-  return { cls: d.cls as ClassType, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') } }
+  const cls = d.cls as ClassType
+  if (!d.subclass) return { cls }
+  const { element, abilityIds } = d.subclass
+  const base = defaultStarter(cls, element)
+  const pick = (kind: 'super' | 'melee' | 'grenade') => abilityIds.find((id) => id.split('|')[1] === kind) ?? base[kind]
+  return { cls, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') } }
 }
 
 /**
@@ -467,7 +466,8 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
         <div>
           <div className="eyebrow">Equipped now</div>
           <h2 id="equipped-now-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h2>
-          {data && seat && data.cls !== seat.cls && <p className="small tone-warn">This is your most recently played character. Your seat is set to {seat.cls}.</p>}
+          {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : 'Not in game: showing your most recently played character'}</p>}
+          {data && seat && data.cls !== seat.cls && <p className="small tone-warn">Your seat is set to {seat.cls}. Use my character&rsquo;s setup to match, or switch characters in game.</p>}
         </div>
         <div className="equipped-acts">
           {data && (
@@ -499,7 +499,16 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
               )
             })}
           </ul>
-          <p className="small muted">Aspects and fragments aren&rsquo;t checked here. Refreshes every minute.</p>
+          {data.subclass ? (
+            <dl className="equipped-subclass">
+              <div><dt>Super</dt><dd>{data.subclass.super ?? '\u2014'}</dd></div>
+              <div><dt>Melee</dt><dd>{data.subclass.melee ?? '\u2014'}</dd></div>
+              <div><dt>Grenade</dt><dd>{data.subclass.grenade ?? '\u2014'}</dd></div>
+              <div className={data.subclass.aspects.length ? 'is-off' : ''}><dt>Aspects</dt><dd>{data.subclass.aspects.length ? <span className="tone-warn">{data.subclass.aspects.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
+              <div className={data.subclass.fragments.length ? 'is-off' : ''}><dt>Fragments</dt><dd>{data.subclass.fragments.length ? <span className="tone-warn">{data.subclass.fragments.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
+            </dl>
+          ) : <p className="small muted">Couldn&rsquo;t read your subclass, so aspects and fragments aren&rsquo;t checked.</p>}
+          <p className="small muted">Refreshes every minute.</p>
         </>
       )}
     </section>
@@ -515,7 +524,7 @@ function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
   return (
     <p className={`sync-notice is-wait ${compact ? 'small' : ''}`}>
       <strong>Wait before readying up.</strong>{' '}
-      {eq.off.length} slot{eq.off.length > 1 ? 's don\u2019t' : ' doesn\u2019t'} show starting gear yet. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
+      {[eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.extras.length && `${eq.extras.length} aspect${eq.extras.length > 1 ? 's or fragments' : ' or fragment'} still equipped`].filter(Boolean).join(' and ')}. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
     </p>
   )
 }

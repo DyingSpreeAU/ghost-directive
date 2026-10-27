@@ -29,7 +29,12 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
     // Check mismatches as if the detected drops were already registered.
     const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
     const { missing, untracked } = reconcile(snap, withDrops)
-    dispatch({ type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, drops }, p.id)
+    const sub = snap.subclass
+    dispatch({
+      type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, drops,
+      subclass: sub ? { name: sub.name, element: sub.element } : null,
+      configured: sub && sub.element === p.element ? sub.abilityIds : [],
+    }, p.id)
     const found = drops.filter((d) => !d.starting)
     if (found.length) notify?.(`New drop${found.length > 1 ? 's' : ''} detected: ${found.map((d) => d.name).join(', ')}`)
     else if (drops.length) notify?.(`Starting gear registered from Bungie: ${drops.map((d) => d.name).join(', ')}`)

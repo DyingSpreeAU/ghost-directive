@@ -255,7 +255,9 @@ function SubclassArchive({ run }: { run: Run }) {
   const [p, setId] = usePlayerTab(run)
   const [showLocked, setShowLocked] = useState(false)
   const all = subclassAbilities(p.cls, p.element)
-  const control = canControl(p.id)
+  // With Bungie linked, what's equipped is read from the game; otherwise players tick it themselves.
+  const fromBungie = !!p.bungie?.subclass
+  const control = canControl(p.id) && !fromBungie
   const toggle = (id: string) => dispatch({ type: 'configure', abilityId: id }, p.id)
   return (
     <section id="archive" className="section">
@@ -268,6 +270,7 @@ function SubclassArchive({ run }: { run: Run }) {
         <label className="switch"><input type="checkbox" checked={showLocked} onChange={(e) => setShowLocked(e.target.checked)} /> Show locked</label>
       </header>
       <PlayerTabs run={run} value={p.id} onChange={setId} />
+      {fromBungie && <p className="small muted"><span className="tag tag-bungie">Bungie</span> {p.name}&rsquo;s equipped abilities are read from Destiny 2 ({p.bungie!.subclass!.name}) at each sync.</p>}
       <div className="kind-grid">
         {ABILITY_KINDS.map((k) => {
           const list = all.filter((a) => a.kind === k && (showLocked || p.unlocked.includes(a.id) || p.configured.includes(a.id)))
