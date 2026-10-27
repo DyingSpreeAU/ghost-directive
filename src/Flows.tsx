@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
-import { ALL_SLOTS, KIND_LABEL, RARITIES, abilityById, abilityDesc, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, KIND_LABEL, RARITIES, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, chestsAhead, current, itemsIn, log, recordClear, tradeUpChoices,
+  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeUpChoices,
   type ChestReward, type NewItem, type Pending, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -9,7 +9,7 @@ import { ElementMark, Modal, rarityClass } from './ui'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
   switch (flow.type) {
-    case 'clear': return <ClearFlow run={run} chests={flow.chests} onClose={onClose} />
+    case 'clear': return <ClearFlow run={run} onClose={onClose} />
     case 'wipe': return <WipeFlow run={run} onClose={onClose} />
     case 'reward': {
       const pend = run.pending.find((x) => x.id === flow.pendingId)
@@ -30,16 +30,15 @@ function ChoiceGrid({ children, five }: { children: ReactNode; five?: boolean })
 
 // ------------------------------------------------------------------ Host: record clear
 
-function ClearFlow({ run, chests, onClose }: { run: Run; chests: number; onClose: () => void }) {
+function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
   const { host, toast, online } = useGD()
   const { dungeon, encounter } = current(run)
   const rr = run.ruleset
   const after = Math.min(rr.integrity.max, run.integrity + rr.integrity.clear)
   const dup = run.claimed.includes(encounter.id)
   const final = encounter.type === 'final'
-  const ahead = chestsAhead(run).count
   const commit = () => {
-    host!.updateRun((r) => recordClear(r, chests))
+    host!.updateRun((r) => recordClear(r))
     toast(`${encounter.name} cleared. Reward screens sent.`)
     onClose()
   }
@@ -54,8 +53,7 @@ function ClearFlow({ run, chests, onClose }: { run: Run; chests: number; onClose
         {dup && <div className="warn warn-critical static"><span className="warn-sev">Duplicate</span><span className="warn-title">This encounter&rsquo;s reward was already claimed this run.</span><span className="warn-rule">Standard mode allows one completion reward per encounter. Continue only if the earlier record was a mistake.</span></div>}
         <div className="delta-row">
           <div><div className="eyebrow">Integrity</div><span className="big mono">{run.integrity} &rarr; {after}</span>{after - run.integrity < rr.integrity.clear && <span className="muted small"> capped at {rr.integrity.max}</span>}</div>
-          <div><div className="eyebrow">Each Guardian gets</div><span>1 of {rr.rewards.unlockChoices} unlocks{final && rr.rewards.finalBossGear ? ', a final-boss item' : ''}{final && rr.rewards.finalBossArtifact ? ', Artifact research' : ''}{chests > 0 ? `, ${chests === 1 ? 'a chest reward' : `${chests} chest rewards`}` : ''}, and their own drops</span></div>
-          {ahead > 0 && <div><div className="eyebrow">Secret chest{ahead > 1 ? 's' : ''}</div><span>{chests === 0 ? 'Skipped' : `${chests} of ${ahead} found`}</span></div>}
+          <div><div className="eyebrow">Each Guardian gets</div><span>1 of {rr.rewards.unlockChoices} unlocks{final && rr.rewards.finalBossGear ? ', a final-boss item' : ''}{final && rr.rewards.finalBossArtifact ? ', Artifact research' : ''}, and their own drops</span></div>
         </div>
         <p>Every player gets their own reward screen on their own device. The run moves on to the next encounter right away; rewards can be chosen while you play.</p>
         <ul className="summary">
@@ -174,8 +172,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         <ChoiceGrid>
           {pend.artifact.map((m) => (
             <button key={m} className={`choice ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
-              <span className="choice-kind">Artifact mod</span>
+              <span className="choice-kind">{p.artifactName} &middot; Tier {artifactPerk(p.artifactName, m)?.tier ?? '?'}</span>
               <strong>{m}</strong>
+              {artifactPerk(p.artifactName, m)?.desc && <span className="choice-desc">{artifactPerk(p.artifactName, m)!.desc}</span>}
             </button>
           ))}
         </ChoiceGrid>
@@ -185,8 +184,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         <ChoiceGrid>
           {pend.chest.map((c, k) => (
             <button key={chestLabel(c)} className={`choice ${chest === k ? 'is-on' : ''} ${c.kind !== 'artifact' ? 'choice-upgrade' : ''}`} onClick={() => setChest(k)}>
-              <span className="choice-kind">{c.kind === 'artifact' ? 'Artifact mod' : 'Upgrade'}</span>
+              <span className="choice-kind">{c.kind === 'artifact' ? `${p.artifactName} \u00b7 Tier ${artifactPerk(p.artifactName, c.mod)?.tier ?? '?'}` : 'Upgrade'}</span>
               <strong>{chestLabel(c)}</strong>
+              {c.kind === 'artifact' && artifactPerk(p.artifactName, c.mod)?.desc && <span className="choice-desc">{artifactPerk(p.artifactName, c.mod)!.desc}</span>}
               {c.kind === 'expansion' && <span className="muted">+1 capacity in every slot</span>}
               {c.kind === 'archive' && <span className="muted">+1 saved loadout. Rare.</span>}
             </button>
@@ -291,8 +291,9 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
   const p = run.players.find((x) => x.id === playerId)!
   const n = itemsIn(p, s).length
   const cap = capacityOf(run, p)
+  const exoticClass = rarity === 'Exotic' && s === 'Class Item'
   const submit = () => {
-    if (!name.trim()) return
+    if (!name.trim() || exoticClass) return
     dispatch({ type: 'register', item: { name: name.trim(), slot: s, rarity, source } }, playerId)
     toast(`${name.trim()} registered`)
     onClose()
@@ -301,7 +302,7 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
     <Modal title="Register drop" kicker={`Field Arsenal · ${p.name}`} onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-light" disabled={!name.trim()} onClick={submit}>Register</button>
+        <button className="btn btn-light" disabled={!name.trim() || exoticClass} onClick={submit}>Register</button>
       </>}
     >
       <form className="form" onSubmit={(e) => { e.preventDefault(); submit() }}>
@@ -320,6 +321,7 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
           {SOURCES.map((x) => <option key={x}>{x}</option>)}
         </select>
       </form>
+      {exoticClass && <p className="small tone-danger">Exotic class items aren&rsquo;t part of runs yet.</p>}
       <p className={`small ${n >= cap ? 'tone-warn' : 'muted'}`}>
         Your {s} slot holds {n} of {cap}.{n >= cap && (run.ruleset.overflow === 'guided' ? ' You will choose an item to move to the Vault.' : ' This will show an over-capacity warning.')}
       </p>

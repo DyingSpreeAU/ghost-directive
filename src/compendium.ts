@@ -804,6 +804,792 @@ export const COMPENDIUM = {
   "Prismatic|aspect|Bleak Watcher": "Stasis. Grenade Base Cooldown and Chunk Scalar is set to Glacier Grenade's while this Aspect is equipped.",
   "Prismatic|aspect|Weaver's Call": "Strand. Threadling damage instances grant 10% Class Ability Energy."
  },
+ "artifacts": [
+  {
+   "name": "Encrypted Data Disk",
+   "season": "Renegades",
+   "focus": "",
+   "perks": [
+    {
+     "name": "Press The Advantage",
+     "tier": 1,
+     "desc": "Upon breaking a Combatant's Shield: +20 Stability, +20? Handling, and +20 Reload Speed for 10 seconds. Swords receive +20 Guard Resistance."
+    },
+    {
+     "name": "Dielectric",
+     "tier": 2,
+     "desc": "On Arc-Debuffed Enemy Kill: Grants x1 Bolt Charge. Upon scoring 3 Arc-Debuffed Enemy Kills within 6 seconds of each: Spawns an Orb of Power that grants 7.15% Super Energy. Restores 40 HP."
+    },
+    {
+     "name": "Elemental Orbs: Arc",
+     "tier": 3,
+     "desc": "Upon scoring 6 [2?] Arc Weapon Kills: Spawns an Arc Elemental Orb. Arc Elemental Orb: Arc Orbs remain on the ground for up to 20 seconds before expiring. Arc Orbs that are picked up can be held for up to 20 seconds. Arc Orbs deal up to…"
+    },
+    {
+     "name": "Kinetic Synthesis",
+     "tier": 1,
+     "desc": "Dealing Kinetic Weapon Damage and scoring Kinetic Weapon Kills progress a counter, spawning an unique Kinetic Ammo Brick upon reaching 100%. Counter lasts 15s and is refreshed upon dealing Kinetic Weapon Damage. Each damage point grants…"
+    },
+    {
+     "name": "Armorsmith",
+     "tier": 2,
+     "desc": "Upon breaking a Combatant's Shield or performing a Finisher: 10% [2.5%] Damage Resist (Resist x1) for 6 seconds. 100% Increased Melee Damage for 6 seconds."
+    },
+    {
+     "name": "Kinetic Rupture",
+     "tier": 3,
+     "desc": "Upon scoring enough Kinetic Weapon Damage Instances against Elite+ Combatants: Spawns a Kinetic Rupture for ? seconds which counts as a Weakspot. Kinetic Ruptures can be damaged, activating after 0.3? seconds of being dealt damage,…"
+    },
+    {
+     "name": "Reload at Range",
+     "tier": 1,
+     "desc": "Upon scoring a Precision Hit with a Bow or Sniper Rifle: Grants a stack of Reload at Range for ? seconds, up to ? stacks. Reload at Range: x1 | +? Reload Speed x2 | +? Reload Speed x3 | +? Reload Speed"
+    },
+    {
+     "name": "Counter Energy",
+     "tier": 2,
+     "desc": "Whenever a Champion gets stunned: 25% Ability Energy to the least-charged Ability. Excludes Super Abilities, obviously."
+    },
+    {
+     "name": "Sniper's Meditation",
+     "tier": 3,
+     "desc": "On Sniper Rifle Direct Hit: Grant a stack of Sniper's Meditation for 7 seconds. Heavy Sniper Rifle hits grant 2 stacks. Sniper's Meditation Buff persists through stow. Sniper's Meditation Increased Damage, Stability, and Reload Speed.…"
+    },
+    {
+     "name": "Riposte",
+     "tier": 1,
+     "desc": "After guarding with a Sword: Grants Unstoppable Shots for 3 seconds. THIS DOESN'T DO ANYTHING AT ALL LMAO."
+    },
+    {
+     "name": "Combination Argent Blade",
+     "tier": 2,
+     "desc": "Upon swinging, then waiting for 0.5 seconds before swinging again while grounded: Grants Argent Blade for 5 seconds. Buff cannot be refreshed. Argent Blade: 15% Increased Sword Damage +100 Charge Rate"
+    },
+    {
+     "name": "Sword Storm Combo",
+     "tier": 3,
+     "desc": "Upon doing 3 Light Attacks followed by a Heavy Attack while grounded: Grants Sword Storm Combo for 5 seconds. Scoring additional Sword Kills refresh the buff. Sword Storm Combo: Automatically deals 103 [?] Sword Kinetic Damage and…"
+    },
+    {
+     "name": "Power from Pain",
+     "tier": 1,
+     "desc": "Upon scoring 3 Consecutive Weakened Enemy Kills within 4 seconds of each: Grants Devour for 5+2.5 seconds. Hits that would've inflicted Weaken will also count even if they instantly kill an enemy."
+    },
+    {
+     "name": "Singularity Blade",
+     "tier": 2,
+     "desc": "While a Void Buff (Devour, Invisibility, or Overshield) is active: Melee and Sword Hits inflict Weaken for 6 seconds. Checks on-hit, instead of snapshotting on-usage. On Melee or Sword Kill while a Void Buff is active: Triggers a…"
+    },
+    {
+     "name": "Void Infestation",
+     "tier": 3,
+     "desc": "Upon killing a Weakened Enemy: Spawns a tracking projectile that seeks enemies within 15 meters. Projectile deals 87 [?] Void Damage and inflicts Weaken over ? meters."
+    },
+    {
+     "name": "Fierce Proxemics",
+     "tier": 1,
+     "desc": "On Finisher: 25% Grenade and Melee Ability Energy."
+    },
+    {
+     "name": "Blinding Jolts",
+     "tier": 2,
+     "desc": "On Jolted Enemy Kill: Inflicts Blind to enemies within 8 meters for 10 seconds."
+    },
+    {
+     "name": "Tazer Tag",
+     "tier": 3,
+     "desc": "Upon dealing Arc Melee Damage: Inflicts Jolt and deals 23 Arc DoT every 0.25 seconds. Deals a total of ~800 Arc Damage over 8.75 seconds. Not including Jolt damage! With Jolt, it is 1245 damage."
+    },
+    {
+     "name": "Rapid Remedy",
+     "tier": 1,
+     "desc": "Upon scoring 3 Machine Gun Kills within 3 seconds of each: Restores 15 HP. Begins Critical Health Regeneration."
+    },
+    {
+     "name": "Precision Equity",
+     "tier": 2,
+     "desc": "Precision Kills grant stacks of Precision Equity, up to 10 stacks. Rank-and-File = 1 | Elite = 2 | Miniboss = 5 | Champion+ = 10 Does not overflow or retains stacks past x10. Upon reaching x10 stacks: Consumes all stacks to spawn a…"
+    },
+    {
+     "name": "Sticker Shock",
+     "tier": 3,
+     "desc": "Flux, Fusion, and Magnetic deal increased damage on direct hits. Flux = 60% | Fusion = 30% | Magnetic = 22.5% total increase Only the first Magnetic explosion gets increased by 45%. Does not increase the Solar Effect Damage of Fusion…"
+    }
+   ]
+  },
+  {
+   "name": "Implement of Curiosity",
+   "season": "Reclamation",
+   "focus": "Kinetic | Solar | Stasis | Strand · Bow | Sword | Micro-Missiles",
+   "perks": [
+    {
+     "name": "Fever and Chill",
+     "tier": 1,
+     "desc": "Upon scoring multiple Precision Hits within 3 seconds of each: Solar Weapons | Grants Radiant for 10+5 seconds. Stasis Weapons: Grants a stack of Frost Armor. Incurs a 1.5s cooldown between triggers. Additional hits during this time do…"
+    },
+    {
+     "name": "Threaded Blast",
+     "tier": 2,
+     "desc": "Upon destroying a Tangle with Strand Damage: Explosion has an additional damage instance that deals 288 [?] damage, down to 75% damage over a 17 meter radius. Additional damage counts as Tangle Damage for all interactions."
+    },
+    {
+     "name": "Radiant Shrapnel",
+     "tier": 3,
+     "desc": "Upon dealing Weapon Damage equal to 10% of an Enemy's Combined Health+Shields while Radiant, or upon killing a Scorched Combatant with a Weapon: Target releases 1 Solar Shrapnel that deals 54 [?] Impact Damage and up to 289 [20] Explosive…"
+    },
+    {
+     "name": "Elemental Benevolence",
+     "tier": 1,
+     "desc": "Upon bestowing an Elemental Buff to allies: ~15?% Class Ability Energy. Incurs a ? second cooldown PER ALLY after activation."
+    },
+    {
+     "name": "Cauterized Darkness",
+     "tier": 2,
+     "desc": "Upon inflicting a Darkness Debuff on a Non-Boss Combatants: 75% Increased Solar Damage dealt. Indicated by getting Yellow Numbers on Solar Damage. Stacks with other Weaken sources. Incurs a 2? second cooldown between additional Darkness…"
+    },
+    {
+     "name": "Shieldcrush",
+     "tier": 3,
+     "desc": "While Frost Armor, Void Overshield, or Woven Mail are active: ?% [?%] Additional Base Melee Recharge Rate 50% [5%] Increased Powered Melee Damage. Also increases Super Melee Damage and Ignition Damage. While Amplified or Radiant are…"
+    },
+    {
+     "name": "Frost Renewal",
+     "tier": 1,
+     "desc": "On Shield Break from Combatant Damage, while Frost Armor is active: Releases a Stasis Burst over 10 meters. Stasis Burst freezes enemies and grants a stack of Frost Armor to the user and allies in range."
+    },
+    {
+     "name": "Elemental Daze",
+     "tier": 2,
+     "desc": "Upon stunning a Champion with an Elemental Weapon: Triggers an Elemental-Matching Explosion that deals up to 315 Elemental Damage and inflicts an Elemental Debuff over 5 meters, down to 0% damage. Arc: Jolt | Solar: Ignition | Void:…"
+    },
+    {
+     "name": "Elemental Overdrive",
+     "tier": 3,
+     "desc": "Upon picking up a Elemental Pickup: 22% [?%] increased Pickup-Matching Weapon Damage for 7 seconds. Displays as Weapon Surge despite stacking multiplicatively with it."
+    },
+    {
+     "name": "Horde Shuttle",
+     "tier": 1,
+     "desc": "Dealing Weapon Damage equal to 10% [100? HP] of an Unraveled Enemy's Combined Health + Shields spawns a Threadling. Incurs a 0.5 second cooldown between Threadlings. Threadlings inflict Sever upon dealing damage."
+    },
+    {
+     "name": "Shoulder to Shoulder",
+     "tier": 2,
+     "desc": "Upon dealing sustained Precision Damage while within 15 meters of 2 allies: 25% Damage Resist (Resist x2) for 10? seconds"
+    },
+    {
+     "name": "Tangled Web",
+     "tier": 3,
+     "desc": "Upon killing a Strand-Debuffed Combatant: Triggers a Suspending Blast. Only triggers when a Tangle is created."
+    },
+    {
+     "name": "Refresh Threads",
+     "tier": 1,
+     "desc": "Upon picking up a Super-Matching Elemental Pickup: 25% Ability Energy to the least-charged Ability. Also triggers with Tangles on Strand. Incurs a 0.3 second cooldown between triggers. Does not trigger on Abilities that have at least 1…"
+    },
+    {
+     "name": "Elemental Coalescence",
+     "tier": 2,
+     "desc": "Upon scoring a random, Pickup-based amount of kills: Spawns a Super-Matching Elemental Pickup. Kills needed to trigger vary per Elemental Pickup. Firesprites, Void Breaches: 4–7 kills. Ionic Trace, Stasis Shards, Tangles: 9–11 kills.…"
+    },
+    {
+     "name": "Frigid Glare",
+     "tier": 3,
+     "desc": "Upon scoring a Precision Kill with a Stasis Weapon while Frost Armor is active: Triggers a Freezing Burst on Enemy Death Location. Freezing Burst affects enemies within 7 meters."
+    },
+    {
+     "name": "Pack Tactics",
+     "tier": 1,
+     "desc": "Dealing Threadling Damage grants a stack of Pack Tactic for 10 seconds, up to a maximum of 2 stacks. Dealing additional Threadling damage refreshes the buff duration. Pack Tactics x1 | 15% increased Threadling Damage. Pack Tactics x2 |…"
+    },
+    {
+     "name": "That Fresh Bullets Smell",
+     "tier": 2,
+     "desc": "On Ammo Brick Pickup: Grants Kinetic Weapon Surge for 11 seconds. Special Brick = x2 Kinetic Weapon Surge. Heavy Brick = x3 Kinetic Weapon Surge. Does not overwrite stronger Weapon Surges."
+    },
+    {
+     "name": "Iron Lord's Vigor",
+     "tier": 3,
+     "desc": "Upon scoring 3 Sword Kills within 3 seconds of each: Grants +3 Ammo. Praxic Blade and Ergo Sum receive +1 Ammo instead. Does not grant any Damage Resist, contrary to description."
+    },
+    {
+     "name": "Semi-Auto Striker",
+     "tier": 1,
+     "desc": "While at <2 Armor Charges: Upon scoring multiple Precision Hits within 3 seconds of each with Bows, Sniper Rifles, or Scout Rifles: Grants an Armor Charge. Precision Hit Requirement: Scouts = 5 | Bows = 3 | Snipers = 2"
+    },
+    {
+     "name": "Energy Acceleration",
+     "tier": 2,
+     "desc": "Upon scoring 2 non-simultaneous Micro-Missile damage instances within 3 seconds of each or a Micro-Missile Kill: Target releases a Kinetic Shockwave that deals 120 [20] Kinetic Damage and stuns Unstoppable Champions over 7 meters.…"
+    },
+    {
+     "name": "Argent Quiver",
+     "tier": 3,
+     "desc": "Reloading a bow consumes an Armor Charge to grant 3 stacks of Godslayer Broadheads. Cannot consume Armor Charge or grant stacks while buff is active. While Godslayer Broadhead is active: Grants increased damage and +? Reload Speed. Firing…"
+    }
+   ]
+  },
+  {
+   "name": "Tablet of Ruin",
+   "season": "Heresy",
+   "focus": "Arc | Void | Strand | Prismatic · Fusion Rifles | Glaives | Trace Rifles",
+   "perks": [
+    {
+     "name": "Hold the Line",
+     "tier": 1,
+     "desc": "While within 15 meters of 3 enemies, while a Glaive or Machine Gun is readied: +? Stability and +30 Reload Speed for Glaives and Machine Guns. Glaive Projectile/Melee and Machine Gun Kills restore 55 HP. Stat Bonus persist for 5 seconds…"
+    },
+    {
+     "name": "Vile Weave",
+     "tier": 2,
+     "desc": "Tangles inflict sever for 10+5 seconds upon dealing damage. On Tangle Pickup: Decreases the Tangle Cooldown by 4 second. Can trigger from Moirai's Threaded Spike hitting a Tangle. Can trigger from harvesting a Tangle from Luzaku's Teeming…"
+    },
+    {
+     "name": "Particle Reconstruction",
+     "tier": 3,
+     "desc": "(Linear) Fusion Rifle hits inflict an unique stacking weaken that increases (Linear) Fusion Rifle damage. 5% | 10.25% | 15.8% | 21.6% | 27.6% 30% Weaken overrides Particle Reconstruction weaken. Divinity's Cage also overrides it down to…"
+    },
+    {
+     "name": "Dielectric",
+     "tier": 1,
+     "desc": "On Arc-Debuffed Enemy Kill: Grants x1 Bolt Charge. Unlike Data Disk's version, this does NOT spawn Orbs nor restore health on Arc Debuffed Rapid Kills."
+    },
+    {
+     "name": "Maligned Harvest",
+     "tier": 2,
+     "desc": "Upon inflicting Volatile 4 times within 5 seconds of each: The next Void Damage Instance within 10 seconds releases a weakening burst, affecting enemies within 7 metres. Upon inflicting Weaken on a Non-Weakened Enemy: +25 Void Overshield…"
+    },
+    {
+     "name": "Elemental Supercharger",
+     "tier": 3,
+     "desc": "On Exhausted or Severed Enemy Kill with Super-Matching Weapons: Grants 2?% Additional Super Ability Energy."
+    },
+    {
+     "name": "Volatile Marksman",
+     "tier": 1,
+     "desc": "Upon scoring multiple Precision Hits within 3 seconds of each, or upon scoring 3 kills within 3 seconds of each with Void Weapons: Grants Volatile Rounds for 10 [6] seconds. Precision Hits trigger for Volatile Rounds: (25% of Magazine…"
+    },
+    {
+     "name": "Flashover",
+     "tier": 2,
+     "desc": "Upon reaching x10 Bolt Charge: Amplified for 15 seconds. Bolt Discharges deal 50% increased damage against Combatants. 405 Impact + 270 Splash = 675 Base 608 Impact + 406 Splash = 1014 Flashover"
+    },
+    {
+     "name": "Heavy Ordnance Regeneration",
+     "tier": 3,
+     "desc": "Upon scoring 8 Machine Gun damage instances, or 2 Rocket Launcher damage instances within 7 seconds of each: 25% [5%] Damage Resist (Resist x2) for 15.5 seconds 85% Additional Base Grenade and Melee Ability Regeneration Rate for 10…"
+    },
+    {
+     "name": "Unraveling Orbs",
+     "tier": 1,
+     "desc": "On Orb of Power or Tangle Throw: Unraveling Rounds for 14 [?] seconds."
+    },
+    {
+     "name": "Horde Shuttle",
+     "tier": 2,
+     "desc": "Dealing Weapon Damage equal to 10% [100? HP] of an Unraveled Enemy's Combined Health + Shields spawns a Threadling. Incurs a 0.5 second cooldown between Threadlings. Threadlings inflict sever upon dealing damage."
+    },
+    {
+     "name": "Defibrillating Blast",
+     "tier": 3,
+     "desc": "Upon stunning a Champion: Grants x10 Bolt Charge. Bolt Discharge's Bolt Splash damage portion now inflicts Jolt. Upon triggering a Bolt Discharge: Restores ~55 HP. Begins Critical Health regeneration Does not begin recharging Shields."
+    },
+    {
+     "name": "Photonic Flare",
+     "tier": 1,
+     "desc": "Upon killing an Exhausted or Severed Enemy with Arc Damage: Triggers a blinding burst, blinding enemies within 5? meters. Incurs a 6? second cooldown between activations."
+    },
+    {
+     "name": "No Bell",
+     "tier": 2,
+     "desc": "Upon scoring 2 Glaive Melee Kills within 3 seconds of each: +2 Reserve Ammo to Special Ammo Glaives. Upon blocking damage with a Glaive Shield: 85% [?%] increased Glaive Melee Damage for 6 seconds. Also triggers if an Ally shoots the…"
+    },
+    {
+     "name": "Void Flux",
+     "tier": 3,
+     "desc": "On Weakened Enemy Kill with a Void Weapon: Inflicts Volatile to enemies within ? meters. Elite+? Combatants and Guardians? increase the radius to ? meters."
+    },
+    {
+     "name": "Elemental Siphon",
+     "tier": 1,
+     "desc": "Upon scoring 3 kills within 3 seconds of each using a Kinetic Weapon or a Super-Element Matching Weapon: Creates an Elemental Pickup that matches the equipped Super Ability's element. Upon collecting an Elemental Pickup: Grants 5% [1%]…"
+    },
+    {
+     "name": "Harsh Refraction",
+     "tier": 2,
+     "desc": "Upon scoring 3 Trace Rifle hits against enemies affected by Element-Matching Debuffs: Grants increased Trace Rifle damage for 4 seconds. Legendary Trace Rifles = 50% increased damage Exotic Special Traces / Lodestar = 35% increased damage…"
+    },
+    {
+     "name": "Limit Break",
+     "tier": 3,
+     "desc": "On Super Cast, while at Critical Health or affected by an Element-Matching Buff: 15% Increased Super Ability Damage. One-Off Supers are only buffed for 8 seconds. Roaming Supers are buffed until it runs out. Arc = ↑Amplified ↑Bolt Charge…"
+    },
+    {
+     "name": "Perpetual Destruction",
+     "tier": 1,
+     "desc": "Non-Exotic Rocket Launcher Kills within 2-3? seconds of each progress a counter. Rank-and-File = 25% | Elite = 34% | Miniboss = 100% Upon reaching 100% Counter Progress: Rocket Launchers are granted +1 Ammo. Precision/High-Impact Rockets…"
+    },
+    {
+     "name": "Gold from Lead",
+     "tier": 2,
+     "desc": "Upon picking up 5–6 Special Ammo Bricks: Generates 8% Heavy Ammo, rounded up. Pickup Counter is reset on death. Not affected by Scavenger Mods. Does not function in the Crucible."
+    },
+    {
+     "name": "To Shreds",
+     "tier": 3,
+     "desc": "Upon scoring 6 weapon damage instances against Severed Enemies: Inflicts Unravel. On Severed Enemy Kill: Releases 3 healing pulses on Enemy Death Location, restoring 15 HP and granting Woven Mail for 10 seconds to the user and allies…"
+    }
+   ]
+  },
+  {
+   "name": "Slayer Baron Apothecary Satchel",
+   "season": "Revenant",
+   "focus": "Arc | Void | Stasis · Grenade Launchers | Shotguns",
+   "perks": [
+    {
+     "name": "Wind Chill",
+     "tier": 1,
+     "desc": "Upon scoring multiple non-simultaneous Stasis Weapon Damage instances within 3 seconds of each: Grants a stack of Frost Armor. Incurs a 0.45s cooldown between triggers. Additional hits during this time do not count. Counter resets on…"
+    },
+    {
+     "name": "Frost Renewal",
+     "tier": 2,
+     "desc": "On Shield Break from Combatant Damage, while Frost Armor is active: Releases a Stasis Burst over 10 meters. Stasis Burst freezes enemies and grants a stack of Frost Armor to the user and allies in range."
+    },
+    {
+     "name": "Brain Freeze",
+     "tier": 3,
+     "desc": "Frozen Enemies inflict x? Slow to enemies within 4? meters that aren't affected by Stasis Debuffs."
+    },
+    {
+     "name": "Crystalline Converter",
+     "tier": 1,
+     "desc": "Picking up Stasis Shards progresses the Crystalline Converter Counter. Upon dealing Stasis Melee Damage or Diamond Lance Damage: Consumes the Crystalline Converter Counter. Spawns Crystals based on the amount of Shards picked up. 8 | 12 |…"
+    },
+    {
+     "name": "Hail The Storm",
+     "tier": 2,
+     "desc": "Upon shattering a Stasis Crystal: Releases 5 Homing Ice Shards in a * pattern, each dealing 46 damage and inflicting x? [x10] Slow for ? seconds. Shards are spread uniformally, with one shard going towards the closest enemy and the others…"
+    },
+    {
+     "name": "Supernova",
+     "tier": 3,
+     "desc": "On Void Breach Pickup: The next Void Damage Instance within 10 seconds releases a weakening burst, inflicting Weaken to enemies within 5? metres."
+    },
+    {
+     "name": "Total Carnage",
+     "tier": 1,
+     "desc": "Upon finishing an Elite+ Combatant: Restores 100 HP. Begins Health Regeneration. 25% Damage Resist (Resist x2) for 11 seconds."
+    },
+    {
+     "name": "Debilitating Wave",
+     "tier": 2,
+     "desc": "Upon finishing a Combatant: Triggers a wave, dealing 180 Super-Element Matching Damage up to 20 meters away. Wave travels in the direction of the finisher and tracks enemies. Wave damage ignores Power Delta, always dealing 180. Equipping…"
+    },
+    {
+     "name": "Conductive Cosmic Crystal",
+     "tier": 3,
+     "desc": "Against Stasis-Debuffed Enemies: Arc and Void Ability Damage is increased by 5%."
+    },
+    {
+     "name": "Power from Pain",
+     "tier": 1,
+     "desc": "Upon scoring 3 Consecutive Weakened Enemy Kills within 4 seconds of each: Grants Devour for 5+2.5 seconds. Spawns a Void Breach. Hits that would've inflicted Weaken will also count even if they instantly kill an enemy."
+    },
+    {
+     "name": "Weakened Clear",
+     "tier": 2,
+     "desc": "Upon damaging a Boss, Champion, or breaking a Combatant's Shield with a Grenade Launcher: Inflicts Weaken for 20 seconds and refills stowed weapons. Incurs a 10 second cooldown before inflicting Weaken or refilling again. Weaken can be…"
+    },
+    {
+     "name": "Served Cold",
+     "tier": 3,
+     "desc": "Stasis Shards additionally grant 10% Class Energy. Void Breaches additionally grant 10?% Melee Energy."
+    },
+    {
+     "name": "Trace Evidence",
+     "tier": 1,
+     "desc": "Upon scoring 2 Precision Hits within 1 second of each against Arc-Debuffed Enemies, OR upon scoring 3 Arc-Debuffed Enemy Kills within 3 seconds of each: Spawns an Ionic Trace. Incurs a 4 second cooldown between Ionic Trace spawns. On…"
+    },
+    {
+     "name": "Retinal Burn",
+     "tier": 2,
+     "desc": "Upon scoring 2 Arc Weapon Precision Hits against Non-Blinded Combatants within 2 seconds of each while Armor Charge is active: Consumes x1 Armor Charge. Inflicts blind to enemies within 7 meters for ~8.5 seconds."
+    },
+    {
+     "name": "Kinetic Impacts",
+     "tier": 3,
+     "desc": "Releases a single Unstoppable-staggering Shockwave underneath the enemy. Shockwave deals 227x2 = 454 Kinetic Damage over 7 meters. Shockwaves from Primary and Special GLs only deal 150x2 Damage. Shockwave has no damage falloff. Incurs a 1…"
+    },
+    {
+     "name": "The Thick of It",
+     "tier": 1,
+     "desc": "While within 15 meters of 3 enemies: +35? Handling and +? Charge Rate. Scoring 3 Kills grants a stack of Armor Charge. Condition lingers for 1.5 seconds once criteria isn't met."
+    },
+    {
+     "name": "Curative Orbs",
+     "tier": 2,
+     "desc": "Upon first breaking a Combatant Shield, or a Supering Guardian's Shield: Creates an Orb of Power that grants 7.15% Super Energy. Performing a Finisher on a Combatant that didn't trigger the effect will also spawn an Orb of Power. Upon…"
+    },
+    {
+     "name": "Arc Compounding",
+     "tier": 3,
+     "desc": "15% [7.5%] increased Arc Damage against Blinded Enemies. Stacks with everything."
+    },
+    {
+     "name": "Killing Breeze",
+     "tier": 1,
+     "desc": "Upon scoring 3 Weapon Kills within 3 seconds of each: +50? Mobility for 7 seconds. Buff can be refreshed by retriggering it."
+    },
+    {
+     "name": "Void Renewal",
+     "tier": 2,
+     "desc": "While Devour is active: Void Weapon Kills progress a counter that spawns a Void Breach upon reaching 100%. RnF = 16.7% | Elite = 34% | Miniboss+ = 50% | Guardians = ?% On Void Breach Pickup: +? Handling and +? Reload Speed for ? seconds.…"
+    },
+    {
+     "name": "Old God's Rite",
+     "tier": 3,
+     "desc": "On Void Breach Pickup: The next Void Weapon Damage Instance within 10 seconds creates a Void Portal. Void Portal: Releases 8 Homing Void Orbs towards enemies within ~10 meters. Void Orbs deal up to 334 [?] Splash Damage over ~3? meters.…"
+    }
+   ]
+  },
+  {
+   "name": "Hunter's Journal",
+   "season": "Echoes",
+   "focus": "Solar | Arc | Void | Prismatic · Auto Rifles | Sniper Rifles | Swords",
+   "perks": [
+    {
+     "name": "Elemental Siphon",
+     "tier": 1,
+     "desc": "Upon scoring 3 kills within 3 seconds of each using a Kinetic Weapon or a Super-Element Matching Weapon: Creates an Elemental Pickup that matches the equipped Super Ability's element. Unlike Tablet of Ruin's version, this does NOT grant…"
+    },
+    {
+     "name": "Counter Energy",
+     "tier": 2,
+     "desc": "Whenever a Champion gets stunned: 25% Ability Energy to the least-charged Ability. Excludes Super Abilities, obviously."
+    },
+    {
+     "name": "Prismatic Transfer",
+     "tier": 3,
+     "desc": "On Super Cast: Allies within 15 meters with a Super Element different from the caster's receive 20% [10%] increased damage for 10 [5] seconds. Damage buff is not refreshable. Doesn't stack with Radiant or other similar empowering buffs."
+    },
+    {
+     "name": "Energy Diffusion Substrate",
+     "tier": 1,
+     "desc": "5%? Damage Resist against Combatants."
+    },
+    {
+     "name": "Blade Stamina",
+     "tier": 2,
+     "desc": "Upon scoring 3 Combatant Kills within 5 seconds of each with a Sword: Generates +3 Ammo. Praxic Blade and Ergo Sum receive +2 Ammo instead."
+    },
+    {
+     "name": "Argent Blade",
+     "tier": 3,
+     "desc": "Dealing Sword Damage consumes an Armor Charge to grant Argent Blade for 5 seconds. Argent Blade: 15% Increased Sword Damage +100 Charge Rate. Stacks with other buffs. Does not consume additional Armor Charges while Argent Blade is active"
+    },
+    {
+     "name": "Creeping Chill",
+     "tier": 1,
+     "desc": "Upon scoring a Stasis Kill against a Stasis-Debuffed Enemy: Triggers a Slowing Burst over 6 meters. Slowing Burst Inflicts x20 Slow for 2?+? seconds to enemies. Grants x? Frost Armor to the user and allies. Has no effect."
+    },
+    {
+     "name": "Void Hegemony",
+     "tier": 2,
+     "desc": "While a Void or Prismatic Subclass is equipped: Killing Weakened Enemies grants 15 Overshield HP."
+    },
+    {
+     "name": "Expanding Abyss",
+     "tier": 3,
+     "desc": "User deals increased Void Damage towards Weakened Enemies. 7.5% -> 10% (2.3% increased damage) 15% -> 25% (8.7% increased damage) 30% -> 35% (3.8% increased damage) 35% -> 40% (3.7% increased damage) Divinity's Weaken is unaffected."
+    },
+    {
+     "name": "Press The Advantage",
+     "tier": 1,
+     "desc": "Upon breaking a Combatant's Shield: +20 Stability, +20? Handling, and +20 Reload Speed for 10 seconds. Swords receive +20 Guard Resistance."
+    },
+    {
+     "name": "Radiant Orbs",
+     "tier": 2,
+     "desc": "While a Solar or Prismatic Subclass is equipped: Orbs of Power grant Radiant for 10+5 seconds."
+    },
+    {
+     "name": "Shieldcrush",
+     "tier": 3,
+     "desc": "While Frost Armor, Void Overshield, or Woven Mail are active: ?% [?%] Additional Base Melee Recharge Rate 50% [5%] Increased Powered Melee Damage. Also increases Super Melee Damage and Ignition Damage. While Amplified or Radiant are…"
+    },
+    {
+     "name": "Threaded Blast",
+     "tier": 1,
+     "desc": "Upon destroying a Tangle with Strand Damage: Explosion has an additional damage instance that deals 288 [?] damage, down to 75% damage over a 17 meter radius. Additional damage counts as Tangle Damage for all interactions."
+    },
+    {
+     "name": "Bad Amplitude",
+     "tier": 2,
+     "desc": "Upon dealing Arc Ability Damage to a Champion: Inflicts Jolt to the Champion."
+    },
+    {
+     "name": "Transference",
+     "tier": 3,
+     "desc": "While Transcendent: 10% Increased Grenade and Melee Damage. After Transcendence ends: Each Weapon Kill scored grants 4.2% Light and Darkness Energy. Grants up to 50% Light/Dark Energy after 12 kills."
+    },
+    {
+     "name": "Incendiary Rifle Rounds",
+     "tier": 1,
+     "desc": "Upon scoring a Solar Sniper Rifle Precision Hit: Inflicts x30+15 Scorch. Unaffected by Weapon Frame or Ammo Type."
+    },
+    {
+     "name": "Solar Fulmination",
+     "tier": 2,
+     "desc": "Ignitions deal an additional damage instance. Fulmination deal 171 [30] Solar Damage in a 12? meter radius. Fulminations count as an Ignition and don't [do] have damage falloff. Fulmination Damage can be scaled by Ignition buffs (Dawn…"
+    },
+    {
+     "name": "Sniper's Meditation",
+     "tier": 3,
+     "desc": "On Sniper Rifle Direct Hit: Grant a stack of Sniper's Meditation for 7 seconds. Heavy Sniper Rifle hits grant 2 stacks. Sniper's Meditation Buff persists through stow. Sniper's Meditation Increased Damage, Stability, and Reload Speed.…"
+    },
+    {
+     "name": "Sustained Fire",
+     "tier": 1,
+     "desc": "Upon scoring 10 Auto Rifle Hits within 1.5 seconds of each against a single Combatant: Resist x2 (25% DR) for 6 seconds. Buff is refreshable and persists through stow. Support Autos can also trigger the buff by healing injured allies."
+    },
+    {
+     "name": "Targeting Autoloader",
+     "tier": 2,
+     "desc": "Auto Rifle Combatant Kills progress a Counter. Kills grant 50% Counter Progress. Kills while within 15 meters of 3 enemies grants 100% Progress. Kills while at 5 stacks grant 100% Progress. Counter Progress persists through stow. Upon…"
+    },
+    {
+     "name": "Shock and Awe",
+     "tier": 3,
+     "desc": "While an Arc or Prismatic Subclass is equipped, while Amplified: Arc Kills trigger a lightning burst, dealing up to 126 [?] Arc Damage and jolting in a 8 metre radius. Incurs a 5 second cooldown between activations."
+    }
+   ]
+  },
+  {
+   "name": "Queensfoil Censer",
+   "season": "Wish",
+   "focus": "Solar | Stasis | Strand · Rocket Launcher | Grenade Launchers",
+   "perks": [
+    {
+     "name": "Fever and Chill",
+     "tier": 1,
+     "desc": "Upon scoring multiple Precision Hits within 3 seconds of each: Solar Weapons | Grants Radiant for 10+5 seconds. Stasis Weapons: Grants a stack of Frost Armor. Incurs a 1.5s cooldown between triggers. Additional hits during this time do…"
+    },
+    {
+     "name": "Unraveling Orbs",
+     "tier": 2,
+     "desc": "On Orb of Power or Tangle Throw: Unraveling Rounds for 14 [?] seconds."
+    },
+    {
+     "name": "Horde Shuttle",
+     "tier": 3,
+     "desc": "Dealing Weapon Damage equal to 10% [100? HP] of an Unraveled Enemy's Combined Health + Shields spawns a Threadling. Incurs a 0.5 second cooldown between Threadlings. Threadlings inflict Sever upon dealing damage."
+    },
+    {
+     "name": "Torch",
+     "tier": 1,
+     "desc": "While Radiant: 5% Increased Weapon Damage against Non-Boss Combatants that are affected by Strand or Stasis debuffs. Strand Debuffs: Unraveled, Severed, Suspended Stasis Debuffs: Slowed, or Frozen."
+    },
+    {
+     "name": "Pillar of Ice",
+     "tier": 2,
+     "desc": "Upon killing a Frozen Enemy: Spawns 1 Stasis Crystals. Bosses spawn 2 Stasis Crystals. Crystals are spawned close to where the enemy dies."
+    },
+    {
+     "name": "Hail The Storm",
+     "tier": 3,
+     "desc": "Upon shattering a Stasis Crystal: Releases 5 Homing Ice Shards in a * pattern, each dealing 46 damage and inflicting x? [x10] Slow for ? seconds. Shards are spread uniformally, with one shard going towards the closest enemy and the others…"
+    },
+    {
+     "name": "Heart of the Flame",
+     "tier": 1,
+     "desc": "On Solar Super Cast: Caster and Allies within 15 meters are granted Radiant. Grants an Ally-Amount based Increased Super Damage. Caster counts as an ally. Increased Super Damage: 6% | ?% | ?% | ?% | ?% | 15?% Well of Radiance Caster…"
+    },
+    {
+     "name": "Revitalizing Blast",
+     "tier": 2,
+     "desc": "Upon stunning a Champion: Champion triggers an ignition."
+    },
+    {
+     "name": "Rays of Precision",
+     "tier": 3,
+     "desc": "While Radiant: Solar Precision Kills on Combatants cause an Ignition."
+    },
+    {
+     "name": "Armorsmith",
+     "tier": 1,
+     "desc": "Upon breaking a Combatant's Shield or performing a Finisher: 10% [2.5%] Damage Resist (Resist x1) for 6 seconds. 100% Increased Melee Damage for 6 seconds."
+    },
+    {
+     "name": "Anti-Champion Nosecone",
+     "tier": 2,
+     "desc": "For Rocket Launchers: 33% Increased Damage against Champions."
+    },
+    {
+     "name": "Solo Operative",
+     "tier": 3,
+     "desc": "While Solo: Precision Kills grant a stack of Damage Boost, up to ∞ stacks. All stacks are lost on death. 1.2% Increased Weapon Damage against Combatants per stack. Grants up to 30% Increased Weapon Damage at x25 stacks. Weapon Damage Buff…"
+    },
+    {
+     "name": "Wished Into Being",
+     "tier": 1,
+     "desc": "While Super Energy is above 60% but not fully charged: Ability Kills spawn 3 Orbs of Power. Orbs of Power grant 7.15% Super Energy each. Incurs a 30 second cooldown between spawning orbs. Works with Roaming Supers as long as Super Energy…"
+    },
+    {
+     "name": "Dragon's Bite",
+     "tier": 2,
+     "desc": "For every THIRD Combatant Shield broken with a Strand or Stasis Weapon: Strand inflicts Suspend. Stasis inflicts Freeze."
+    },
+    {
+     "name": "Argent Ordnance",
+     "tier": 3,
+     "desc": "Firing a Rocket Launcher consumes x1 Armor Charge to grant Godslayer Warheads for 4.5 seconds: Godslayer Warheads: 15% Increased Damage. Stacks with everything. +? Reload Speed and 0.?x Reload Duration Multiplier. Does not consume…"
+    },
+    {
+     "name": "Kindling Trigger",
+     "tier": 1,
+     "desc": "While Radiant: Solar Weapon Damage inflicts x30+15 Scorch to Combatants without Scorch stacks. Solar Effects initially triggered by Kindling Trigger do not benefit from Weapon nor Ability Damage increases. Does not work while within a…"
+    },
+    {
+     "name": "Creeping Chill",
+     "tier": 2,
+     "desc": "Upon scoring a Stasis Kill against a Stasis-Debuffed Enemy: Triggers a Slowing Burst over 6 meters. Slowing Burst Inflicts x20 Slow for 2?+? seconds to enemies. Grants x? Frost Armor to the user and allies. Has no effect."
+    },
+    {
+     "name": "Frigid Glare",
+     "tier": 3,
+     "desc": "Upon scoring a Precision Kill with a Stasis Weapon while Frost Armor is active: Triggers a Freezing Burst on Enemy Death Location. Freezing Burst affects enemies within 7 meters."
+    },
+    {
+     "name": "Blast Radius",
+     "tier": 1,
+     "desc": "Upon scoring 2 Kills within ? seconds of each with Grenade Launchers or Rocket Launchers: Grants a stack of Armor Charge."
+    },
+    {
+     "name": "Perpetual Destruction",
+     "tier": 2,
+     "desc": "Non-Exotic Rocket Launcher Kills within 2-3? seconds of each progress a counter. Rank-and-File = 25% | Elite = 34% | Miniboss = 100% Upon reaching 100% Counter Progress: Rocket Launchers are granted +1 Ammo. Precision/High-Impact Rockets…"
+    },
+    {
+     "name": "To Shreds",
+     "tier": 3,
+     "desc": "Upon scoring 6 weapon damage instances against Severed Enemies: Inflicts Unravel. On Severed Enemy Kill: Releases 3 healing pulses on Enemy Death Location, restoring 15 HP and granting Woven Mail for 10 seconds to the user and allies…"
+    }
+   ]
+  },
+  {
+   "name": "NPA Repulsion Regulator",
+   "season": "Deep",
+   "focus": "Arc | Void | Strand · Glaive | Auto Rifles",
+   "perks": [
+    {
+     "name": "Improved Unraveling",
+     "tier": 1,
+     "desc": "Unraveling Threads deal 15% increased damage."
+    },
+    {
+     "name": "Strand Soldier",
+     "tier": 2,
+     "desc": "Upon receiving Woven Mail, while on a Strand or Prismatic Subclass: Grants Unraveling Rounds for 8 seconds."
+    },
+    {
+     "name": "Conductive Cosmic Needle",
+     "tier": 3,
+     "desc": "Against Strand-Debuffed Combatants while an Arc or Void Super Ability is equipped: 5% Increased Arc and Void Ability Damage per Strand Debuff. 1x = 5% | 2x = 10.25% | 3x = 15.76%"
+    },
+    {
+     "name": "Volatile Flow",
+     "tier": 1,
+     "desc": "On Orb of Power or Void Breach Pickup: Volatile Rounds for 9 [?] seconds."
+    },
+    {
+     "name": "Suppressing Glaive",
+     "tier": 2,
+     "desc": "Upon dealing a Glaive Damage Instance against Combatants: Inflicts Suppression for 10 seconds. Glaive Melee inflicts Suppression at the cost of 10% Glaive Energy. Does not drain Glaive Energy if the enemy is suppressed."
+    },
+    {
+     "name": "Shock and Awe",
+     "tier": 3,
+     "desc": "While an Arc or Prismatic Subclass is equipped, while Amplified: Arc Kills trigger a lightning burst, dealing up to 126 [?] Arc Damage and jolting in a 8 metre radius. Incurs a 5 second cooldown between activations."
+    },
+    {
+     "name": "Unto the Breach",
+     "tier": 1,
+     "desc": "On Void Debuffed Enemy Kill while on a Void or Prismatic Subclass: Spawns a Void Breach."
+    },
+    {
+     "name": "Protective Breach",
+     "tier": 2,
+     "desc": "On Void Breach Pickup: +45 Void Overshield for 10+5 seconds."
+    },
+    {
+     "name": "Supernova",
+     "tier": 3,
+     "desc": "On Void Breach Pickup: The next Void Damage Instance within 10 seconds releases a weakening burst, inflicting Weaken to enemies within 5? metres for 8 seconds."
+    },
+    {
+     "name": "Amped Up",
+     "tier": 1,
+     "desc": "While on Arc or Prismatic Subclass: Amplified duration is increased to 20 seconds."
+    },
+    {
+     "name": "Counter Charge",
+     "tier": 2,
+     "desc": "Upon stunning a Champion: Grants a stack of Armor Charge."
+    },
+    {
+     "name": "Squad Goals",
+     "tier": 3,
+     "desc": "On Finisher: Allies within ? metres are bestowed an Elemental Buff: While Amplified is active: Amplified for 15 seconds. While Devour is active: Devour for 5 seconds. While Woven Mail is active: Woven Mail for 10 seconds. Can only bestow…"
+    },
+    {
+     "name": "Thunderous Retort",
+     "tier": 1,
+     "desc": "While at Critical Health or Amplified: 30% increased Arc Super Damage. Only affects damage while in the Super Animation, resulting in lowered bonuses for Thundercrash and Gathering Storm."
+    },
+    {
+     "name": "Bricks from Beyond",
+     "tier": 2,
+     "desc": "Every 3? Elite+ Void Weapon Kills: 50?% Heavy Ammo Progress to the user and allies within ? meters."
+    },
+    {
+     "name": "Lightning Strikes Twice",
+     "tier": 3,
+     "desc": "On Arc Grenade Ability Usage: 130% Additional Grenade Base Recharge Rate for 5 seconds. Arc Kills increase the buff duration by +3? seconds, up to 20 seconds."
+    },
+    {
+     "name": "Sustained Fire",
+     "tier": 1,
+     "desc": "Upon scoring 10 Auto Rifle Hits within 1.5 seconds of each against a single Combatant: Resist x2 (25% DR) for 6 seconds. Buff is refreshable and persists through stow. Support Autos can also trigger the buff by healing allies."
+    },
+    {
+     "name": "Overload Grenades",
+     "tier": 2,
+     "desc": "Void Grenade Ability Damage inflicts disruption."
+    },
+    {
+     "name": "Passive Aggressive Guard",
+     "tier": 3,
+     "desc": "While a Glaive is readied: 50% Damage Resist against Combatants within ? meters."
+    },
+    {
+     "name": "Shatter Orbs",
+     "tier": 1,
+     "desc": "Upon first breaking a Combatant Shield: Creates an Orb of Power that grants 7.15% Super Energy. Performing a Finisher on a Combatant that didn't trigger the effect will also spawn an Orb of Power. Only works once per enemy."
+    },
+    {
+     "name": "Targeting Autoloader",
+     "tier": 2,
+     "desc": "Auto Rifle Combatant Kills progress a Counter. Kills grant 50% Counter Progress. Kills while within 15 meters of 3 enemies grants 100% Progress. Kills while at 5 stacks grant 100% Progress. Counter Progress persists through stow. Upon…"
+    },
+    {
+     "name": "Void Weapon Channeling",
+     "tier": 3,
+     "desc": "Upon scoring a Void Weapon Kill while having at least 1 charged Void Ability: Grants Weapon Surge stacks equal to the amount of Void Grenade, Melee, Class, and Super Ability Charges for 11 seconds. Up to x4 Weapon Surge by having 4 Void…"
+    }
+   ]
+  }
+ ],
  "exotics": {
   "Hunter": [
    {

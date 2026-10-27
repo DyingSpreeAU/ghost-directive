@@ -1,5 +1,5 @@
 import {
-  ALL_SLOTS, ARTIFACT_MODS, CLASSES, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
+  ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
   abilityById, dungeonById, subclassAbilities,
   type ClassType, type Element, type Rarity, type Slot, type VaultEntry,
 } from './data'
@@ -90,12 +90,12 @@ export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds:
 export type ChecklistKey = 'greyKinetic' | 'greyEnergy' | 'greenHeavy' | 'greyArmor' | 'noAspects' | 'noFragments'
 
 export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
-  { key: 'greyKinetic', label: 'Grey kinetic weapon equipped', hint: 'Pull a Common weapon from Collections where available.' },
-  { key: 'greyEnergy', label: 'Grey energy weapon equipped', hint: 'Common rarity, from Collections where available.' },
-  { key: 'greenHeavy', label: 'Green heavy weapon equipped', hint: 'An Uncommon Power weapon.' },
-  { key: 'greyArmor', label: 'Grey or common armor on every slot', hint: 'Use the lowest rarity armor you can pull.' },
-  { key: 'noAspects', label: 'All aspects unequipped', hint: 'Aspects unlock during the run.' },
-  { key: 'noFragments', label: 'All fragments unequipped', hint: 'Fragments unlock during the run.' },
+  { key: 'greyKinetic', label: 'Grey kinetic weapon equipped', hint: 'Pull a Common (grey) weapon from Collections where available.' },
+  { key: 'greyEnergy', label: 'Grey energy weapon equipped', hint: 'A Common (grey) energy weapon, from Collections where available.' },
+  { key: 'greenHeavy', label: 'Green heavy weapon equipped', hint: 'An Uncommon (green) Power weapon.' },
+  { key: 'greyArmor', label: 'Grey armor on every slot', hint: 'The lowest-rarity armor you can pull, in all five slots.' },
+  { key: 'noAspects', label: 'No aspects', hint: 'Unequip all aspects. They unlock during the run.' },
+  { key: 'noFragments', label: 'No fragments', hint: 'Unequip all fragments. They unlock during the run.' },
 ]
 
 export type Player = {
@@ -112,6 +112,9 @@ export type Player = {
   checklist: Record<ChecklistKey, boolean>
   inventory: Item[]
   vault: VaultEntry[]
+  /** The artifact this player committed to for the run; research only offers its perks. */
+  artifactName?: string
+  /** Artifact perks researched so far. */
   artifact: string[]
   capacityBonus: number
   loadoutBonus: number
@@ -153,6 +156,8 @@ export type Run = {
   chests: string[]
   /** Rewards rolled by the host, waiting for each player to choose on their own device. */
   pending: Pending[]
+  /** Secret chests already answered in the gap before the current encounter. */
+  chestsDone?: number
   log: LogEntry[]
   code: string
   startedAt: number
@@ -252,6 +257,7 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
 }
 
 export function advance(run: Run) {
+  run.chestsDone = 0
   const d = dungeonById(run.route[run.dIdx])
   if (run.eIdx + 1 < d.encounters.length) run.eIdx++
   else if (run.dIdx + 1 < run.route.length) { run.dIdx++; run.eIdx = 0 }
@@ -320,7 +326,8 @@ export function tradeUpChoices(run: Run, p: Player, slot: Slot): VaultEntry[] {
 }
 
 export function artifactChoices(p: Player, n = 3) {
-  return shuffle(ARTIFACT_MODS.filter((m) => !p.artifact.includes(m))).slice(0, n)
+  const perks = artifactByName(p.artifactName)?.perks ?? []
+  return shuffle(perks.map((x) => x.name).filter((m) => !p.artifact.includes(m))).slice(0, n)
 }
 
 export type ChestReward =
@@ -351,7 +358,6 @@ export function computeWarnings(run: Run): Warning[] {
   if (run.status === 'active' && run.integrity <= r.integrity.wipe) {
     out.push({ id: 'int-low', severity: 'critical', title: 'One more wipe ends the run', rule: `A wipe costs ${r.integrity.wipe} Integrity and the fireteam has ${run.integrity}.`, where: 'integrity' })
   }
-  const firstClear = run.claimed.length === 0
   for (const p of run.players) {
     const cap = capacityOf(run, p)
     for (const slot of r.inventory.slots) {
@@ -359,10 +365,6 @@ export function computeWarnings(run: Run): Warning[] {
       if (n > cap) out.push({ id: `cap-${p.id}-${slot}`, severity: 'critical', playerId: p.id, title: `${slot} over capacity (${n}/${cap})`, rule: `Each slot holds ${cap} run items, including the equipped one. Move extras to the Vault.`, where: 'arsenal' })
       const eq = itemsIn(p, slot).filter((i) => i.equipped).length
       if (eq > 1) out.push({ id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
-    }
-    if (firstClear && run.status === 'active') {
-      const missing = Object.values(p.checklist).filter((v) => !v).length
-      if (missing) out.push({ id: `setup-${p.id}`, severity: 'warn', playerId: p.id, title: `Starting gear: ${6 - missing} of 6 confirmed`, rule: 'Runs start with grey gear, a green heavy, and no aspects or fragments.', where: 'setup' })
     }
     const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id))
     if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `${outOfOrder.length} ability ${outOfOrder.length === 1 ? 'is' : 'are'} configured but not unlocked`, rule: `Out of order: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}.`, where: 'archive' })
@@ -394,25 +396,44 @@ export type Pending = {
 }
 
 /**
- * Secret chests to ask about when the current encounter is cleared: the ones before the next
- * encounter, plus any at the very start of the dungeon when this is its first encounter.
- * Returns how many, and the number of the first one in the dungeon's own chest order.
+ * The next secret chest to ask about, or null. Chests sit between encounters, so they are asked
+ * about one at a time after the previous encounter is cleared (or at the start of the dungeon)
+ * and before the next encounter can be cleared.
  */
-export function chestsAhead(run: Run): { count: number; first: number } {
+export function pendingChest(run: Run): { number: number; remaining: number } | null {
+  if (run.status !== 'active') return null
   const { dungeon } = current(run)
   const i = run.eIdx
-  const before = dungeon.chestsAtStart + dungeon.chestsAfter.slice(0, i).reduce((a, b) => a + b, 0)
-  const lead = i === 0 ? dungeon.chestsAtStart : 0
-  return { count: lead + (dungeon.chestsAfter[i] ?? 0), first: i === 0 ? 1 : before + 1 }
+  const gap = i === 0 ? dungeon.chestsAtStart : dungeon.chestsAfter[i - 1] ?? 0
+  const done = run.chestsDone ?? 0
+  if (done >= gap) return null
+  const before = i === 0 ? 0 : dungeon.chestsAtStart + dungeon.chestsAfter.slice(0, i - 1).reduce((x, y) => x + y, 0)
+  return { number: before + done + 1, remaining: gap - done }
 }
 
-/** Records a clear plus any secret chests found on the way to the next encounter, then advances. */
-export function recordClear(run: Run, chestsFound = 0) {
+/** Records whether the fireteam got the next secret chest; a found chest gives everyone a chest reward. */
+export function recordChest(run: Run, found: boolean) {
+  const next = pendingChest(run)
+  if (!next) return
+  const { dungeon } = current(run)
+  run.chestsDone = (run.chestsDone ?? 0) + 1
+  if (!found) { log(run, 'chest', `Secret Chest ${next.number} skipped in ${dungeon.name}.`); return }
+  run.chests.push(`${dungeon.id}#${next.number}`)
+  log(run, 'chest', `Secret Chest ${next.number} found in ${dungeon.name}.`)
+  for (const p of run.players) {
+    run.pending.push({
+      id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false,
+      unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
+    })
+  }
+}
+
+/** Records a clear: Integrity, every player's reward, then on to the next encounter. */
+export function recordClear(run: Run) {
+  if (pendingChest(run)) return
   const { dungeon, encounter } = current(run)
   const final = encounter.type === 'final'
   const rw = run.ruleset.rewards
-  const { count: ahead, first: firstNo } = chestsAhead(run)
-  const found = Math.max(0, Math.min(ahead, Math.floor(chestsFound)))
   run.claimed.push(encounter.id)
   changeIntegrity(run, run.ruleset.integrity.clear, `Cleared ${encounter.name}.`, 'clear')
   for (const p of run.players) {
@@ -424,20 +445,6 @@ export function recordClear(run: Run, chestsFound = 0) {
       artifact: final && rw.finalBossArtifact ? artifactChoices(p) : [],
       chest: [],
     })
-  }
-  if (ahead > 0) {
-    for (let k = 0; k < found; k++) {
-      const n = firstNo + k
-      run.chests.push(`${dungeon.id}#${n}`)
-      log(run, 'chest', `Secret Chest ${n} found in ${dungeon.name}.`)
-      for (const p of run.players) {
-        run.pending.push({
-          id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 secret chest ${n}`, final: false,
-          unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
-        })
-      }
-    }
-    if (found < ahead) log(run, 'chest', `${ahead - found} secret chest${ahead - found > 1 ? 's' : ''} skipped in ${dungeon.name}.`)
   }
   if (run.status === 'active') advance(run)
 }
@@ -473,6 +480,7 @@ function cleanItem(raw: unknown): NewItem | string {
   if (!name) return 'Item needs a name.'
   if (!ALL_SLOTS.includes(it.slot as Slot)) return 'Unknown slot.'
   if (!RARITIES.includes(it.rarity as Rarity)) return 'Unknown rarity.'
+  if (it.rarity === 'Exotic' && it.slot === 'Class Item') return 'Exotic class items aren\u2019t part of runs yet.'
   return { name, slot: it.slot as Slot, rarity: it.rarity as Rarity, source: str(it.source, 30) || 'world drop' }
 }
 
@@ -644,6 +652,8 @@ export type Seat = {
   element: Element
   starter: { super: string; melee: string; grenade: string }
   checklist: Record<ChecklistKey, boolean>
+  /** Artifact chosen for the run; '' until picked. Required before the run starts. */
+  artifact: string
   ready: boolean
   isHost: boolean
 }
@@ -672,7 +682,7 @@ export function newSeat(n: number, clientId: string | null, isHost = false): Sea
   return {
     id: uid(), clientId, name: `Guardian ${n}`, cls, element, starter: defaultStarter(cls, element),
     checklist: { greyKinetic: false, greyEnergy: false, greenHeavy: false, greyArmor: false, noAspects: false, noFragments: false },
-    ready: false, isHost,
+    artifact: '', ready: false, isHost,
   }
 }
 
@@ -687,14 +697,14 @@ export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lo
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade], checklist: { ...s.checklist } }
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade], checklist: { ...s.checklist }, artifactName: s.artifact || undefined }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }
 
 export type LobbyIntent =
   | { type: 'seat-claim'; seatId: string | null }
-  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready'>> }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact'>> }
   | { type: 'seat-leave' }
 
 /** Seat changes from a player's device (or the host for their own seat). */
@@ -732,7 +742,8 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
       if (pt.checklist && typeof pt.checklist === 'object') {
         for (const [k, v] of Object.entries(pt.checklist as Record<string, unknown>)) if (k in mine.checklist) mine.checklist[k as ChecklistKey] = !!v
       }
-      if (typeof pt.ready === 'boolean') mine.ready = pt.ready
+      if (typeof pt.artifact === 'string' && artifactByName(pt.artifact)) mine.artifact = pt.artifact
+      if (typeof pt.ready === 'boolean') mine.ready = pt.ready && !!mine.artifact
       return null
     }
     case 'seat-leave': {
@@ -772,10 +783,12 @@ export function exampleRun(code: string, hostCid: string): Run {
     [b, ['Void|super|Sentinel Shield', 'Void|melee|Shield Throw', 'Void|grenade|Suppressor Grenade']],
     [c, ['Strand|super|Silkstrike', 'Strand|melee|Threaded Spike', 'Strand|grenade|Grapple']],
   ]
-  for (const [p, ids] of starters) {
+  const arts = ['Tablet of Ruin', 'Slayer Baron Apothecary Satchel', 'NPA Repulsion Regulator']
+  starters.forEach(([p, ids], i) => {
     p.unlocked = ids
+    p.artifactName = artifactByName(arts[i])?.name
     for (const k of Object.keys(p.checklist) as ChecklistKey[]) p.checklist[k] = true
-  }
+  })
   const run = createRun({ ruleset: PRESETS[0], players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
   run.example = true
   const [pa, pb, pc] = run.players
@@ -787,13 +800,14 @@ export function exampleRun(code: string, hostCid: string): Run {
   for (const [p, name, slot, rarity] of gear) addItem(run, p, { name, slot, rarity, source: 'starting gear' }).equipped = true
   const resolveFirst = (picks: string[]) => {
     run.players.forEach((p, i) => {
-      const pend = run.pending.find((x) => x.playerId === p.id)!
+      const pend = run.pending.find((x) => x.playerId === p.id && x.kind === 'clear')!
       pend.unlock = [picks[i], ...pend.unlock.filter((x) => x !== picks[i])].slice(0, 3)
       applyIntent(run, p.id, { type: 'resolve', pendingId: pend.id, unlock: picks[i], drops: [] })
     })
   }
   changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
-  recordClear(run, 1)
+  recordClear(run)
+  recordChest(run, true)
   resolveFirst(['Solar|aspect|Touch of Flame', 'Void|aspect|Controlled Demolition', 'Strand|aspect|Whirling Maelstrom'])
   addItem(run, pb, { name: 'Dreaded Venture', slot: 'Energy', rarity: 'Rare', source: 'encounter drop' })
   recordClear(run)
@@ -801,6 +815,7 @@ export function exampleRun(code: string, hostCid: string): Run {
   const mine = run.pending.filter((x) => x.playerId === pa.id && x.kind === 'clear').pop()!
   applyIntent(run, pa.id, { type: 'resolve', pendingId: mine.id, unlock: mine.unlock[0], drops: [] })
   changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+  // Left on the chests between Vorgeth and D\u00fbl Incaru, so the chest prompt shows.
   pc.configured.push("Strand|aspect|Widow's Silk")
   return run
 }

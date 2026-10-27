@@ -17,7 +17,8 @@ item_table = sys.argv[2] if len(sys.argv) > 2 else None
 os.makedirs(out, exist_ok=True)
 SHEET = 'https://docs.google.com/spreadsheets/d/1WaxvbLx7UoSZaBqdFr1u32F2uWVLo-CJunJB4nlGUE4/gviz/tq?tqx=out:csv&gid='
 TABS = {'Arc': 618967225, 'Solar': 1186062409, 'Void': 1907852650, 'Stasis': 1088259962,
-        'Strand': 1870531554, 'Prismatic': 1918152785, 'ExoticArmors': 1500097863}
+        'Strand': 1870531554, 'Prismatic': 1918152785, 'ExoticArmors': 1500097863,
+        'ArtifactPerks': 473308249}
 
 def get(url, path=None):
     with urllib.request.urlopen(url) as r:

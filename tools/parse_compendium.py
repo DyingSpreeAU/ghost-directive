@@ -100,6 +100,32 @@ for cls in ['Hunter', 'Titan', 'Warlock']:
     data['kits'][cls]['Prismatic'] = kit
 print('prismatic', {c: {k: v for k, v in data['kits'][c]['Prismatic'].items()} for c in ['Hunter', 'Titan', 'Warlock']})
 
+# ---- Artifacts: each has a name "(Season)", usually a focus line, then rows of three perks
+# (columns = tiers 1-3); a perk's description is on the row below its name.
+R = rows('ArtifactPerks')
+artifacts = []
+for k, r in enumerate(R):
+    if k < 4: continue
+    if cell(r, 3).strip() and not cell(r, 2).strip() and not cell(r, 5).strip():
+        nxt = cell(R[k + 1], 3).strip() if k + 1 < len(R) else ''
+        if '\u2bc1' in cell(r, 3) or '|' in cell(r, 3):
+            continue  # a focus line, handled with its artifact
+        m = re.match(r'(.*?)\s*\((.*?)\)\s*$', clean(cell(r, 3)))
+        focus = clean(nxt) if (nxt and ('|' in nxt or '\u2bc1' in nxt)) else ''
+        artifacts.append({'name': m.group(1) if m else clean(cell(r, 3)), 'season': m.group(2) if m else '',
+                          'focus': re.sub(r'\s*\u2bc1\s*', ' \u00b7 ', focus), 'perks': []})
+        continue
+    if not artifacts: continue
+    for tier, col in ((1, 2), (2, 5), (3, 8)):
+        n = clean(cell(r, col))
+        if n:
+            desc = cell(R[k + 1], col - 1) if k + 1 < len(R) else ''
+            full = clean(desc)
+            artifacts[-1]['perks'].append({'name': n, 'tier': tier, 'desc': full if len(full) <= 240 else full[:239].rsplit(' ', 1)[0] + '\u2026'})
+assert all(len(a['perks']) == 21 for a in artifacts), [(a['name'], len(a['perks'])) for a in artifacts]
+data['artifacts'] = artifacts
+print('artifacts', [(a['name'], a['season'], len(a['perks'])) for a in artifacts])
+
 # ---- Exotic armor: name/perk/notes; synergy inferred from perk text
 R = rows('ExoticArmors')
 exotics = {'Hunter': [], 'Titan': [], 'Warlock': []}

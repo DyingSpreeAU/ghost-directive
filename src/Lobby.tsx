@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { CLASSES, DUNGEONS, chestCount, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
+import { ARTIFACTS, CLASSES, DUNGEONS, artifactByName, chestCount, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, SortableList } from './ui'
 import { bungieConfigured, startSignIn } from './bungie'
 import { useBungie } from './BungiePanel'
 
-type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready'>>
+type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>>
 
 export function LobbyView({ lobby }: { lobby: Lobby }) {
   const { role, me, online, host, lobbyAct, toast, net } = useGD()
@@ -74,6 +74,8 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
         )}
       </section>
 
+      <SetupGuide />
+
       <RouteAndProtocol lobby={lobby} />
 
       {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} onBegin={() => {
@@ -82,7 +84,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
       }} /> : (
         <div className="panel waiting-bar">
           <span className="scanner small" aria-hidden="true" />
-          {mine?.ready ? 'You’re ready. Waiting for the host to begin.' : 'Mark yourself ready when your gear matches the checklist.'}
+          {mine?.ready ? 'You\u2019re ready. Waiting for the host to begin.' : 'Choose your artifact, set up your starting gear, then mark yourself ready.'}
         </div>
       )}
     </div>
@@ -129,8 +131,8 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools }: {
   const [name, setName] = useState(seat.name)
   useEffect(() => setName(seat.name), [seat.name])
   const abil = subclassAbilities(seat.cls, seat.element)
-  const checked = Object.values(seat.checklist).filter(Boolean).length
-  const status = seat.clientId === null ? 'No device' : connected ? (seat.ready || seat.isHost ? 'Ready' : 'Setting up') : 'Disconnected'
+  const art = artifactByName(seat.artifact)
+  const status = seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected'
   return (
     <article className={`panel seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }}>
       <header className="seat-head">
@@ -170,29 +172,25 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools }: {
               </select>
             </div>
           ))}
-          <details className="gear-details" open={you && checked < 6}>
-            <summary>Starting gear checklist <span className="mono muted">{checked}/6</span></summary>
-            <ul className="checklist">
-              {CHECKLIST.map((c) => (
-                <li key={c.key}>
-                  <label>
-                    <input type="checkbox" checked={seat.checklist[c.key]} onChange={(e) => onPatch({ checklist: { ...seat.checklist, [c.key]: e.target.checked } })} />
-                    <span>{c.label}<small>{c.hint}</small></span>
-                  </label>
-                </li>
-              ))}
-            </ul>
-          </details>
+          <div className="field">
+            <label htmlFor={`art-${seat.id}`}>Artifact <span className="muted">(locked for the run)</span></label>
+            <select id={`art-${seat.id}`} value={seat.artifact} onChange={(e) => onPatch({ artifact: e.target.value })} className={seat.artifact ? '' : 'needs-pick'}>
+              <option value="" disabled>Choose an artifact</option>
+              {ARTIFACTS.map((a) => <option key={a.name} value={a.name}>{a.name} ({a.season})</option>)}
+            </select>
+            {art ? <small className="muted">{art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</small>
+              : <small className="tone-warn">Pick one before the run starts. All Artifact research comes from it.</small>}
+          </div>
           {!seat.isHost && seat.clientId !== null && (
-            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} onClick={() => onPatch({ ready: !seat.ready })}>
-              {seat.ready ? 'Not ready yet' : 'I’m ready'}
+            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
+              {seat.ready ? 'Not ready yet' : art ? 'I\u2019m ready' : 'Choose an artifact first'}
             </button>
           )}
         </>
       ) : (
         <dl className="seat-summary">
           {(['super', 'melee', 'grenade'] as const).map((k) => <div key={k}><dt>{KIND_LABEL[k]}</dt><dd>{abil.find((a) => a.id === seat.starter[k])?.name}</dd></div>)}
-          <div><dt>Gear</dt><dd>{checked}/6 confirmed</dd></div>
+          <div><dt>Artifact</dt><dd>{art ? art.name : <span className="tone-warn">Not chosen</span>}</dd></div>
         </dl>
       )}
 
@@ -317,6 +315,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
 function BeginBar({ lobby, isOnline, onBegin }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void }) {
   const [confirm, setConfirm] = useState(false)
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
+  const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
   const noRoute = lobby.route.length === 0
   return (
     <div className="panel begin-bar">
@@ -325,10 +324,11 @@ function BeginBar({ lobby, isOnline, onBegin }: { lobby: Lobby; isOnline: (cid: 
         <span className="muted"> &middot; {lobby.route.length} dungeon{lobby.route.length === 1 ? '' : 's'} &middot; {lobby.ruleset.name}</span>
         {notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
+        {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
       </div>
       {confirm && notReady.length > 0
-        ? <div className="row-acts"><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-light" onClick={onBegin}>Begin anyway</button></div>
-        : <button className="btn btn-light" disabled={noRoute} onClick={() => (notReady.length ? setConfirm(true) : onBegin())}>Begin run and lock route</button>}
+        ? <div className="row-acts"><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-light" disabled={noArtifact.length > 0} onClick={onBegin}>Begin anyway</button></div>
+        : <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0} onClick={() => (notReady.length ? setConfirm(true) : onBegin())}>Begin run and lock route</button>}
     </div>
   )
 }
@@ -340,4 +340,20 @@ function SeatBungie() {
   return signedIn
     ? <p className="small seat-bungie"><span className="tag tag-bungie">Bungie</span> Signed in. Your Vault syncs when the run starts.</p>
     : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional, read-only).</span></p>
+}
+
+/** How to prepare in Destiny 2 before the first encounter. Information only; nothing to tick. */
+function SetupGuide() {
+  return (
+    <section className="panel setup-guide" aria-labelledby="setup-guide-title">
+      <div>
+        <div className="eyebrow">Before the first encounter</div>
+        <h2 id="setup-guide-title">Set up in Destiny 2</h2>
+        <p className="section-note">Every Guardian starts the run under-geared. Do this in game before the host records anything.</p>
+      </div>
+      <ul className="guide-list">
+        {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
+      </ul>
+    </section>
+  )
 }

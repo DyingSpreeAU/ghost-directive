@@ -602,3 +602,15 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
 .bungie-start .eyebrow .muted { letter-spacing: 0.08em; }
 .bungie-name { color: var(--ok); }
 .landing-step { margin-top: 4px; }
+
+/* ---------------------------------------------------------------- artifact + setup guide */
+.art-name { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
+.mod-list li > span:not(.mod-hex) { min-width: 0; overflow-wrap: anywhere; }
+select.needs-pick { border-color: var(--warn); }
+.setup-guide { padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 16px 28px; align-items: start; }
+.setup-guide > div { display: grid; gap: 6px; }
+.guide-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+.guide-list li { display: grid; gap: 2px; padding-left: 14px; position: relative; font-size: 0.88rem; }
+.guide-list li::before { content: ''; position: absolute; left: 0; top: 0.5em; width: 6px; height: 6px; background: var(--light); transform: rotate(45deg); }
+.guide-list .muted { font-size: 0.8rem; }
+@media (max-width: 900px) { .setup-guide, .guide-list { grid-template-columns: minmax(0, 1fr); } }

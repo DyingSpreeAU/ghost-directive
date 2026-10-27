@@ -104,14 +104,13 @@ export const EXAMPLE_VAULT: VaultEntry[] = [
   ),
 ]
 
-// ---- Artifact mods (example research pool; refresh each season)
+// ---- Artifacts (from the compendium). Each player commits to one for the run.
 
-export const ARTIFACT_MODS: string[] = [
-  'Anti-Barrier Auto Rifle', 'Anti-Barrier Scout Rifle', 'Overload Hand Cannon', 'Overload Bow',
-  'Unstoppable Pulse Rifle', 'Unstoppable Sniper Rifle', 'Radiant Orbs', 'Solar Ignition Boost',
-  'Volt Siphon', 'Void Siphon', 'Tangled Web Surge', 'Shatter Surge', 'Elemental Overdrive',
-  'Revitalizing Blast', 'Tightly Woven', 'Frost Armor Reserve', 'Rapid Rearm', 'Power Preservation',
-]
+export type ArtifactPerk = { name: string; tier: 1 | 2 | 3; desc: string }
+export type ArtifactDef = { name: string; season: string; focus: string; perks: ArtifactPerk[] }
+export const ARTIFACTS: ArtifactDef[] = (COMPENDIUM as unknown as { artifacts: ArtifactDef[] }).artifacts
+export const artifactByName = (name: string | undefined) => ARTIFACTS.find((a) => a.name === name)
+export const artifactPerk = (artifact: string | undefined, perk: string) => artifactByName(artifact)?.perks.find((p) => p.name === perk)
 
 // ---- Dungeons
 

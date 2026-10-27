@@ -58,7 +58,7 @@ export type Snapshot =
   | { phase: 'run'; run: Run; online: string[]; hostCid: string }
 
 export type Flow =
-  | { type: 'clear'; chests: number }
+  | { type: 'clear' }
   | { type: 'wipe' }
   | { type: 'register'; playerId: string; slot?: Slot }
   | { type: 'tradeup'; playerId: string; slot: Slot }

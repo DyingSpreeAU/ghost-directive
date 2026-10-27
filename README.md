@@ -34,18 +34,23 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## What's implemented (manual "No Login" mode)
 
-- **Lobby**: Protocol Ruleset (snapshot locked per run), up to 3 seats with host, each player
-  picks their committed subclass, starting Super/melee/grenade and starting-gear checklist on
-  their own device; host picks the chronological or custom expedition (route locks on start).
+- **Lobby**: Protocol Ruleset (snapshot locked per run), up to 3 seats with host. Each player picks
+  their committed subclass, starting Super/melee/grenade and **artifact** on their own device; no one
+  can ready up or start without an artifact. Starting-gear rules are shown as instructions (nothing
+  to tick). The host picks the chronological or custom expedition (route locks on start).
+- **Artifacts** (7, from the compendium's Artifact Perks tab, 21 perks each in three tiers): all
+  Artifact research (final bosses and secret chests) offers perks from the player's chosen artifact only.
 - **Mission Briefing**: shared Fireteam Integrity, current encounter with generated destination
   art and route progress, three player panels with unlocks and slot capacity, host actions.
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
   final-boss category-first reward (Exotic armor or Vault Legendary weapon), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
-- **Host actions are two buttons.** The contextual Progress button records a clear. When secret
-  chests sit before the next encounter (`chestsAfter` in `src/data.ts`), it splits into
-  found / skipped. Each chest found gives every player a chest reward (Artifact research or a
-  rare upgrade). **Record Wipe** asks for confirmation, and the run fails at 0 Integrity.
+- **Host actions are two buttons.** Progress records an encounter clear: Integrity changes and
+  every player's reward screen opens straight away. Then, for each secret chest before the next
+  encounter (positions from `DUNGEONS` in `src/data.ts`), Progress asks "Did you get Secret Chest N?"
+  with Got it / Missed it, one chest at a time. Chests at the start of a dungeon are asked before
+  its first encounter. A found chest gives every player a chest reward. **Record Wipe** asks for
+  confirmation, and the run fails at 0 Integrity.
 - **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
   move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options, saved loadouts that go
   invalid when an item leaves, per-player Vault pool (an example pool stands in until entered).
@@ -110,7 +115,8 @@ code is left out entirely.
 
 `src/compendium.ts` is generated; don't edit it by hand. It holds every subclass's Supers,
 grenades, melees, aspects and fragments (Prismatic included), each with a one-line description,
-plus every Exotic armor piece with its perk and slot.
+every Exotic armor piece with its perk and slot (no Exotic class items for now), and the
+artifacts with their perks.
 
 - **Destiny Data Compendium** (Google Sheet): ability names, descriptions, Facets, Prismatic
   grenades, Exotic armor names and perks.

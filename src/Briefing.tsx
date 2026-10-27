@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import {
-  ABILITY_KINDS, ALL_SLOTS, DAMAGE_ELEMENTS, ELEMENT_COLOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
+  ABILITY_KINDS, ALL_SLOTS, DAMAGE_ELEMENTS, artifactByName, artifactPerk, ELEMENT_COLOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
   abilityById, dungeonById, subclassAbilities, type Element, type Rarity, type Slot,
 } from './data'
 import {
-  capacityOf, chestsAhead, createLobby, current, itemsIn, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
+  capacityOf, createLobby, current, pendingChest, recordChest, itemsIn, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
@@ -172,15 +172,11 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
 }
 
 function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warning[] }) {
-  const { dispatch, canControl, online, me, role, openFlow } = useGD()
-  const control = canControl(p.id)
+  const { online, me, role, openFlow } = useGD()
   const pend = run.pending.filter((x) => x.playerId === p.id)
   const device = p.clientId === null ? 'No device' : p.clientId === me ? 'You' : online.includes(p.clientId) ? 'Online' : 'Offline'
-  const [showChecklist, setShowChecklist] = useState(false)
   const cap = capacityOf(run, p)
   const counts = ABILITY_KINDS.map((k) => ({ k, n: p.unlocked.filter((id) => abilityById(id).kind === k).length, of: subclassAbilities(p.cls, p.element).filter((a) => a.kind === k).length }))
-  const setupOpen = run.claimed.length === 0 && run.status === 'active'
-  const checked = Object.values(p.checklist).filter(Boolean).length
   return (
     <article className="panel player" style={{ ['--el' as string]: ELEMENT_COLOR[p.element] }}>
       <header className="player-head">
@@ -218,23 +214,10 @@ function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warn
         })}
       </div>
       <div className="player-foot">
-        <span>{p.artifact.length} artifact mod{p.artifact.length === 1 ? '' : 's'}</span>
+        <span title={artifactByName(p.artifactName)?.focus}>{p.artifactName ?? 'No artifact'} &middot; {p.artifact.length} perk{p.artifact.length === 1 ? '' : 's'}</span>
         <span>{p.loadouts.length}/{loadoutSlotsOf(run, p)} loadouts</span>
         {p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} \u00b7 ${p.bungie.character}`}>Bungie linked</span>}
-        {setupOpen && <button className="link" onClick={() => setShowChecklist((v) => !v)}>Starting gear {checked}/6</button>}
       </div>
-      {setupOpen && showChecklist && (
-        <ul className="checklist">
-          {(Object.keys(p.checklist) as (keyof Player['checklist'])[]).map((k) => (
-            <li key={k}>
-              <label>
-                <input type="checkbox" disabled={!control} checked={p.checklist[k]} onChange={(e) => dispatch({ type: 'checklist', key: k, value: e.target.checked }, p.id)} />
-                {CHECK_LABELS[k]}
-              </label>
-            </li>
-          ))}
-        </ul>
-      )}
       {warnings.length > 0 && (
         <ul className="player-warnings">
           {warnings.map((w) => <li key={w.id} className={`sev-${w.severity}`}>{w.title}</li>)}
@@ -244,10 +227,6 @@ function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warn
   )
 }
 
-const CHECK_LABELS: Record<keyof Player['checklist'], string> = {
-  greyKinetic: 'Grey kinetic equipped', greyEnergy: 'Grey energy equipped', greenHeavy: 'Green heavy equipped',
-  greyArmor: 'Grey armor on all slots', noAspects: 'Aspects unequipped', noFragments: 'Fragments unequipped',
-}
 
 function PlayerTabs({ run, value, onChange }: { run: Run; value: string; onChange: (id: string) => void }) {
   const { myPlayerId } = useGD()
@@ -324,19 +303,21 @@ function ArtifactResearch({ run }: { run: Run }) {
       <header className="section-head">
         <div>
           <div className="eyebrow">Artifact Research</div>
-          <h2>Artifact mods</h2>
-          <p className="section-note">The Artifact starts empty. Final bosses and secret chests offer research; configure the actual Artifact in Destiny 2.</p>
+          <h2>Artifact perks</h2>
+          <p className="section-note">Each Guardian committed to one artifact for the run, and it starts with nothing researched. Final bosses and secret chests offer perks from that artifact only. Set the perks up in Destiny 2 to match.</p>
         </div>
       </header>
       <div className={`art-cols players-${run.players.length}`}>
         {run.players.map((p) => (
           <div key={p.id} className="panel art-col">
             <h3><ElementMark element={p.element} /> {p.name}</h3>
-            {p.artifact.length === 0 ? <Empty>No mods researched</Empty> : (
+            <p className="art-name">{p.artifactName ? <><strong>{p.artifactName}</strong> <span className="muted small">{artifactByName(p.artifactName)?.season} &middot; {p.artifact.length}/21 researched</span></> : <span className="tone-warn small">No artifact chosen</span>}</p>
+            {artifactByName(p.artifactName)?.focus && <p className="small muted">{artifactByName(p.artifactName)!.focus}</p>}
+            {p.artifact.length === 0 ? <Empty>No perks researched</Empty> : (
               <ul className="mod-list">
                 {p.artifact.map((m) => (
-                  <li key={m}>
-                    <span className="mod-hex" aria-hidden="true" />{m}
+                  <li key={m} title={artifactPerk(p.artifactName, m)?.desc}>
+                    <span className="mod-hex" aria-hidden="true" /><span>{m}{artifactPerk(p.artifactName, m) && <span className="muted small"> &middot; Tier {artifactPerk(p.artifactName, m)!.tier}</span>}</span>
                     {canControl(p.id) && <button className="icon-btn sm" aria-label={`Remove ${m}`} onClick={() => dispatch({ type: 'artifact-remove', mod: m }, p.id)}>×</button>}
                   </li>
                 ))}
@@ -576,44 +557,43 @@ function ClaimBanner({ run }: { run: Run }) {
   )
 }
 
-/** The host's one forward button. When secret chests sit before the next encounter it splits into found / skipped. */
+/**
+ * The host's one forward button. Clearing an encounter records it and sends rewards at once.
+ * Then, for each secret chest before the next encounter, it splits into "got it" / "missed it".
+ */
 function ProgressControl({ run, disabled }: { run: Run; disabled: boolean }) {
-  const { openFlow } = useGD()
-  const [asking, setAsking] = useState(false)
+  const { openFlow, host, toast } = useGD()
   const { encounter } = current(run)
   const next = nextEncounter(run)
-  const { count: ahead, first } = chestsAhead(run)
-  const chestNames = ahead === 1 ? `Secret Chest ${first}` : `Secret Chests ${Array.from({ length: ahead }, (_, k) => first + k).join(' and ').replace(/ and (?=.* and )/g, ', ')}`
+  const chest = pendingChest(run)
   const r = run.ruleset.integrity
-  // Reset the split whenever the encounter changes.
-  const [forEnc, setForEnc] = useState(encounter.id)
-  if (forEnc !== encounter.id) { setForEnc(encounter.id); setAsking(false) }
 
-  const label = encounter.type === 'final' ? 'Clear final boss' : 'Clear encounter'
-  if (!asking || ahead === 0) {
+  if (chest) {
+    const answer = (found: boolean) => {
+      host!.updateRun((x) => recordChest(x, found))
+      toast(found ? `Secret Chest ${chest.number} found. Chest rewards sent.` : `Secret Chest ${chest.number} skipped.`)
+    }
     return (
-      <button className="btn btn-light btn-big progress-btn" disabled={disabled} onClick={() => (ahead > 0 ? setAsking(true) : openFlow({ type: 'clear', chests: 0 }))}>
-        {label}
-        <small>+{r.clear} Integrity{ahead > 0 ? ` \u00b7 ${chestNames} to check` : next ? ` \u00b7 then ${next.encounter.name}` : ' \u00b7 completes the route'}</small>
-      </button>
+      <div className="progress-split" role="group" aria-label={`Secret Chest ${chest.number}`}>
+        <p className="split-q">Did you get <strong>Secret Chest {chest.number}</strong>?</p>
+        <div className="split-btns">
+          <button className="btn btn-light" disabled={disabled} onClick={() => answer(true)}>
+            Got it
+            <small>Chest reward for everyone</small>
+          </button>
+          <button className="btn btn-ghost" disabled={disabled} onClick={() => answer(false)}>
+            Missed it
+            <small>No extra reward</small>
+          </button>
+        </div>
+        <p className="small muted">{chest.remaining > 1 ? `${chest.remaining - 1} more chest after this, then ` : 'Then '}{encounter.name}.</p>
+      </div>
     )
   }
   return (
-    <div className="progress-split" role="group" aria-label="Secret chest">
-      <p className="split-q">{ahead === 1 ? `Did you get ${chestNames}?` : `How many of ${chestNames} did you get?`}</p>
-      <div className="split-btns">
-        {Array.from({ length: ahead }, (_, k) => ahead - k).map((n) => (
-          <button key={n} className="btn btn-light" onClick={() => openFlow({ type: 'clear', chests: n })}>
-            {ahead === 1 ? 'Got the chest' : `Got ${n}`}
-            <small>Chest reward{n > 1 ? 's' : ''} for everyone</small>
-          </button>
-        ))}
-        <button className="btn btn-ghost" onClick={() => openFlow({ type: 'clear', chests: 0 })}>
-          {ahead === 1 ? 'No chest' : 'None'}
-          <small>Clear reward only</small>
-        </button>
-      </div>
-      <button className="link" onClick={() => setAsking(false)}>Back</button>
-    </div>
+    <button className="btn btn-light btn-big progress-btn" disabled={disabled} onClick={() => openFlow({ type: 'clear' })}>
+      {encounter.type === 'final' ? 'Clear final boss' : 'Clear encounter'}
+      <small>+{r.clear} Integrity{next ? ` \u00b7 then ${next.encounter.name}` : ' \u00b7 completes the route'}</small>
+    </button>
   )
 }
