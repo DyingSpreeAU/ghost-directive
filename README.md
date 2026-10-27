@@ -136,6 +136,13 @@ active perks. In the lobby the seat's artifact defaults to the equipped one, and
 preview flags perks still switched on. During a run, a different artifact from the seat's choice, or
 an active perk that hasn't been researched in the run, is flagged.
 
+**Sync from / Send to** (your seat in the lobby). *Sync from* fills the seat from your active
+character. *Send to* does the reverse with the move/equip scope: it switches the active character to
+the seat's subclass, slots its Super, melee and grenade, empties every aspect and fragment socket,
+and empties the artifact's perk sockets (InsertSocketPlugFree, using component 310 to find each
+socket's options). It doesn't change which artifact is equipped. Bungie only allows it in orbit, a
+social space or while offline; in an activity it stops and explains why.
+
 **Restore my Guardian** (Field Arsenal, signed-in players). Each sync where everything equipped is
 part of the run and the subclass matches records a restore point: the character, the equipped
 instance ids and the subclass's socket plugs (`BungieLink.restore`). Syncs while playing other gear

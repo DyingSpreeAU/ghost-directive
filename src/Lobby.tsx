@@ -2,8 +2,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
-import { ElementMark, EncounterArt, SortableList, rarityClass } from './ui'
-import { bungieConfigured, fetchEquipped, startSignIn, type EquippedPreview } from './bungie'
+import { ElementMark, EncounterArt, Modal, SortableList, rarityClass } from './ui'
+import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
 
@@ -37,10 +37,35 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     patchSeat(mine, { ...seatFromCharacter(d), auto: true })
     toast(`Synced from your ${d.cls}${d.subclass ? ` (${d.subclass.name})` : ''}.`)
   })
+  // Apply the seat's setup to the character in game, then re-read it.
+  const [send, setSend] = useState<{ busy: boolean; step?: string; report?: SendReport; error?: string } | null>(null)
+  const sendSeat = async () => {
+    if (!mine) return
+    setSend({ busy: true })
+    try {
+      const abilities = [mine.starter.super, mine.starter.melee, mine.starter.grenade].map((id) => id.split('|')[2])
+      const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities }, (step) => setSend({ busy: true, step }))
+      setSend({ busy: false, report })
+    } catch (e) { setSend({ busy: false, error: (e as Error).message }) }
+    eq.refresh()
+  }
   const others = lobby.seats.filter((s) => s.clientId && s.clientId !== me && isOnline(s.clientId))
 
   return (
     <div className="lobby">
+      {send && !send.busy && (
+        <Modal title={send.error ? 'Couldn’t apply your setup' : 'Setup sent to your character'} kicker="Send to" onClose={() => setSend(null)} footer={<button className="btn btn-light" onClick={() => setSend(null)}>Done</button>}>
+          {send.error ? <p className="tone-danger">{send.error}</p> : send.report && (
+            <div className="stack restore-info">
+              <p>Your {send.report.character}:</p>
+              <ul>{send.report.applied.length ? send.report.applied.map((a) => <li key={a}>{a}</li>) : <li>Already matched this seat. Nothing to change.</li>}</ul>
+              {send.report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t apply:</p><ul className="small">{send.report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
+              {mine?.artifact && <p className="small muted">Send to doesn&rsquo;t change which artifact is equipped. Make sure {mine.artifact} is equipped in game.</p>}
+            </div>
+          )}
+        </Modal>
+      )}
+      {send?.busy && <div className="toast" role="status">{send.step ?? 'Reading your character…'}</div>}
       <header className="page-head">
         <div>
           <div className="eyebrow">Lobby</div>
@@ -72,7 +97,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               editable={editable}
               onPatch={(p) => patchSeat(s, p)}
               notice={s.clientId === me ? notice : undefined}
-              sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat } : undefined}
+              sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -152,7 +177,7 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
 function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
   /** Re-reads the active character from Bungie and fills this seat (signed-in player's own seat). */
-  sync?: { busy: boolean; run: () => void }
+  sync?: { busy: boolean; run: () => void; sending: boolean; send: () => void }
   /** Bungie sync status for the player's own seat, shown by the Ready button. */
   notice?: React.ReactNode
   onPatch: (p: Patch) => void
@@ -187,9 +212,14 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           {sync && (
             <div className="seat-sync">
               <span className="small muted">Class, subclass and abilities</span>
-              <button className="btn btn-ghost btn-sm" disabled={sync.busy} onClick={sync.run} title="Read your in-game character from Bungie and set your class, subclass, Super, melee and grenade to match.">
-                {sync.busy ? 'Syncing\u2026' : 'Sync from active character'}
-              </button>
+              <span className="row-acts">
+                <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.run} title="Read your in-game character from Bungie and set this seat's class, subclass, Super, melee and grenade to match.">
+                  {sync.busy ? 'Syncing\u2026' : 'Sync from'}
+                </button>
+                <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.send} title="Apply this seat to your character in game: its subclass, Super, melee and grenade, with aspects, fragments and artifact perks cleared. Works in orbit, a social space, or offline.">
+                  {sync.sending ? 'Sending\u2026' : 'Send to'}
+                </button>
+              </span>
             </div>
           )}
           <div className="seg" role="radiogroup" aria-label="Class">

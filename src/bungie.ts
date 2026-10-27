@@ -164,7 +164,11 @@ type ProfileResponse = {
   characterProgressions?: { data?: Record<string, { seasonalArtifact?: { artifactHash?: number; tiers?: { items?: { itemHash: number; isActive?: boolean }[] }[] } }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
-  itemComponents?: { sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> } }
+  itemComponents?: {
+    sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> }
+    /** What each socket can take (component 310), by socket index. */
+    reusablePlugs?: { data?: Record<string, { plugs: Record<string, { plugItemHash: number; canInsert?: boolean }[]> }> }
+  }
 }
 
 export type BungieSnapshot = {
@@ -620,3 +624,99 @@ export async function restoreGuardian(player: Player, point: RestorePoint | unde
   if (report.equip === 'done' || report.equip === 'partial') { p = await read(); await vaultExtras() }
   return report
 }
+
+// ------------------------------------------------------------------ send a seat's setup to the game
+
+export const LOCATION_MESSAGE = 'You’re in an activity. Bungie only lets apps change your subclass and artifact in orbit, a social space like the Tower or H.E.L.M., or while you’re offline. Go to orbit and try again.'
+
+export type SendReport = { character: string; applied: string[]; problems: string[] }
+
+/**
+ * Applies a seat's setup to the active character: switches to the seat's subclass, slots its
+ * Super, melee and grenade, empties every aspect and fragment socket, and empties the artifact's
+ * perk sockets. Bungie only allows this in orbit, a social space, or while offline.
+ */
+export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[] }, progress: (msg: string) => void): Promise<SendReport> {
+  const { mem } = await membership()
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,201,204,205,305,310`)
+  const picked = pickCharacter(p)
+  if (!picked) throw new BungieError('No characters found on this account.')
+  const charId = picked.id
+  const cls = CLASS_NAME[picked.char.classType]
+  if (cls !== seat.cls) throw new BungieError(`Your active character is your ${cls}. Switch to your ${seat.cls} in game, or change this seat to ${cls}.`)
+  const report: SendReport = { character: `${cls}, ${picked.char.light} Power`, applied: [], problems: [] }
+  const act = (path: string, body: object) => api(path, { ...body, characterId: charId, membershipType: mem.membershipType }).catch((e) => {
+    if (wrongPlace(e)) throw new BungieError(LOCATION_MESSAGE)
+    if (noScope(e)) throw new BungieError(actionMessage(e))
+    throw e
+  })
+  const insert = (itemId: string, socketIndex: number, plugItemHash: number) =>
+    act('/Destiny2/Actions/Items/InsertSocketPlugFree/', { plug: { socketIndex, socketArrayType: 0, plugItemHash }, itemId })
+
+  // 1. The seat's subclass, equipped.
+  const subs = [
+    ...(p.characterEquipment?.data?.[charId]?.items ?? []).filter((i) => i.bucketHash === SUBCLASS_BUCKET).map((i) => ({ i, equipped: true })),
+    ...(p.characterInventories?.data?.[charId]?.items ?? []).filter((i) => i.bucketHash === SUBCLASS_BUCKET).map((i) => ({ i, equipped: false })),
+  ]
+  const named = await Promise.all(subs.map(async (x) => ({ ...x, name: await defName(x.i.itemHash) })))
+  const sub = named.find((x) => x.name && (seat.element === 'Prismatic' ? x.name === `Prismatic ${cls}` : SUBCLASS_ELEMENT[x.name] === seat.element))
+  if (!sub?.i.itemInstanceId) throw new BungieError(`Couldn’t find a ${seat.element} subclass on your ${cls}.`)
+  const subId = sub.i.itemInstanceId
+  if (!sub.equipped) {
+    progress(`Switching to ${sub.name}…`)
+    const r = await act('/Destiny2/Actions/Items/EquipItems/', { itemIds: [subId] }) as { equipResults?: { equipStatus: number }[] }
+    if (r.equipResults?.some((x) => x.equipStatus === 1634)) throw new BungieError(LOCATION_MESSAGE)
+    report.applied.push(sub.name!)
+  }
+
+  // 2. Sockets: work out what each one holds from its current plug.
+  const byName = new Map(subclassAbilities(cls, seat.element).map((a) => [normName(a.name), a]))
+  const wanted = new Map(seat.abilities.map((n) => [byName.get(normName(n))?.kind, n] as const))
+  const current = p.itemComponents?.sockets?.data?.[subId]?.sockets ?? []
+  const options = p.itemComponents?.reusablePlugs?.data?.[subId]?.plugs ?? {}
+  const optionNamed = async (idx: number) => Promise.all((options[idx] ?? []).map(async (o) => ({ hash: o.plugItemHash, name: (await defName(o.plugItemHash)) ?? '' })))
+  type Job = { idx: number; kind: 'fragment' | 'aspect' | 'super' | 'melee' | 'grenade'; name: string }
+  const jobs: Job[] = []
+  await Promise.all(current.map(async (sock, idx) => {
+    const name = sock.plugHash ? (await defName(sock.plugHash)) ?? '' : ''
+    const kind = /^Empty Aspect/i.test(name) ? 'aspect' : /^Empty Fragment/i.test(name) ? 'fragment' : byName.get(normName(name))?.kind
+    if (kind && kind !== 'aspect' && kind !== 'fragment' && wanted.get(kind) && normName(wanted.get(kind)!) !== normName(name)) jobs.push({ idx, kind, name: wanted.get(kind)! })
+    if ((kind === 'aspect' || kind === 'fragment') && !/^Empty/i.test(name)) jobs.push({ idx, kind, name })
+  }))
+  // Fragments first (aspects decide how many fragment sockets there are), then aspects, then abilities.
+  const rank = { fragment: 0, aspect: 1, super: 2, melee: 3, grenade: 4 }
+  jobs.sort((a, b) => rank[a.kind] - rank[b.kind] || b.idx - a.idx)
+  for (const job of jobs) {
+    const opts = await optionNamed(job.idx)
+    const target = job.kind === 'aspect' || job.kind === 'fragment'
+      ? opts.find((o) => /^Empty/i.test(o.name))
+      : opts.find((o) => normName(o.name) === normName(job.name))
+    if (!target) { report.problems.push(job.kind === 'aspect' || job.kind === 'fragment' ? `Couldn’t empty ${job.name}` : `${job.name} isn’t available to slot`); continue }
+    progress(job.kind === 'aspect' || job.kind === 'fragment' ? `Removing ${job.name}…` : `Slotting ${job.name}…`)
+    try { await insert(subId, job.idx, target.hash); report.applied.push(job.kind === 'aspect' || job.kind === 'fragment' ? `Removed ${job.name}` : job.name) } catch (e) {
+      if (e instanceof BungieError && e.message === LOCATION_MESSAGE) throw e
+      report.problems.push(`${job.name}: ${actionMessage(e)}`)
+    }
+  }
+
+  // 3. Artifact perks off.
+  const art = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === ARTIFACT_BUCKET)
+  if (art?.itemInstanceId) {
+    const artSockets = p.itemComponents?.sockets?.data?.[art.itemInstanceId]?.sockets ?? []
+    const artOptions = p.itemComponents?.reusablePlugs?.data?.[art.itemInstanceId]?.plugs ?? {}
+    for (const [idx, sock] of artSockets.entries()) {
+      const name = sock.plugHash ? (await defName(sock.plugHash)) ?? '' : ''
+      if (!sock.plugHash || /^Empty/i.test(name)) continue
+      const opts = await Promise.all((artOptions[idx] ?? []).map(async (o) => ({ hash: o.plugItemHash, name: (await defName(o.plugItemHash)) ?? '' })))
+      const empty = opts.find((o) => /^Empty/i.test(o.name))?.hash ?? EMPTY_ARTIFACT_MOD
+      progress(`Turning off ${name}…`)
+      try { await insert(art.itemInstanceId, idx, empty); report.applied.push(`Turned off ${name}`) } catch (e) {
+        if (e instanceof BungieError && e.message === LOCATION_MESSAGE) throw e
+        report.problems.push(`${name}: ${actionMessage(e)}`)
+      }
+    }
+  }
+  return report
+}
+/** "Empty Artifact Mod", the plug an unused artifact perk socket holds. */
+const EMPTY_ARTIFACT_MOD = 1235188590
