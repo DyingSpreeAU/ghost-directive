@@ -5,6 +5,16 @@ A companion web app for a self-imposed Destiny 2 roguelite challenge, built from
 guides setup, tracks run state, presents rewards and choices, and warns about discrepancies.
 It never enforces rules inside the game.
 
+## Versions
+
+- **Production**: the `main` branch, deployed by Netlify. Only finished, tested work is merged here.
+- **Nightly (test)**: the `nightly` branch, where new work happens. It is published as a claude.ai
+  artifact, not on Netlify: `npm run build:nightly` writes a single HTML file to `dist-nightly/`.
+  Test builds show a "nightly" badge, their tab title says so, and their lobby ids are separate from
+  production, so a code from one version never reaches the other. Bungie sign-in can't work inside
+  claude.ai, so Bungie features are tested with stubbed accounts before they reach production.
+- Releasing: merge `nightly` into `main` and push; Netlify deploys it.
+
 ## Run it
 
 ```sh

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
+import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
 import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
@@ -18,7 +19,18 @@ import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, no
 
 type Mode = { kind: 'landing' } | { kind: 'host' } | { kind: 'guest'; code: string }
 
+/** A corner badge on test deploys so nobody mistakes them for the real app. */
+function ChannelBadge() {
+  useEffect(() => { if (CHANNEL) document.title = `Ghost Directive (${CHANNEL})` }, [])
+  if (!CHANNEL) return null
+  return <div className="channel-badge" title="Test version: runs and lobbies here are separate from the main app.">{CHANNEL}</div>
+}
+
 export default function App() {
+  return <><ChannelBadge /><Root /></>
+}
+
+function Root() {
   const [mode, setMode] = useState<Mode>(() => {
     // Only the tab that was hosting resumes by itself; other tabs offer "Resume hosting".
     if (hostingTab() && hasHostSession(loadHostStore())) return { kind: 'host' }

@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build:nightly": "SINGLE=1 VITE_CHANNEL=nightly vite build --outDir dist-nightly"
   },
   "dependencies": {
     "peerjs": "^1.5.4",

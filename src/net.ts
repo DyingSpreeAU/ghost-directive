@@ -2,6 +2,8 @@
 // layer just relays messages. Inside a claude.ai artifact it uses the `room`
 // capability; anywhere else it falls back to PeerJS (WebRTC, star topology).
 
+import { CHANNEL } from './channel'
+
 export type TransportStatus = 'connecting' | 'online' | 'offline' | 'unavailable'
 
 export type Transport = {
@@ -89,7 +91,8 @@ type PeerObj = {
   disconnected: boolean
 }
 
-const peerId = (code: string) => `ghost-directive-${code.toLowerCase()}`
+// Test channels (nightly) get their own lobby ids, so a code from one version never reaches the other.
+const peerId = (code: string) => `ghost-directive-${CHANNEL ? `${CHANNEL}-` : ''}${code.toLowerCase()}`
 
 /**
  * Signalling server and ICE servers. Defaults to the free public PeerJS cloud and public STUN.

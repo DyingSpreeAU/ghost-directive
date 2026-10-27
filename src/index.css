@@ -695,3 +695,10 @@ select.needs-pick { border-color: var(--warn); }
 
 .restore-info ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
 .restore-info p { margin: 0; }
+
+/* ---------------------------------------------------------------- test channel badge */
+.channel-badge {
+  position: fixed; left: 50%; top: 6px; transform: translateX(-50%); z-index: 100;
+  padding: 4px 10px; border-radius: 999px; font: 600 0.72rem var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase;
+  background: var(--warn); color: var(--light-ink); box-shadow: 0 4px 14px #0008;
+}
