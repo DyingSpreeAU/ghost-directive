@@ -1,8 +1,11 @@
 """Download the Destiny Data Compendium tabs and the Bungie manifest pieces that
 parse_compendium.py needs, into a working directory.
 
-    python3 tools/fetch_sources.py /tmp/gd-sources
+    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json
     python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
+
+The second argument writes the compact weapon/armor lookup table the app uses to
+name items from a signed-in player's Vault (hash -> name, slot, tier, class, damage).
 
 Needs network access to docs.google.com and *.bungie.net. The full item
 definition file is about 200 MB.
@@ -10,6 +13,7 @@ definition file is about 200 MB.
 import collections, json, os, sys, urllib.request
 
 out = sys.argv[1]
+item_table = sys.argv[2] if len(sys.argv) > 2 else None
 os.makedirs(out, exist_ok=True)
 SHEET = 'https://docs.google.com/spreadsheets/d/1WaxvbLx7UoSZaBqdFr1u32F2uWVLo-CJunJB4nlGUE4/gviz/tq?tqx=out:csv&gid='
 TABS = {'Arc': 618967225, 'Solar': 1186062409, 'Void': 1907852650, 'Stasis': 1088259962,
@@ -60,3 +64,17 @@ for it in items.values():
     subs[it['displayProperties']['name']] = got
 json.dump(subs, open(f'{out}/subclass_plugs.json', 'w'), indent=1, ensure_ascii=False)
 print('wrote exotic_slots.json and subclass_plugs.json')
+
+# Compact lookup table for Bungie sign-in: weapons and armor by item hash.
+# Row: [name, slot index (ALL_SLOTS order), tier (0 Common .. 4 Exotic), classType (3 = any), damageType]
+if item_table:
+    BUCKET = {1498876634: 0, 2465295065: 1, 953998645: 2, 3448274439: 3, 3551918588: 4, 14239492: 5, 20886954: 6, 1585787867: 7}
+    TIER = {2: 0, 3: 1, 4: 2, 5: 3, 6: 4}
+    rows = {}
+    for h, it in items.items():
+        inv = it.get('inventory', {})
+        name = it.get('displayProperties', {}).get('name', '').strip()
+        if it.get('itemType') in (2, 3) and inv.get('bucketTypeHash') in BUCKET and inv.get('tierType') in TIER and name and not it.get('redacted'):
+            rows[h] = [name, BUCKET[inv['bucketTypeHash']], TIER[inv['tierType']], it.get('classType', 3), it.get('defaultDamageType', 0)]
+    json.dump({'version': manifest['version'], 'items': rows}, open(item_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    print('wrote', item_table, len(rows), 'items')

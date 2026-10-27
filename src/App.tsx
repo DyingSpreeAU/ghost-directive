@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
+import { useAutoSync } from './BungiePanel'
+import { takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView } from './Lobby'
@@ -340,6 +342,12 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const [dismissedSwaps, setDismissedSwaps] = useState<string[]>([])
   toastRef.current = setToastMsg
 
+  // Report the result of returning from Bungie's sign-in page, once.
+  useEffect(() => {
+    const r = takeSignInResult()
+    if (r) setToastMsg(r.ok ? 'Signed in with Bungie. Reading your Vault\u2026' : r.error)
+  }, [])
+
   useEffect(() => {
     if (!toastMsg) return
     const t = setTimeout(() => setToastMsg(null), 2800)
@@ -360,6 +368,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
 
   // Decisions that belong to this device open by themselves: your rewards first, then overflow swaps.
   const me = run?.players.find((p) => p.id === myPlayerId)
+  useAutoSync(me, base.dispatch)
   const myPending = run && me ? run.pending.filter((x) => x.playerId === me.id) : []
   const autoReward = myPending.find((x) => !deferred.includes(x.id))
   const swapSlot = run && me && run.ruleset.overflow === 'guided'

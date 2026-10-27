@@ -56,7 +56,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## Not yet built (per spec roadmap / open questions)
 
-- Mode B, Level 3 Bungie API integration (Phase 4).
+- Bungie item transfers (Vault ↔ character). Sign-in and read-only sync are done.
 - Permanent cross-run upgrades and an Artifact capacity rule.
 
 ## Hosting outside claude.ai (Netlify etc.)
@@ -74,6 +74,37 @@ configuration → Environment variables, then redeploy):
 
 The join screen says which stage a player is stuck on: reaching the lobby server, finding the
 lobby, or opening the direct connection to the host.
+
+## Bungie sign-in (Netlify build)
+
+Players can sign in with Bungie so reward choices come from their real Vault. This is read-only:
+nothing is moved or equipped. Each player signs in on their own device, and their tokens stay in
+that browser. The player's device reads their profile and sends the host:
+
+- their eligible Vault Legendaries (weapons, plus armor for their class);
+- tracked run items not found anywhere on the account;
+- items equipped on their character that aren't in the run inventory.
+
+The host turns the last two into warnings.
+
+**Bungie app** (bungie.net/en/Application): OAuth Client Type *Confidential*; Redirect URL
+`https://<site>/auth/callback`; scope *Read your Destiny 2 information*; Origin Header
+`https://<site>`.
+
+**Netlify environment variables**
+
+| Key | Value |
+| --- | --- |
+| `VITE_BUNGIE_API_KEY` | API Key (public; Bungie restricts it to the Origin Header) |
+| `VITE_BUNGIE_CLIENT_ID` | OAuth client_id |
+| `BUNGIE_CLIENT_SECRET` | OAuth client_secret. **No `VITE_` prefix**: only the function reads it |
+| `BUNGIE_API_KEY` | API Key, for the function |
+
+`netlify/functions/bungie-token.mjs` (served at `/api/bungie-token`) exchanges sign-in codes
+and refresh tokens. `netlify.toml` routes `/auth/callback` to the app. `public/bungie-items.json`
+maps item hashes to names, slots and rarities; regenerate it with `tools/fetch_sources.py` after
+game updates. Without the `VITE_BUNGIE_*` variables (including the claude.ai build) the sign-in
+code is left out entirely.
 
 ## Game data
 

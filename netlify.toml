@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+
+# Single-page app: serve index.html for app routes such as /auth/callback.
+# Real files (assets, bungie-items.json) and functions are matched first.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

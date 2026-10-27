@@ -116,6 +116,20 @@ export type Player = {
   capacityBonus: number
   loadoutBonus: number
   loadouts: Loadout[]
+  /** Set when the player's device has synced their Bungie account (Netlify build only). */
+  bungie?: BungieLink
+}
+
+/** What a player's device reports after reading their Destiny profile. Tokens never leave that device. */
+export type BungieLink = {
+  name: string
+  character: string
+  syncedAt: number
+  vaultItems: number
+  /** Tracked run items not found anywhere in their Destiny inventory or Vault. */
+  missing: string[]
+  /** Equipped in game on the synced character but not in the run inventory. */
+  untracked: { slot: Slot; name: string }[]
 }
 
 export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
@@ -355,6 +369,8 @@ export function computeWarnings(run: Run): Warning[] {
     for (const l of p.loadouts) {
       if (!loadoutValid(p, l)) out.push({ id: `lo-${p.id}-${l.id}`, severity: 'warn', playerId: p.id, title: `Loadout “${l.name}” is invalid`, rule: 'It references an item that left the run inventory. Update it before using it.', where: 'arsenal' })
     }
+    if (p.bungie?.missing.length) out.push({ id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
+    if (p.bungie?.untracked.length) out.push({ id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
     if (p.loadouts.length > loadoutSlotsOf(run, p)) out.push({ id: `los-${p.id}`, severity: 'warn', playerId: p.id, title: 'More loadouts saved than slots', rule: `${p.name} has ${loadoutSlotsOf(run, p)} loadout slot(s).`, where: 'arsenal' })
   }
   return out
@@ -446,6 +462,8 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[] }
+  | { type: 'bungie-unlink' }
 
 const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -547,6 +565,38 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     case 'artifact-remove': {
       p.artifact = p.artifact.filter((m) => m !== it.mod)
+      return null
+    }
+    case 'bungie-sync': {
+      // Replaces the Vault pool with what Bungie reports; reward choices then come from real items.
+      const vault: VaultEntry[] = []
+      const seen = new Set<string>()
+      for (const raw of Array.isArray(it.vault) ? it.vault.slice(0, 800) : []) {
+        const e = (raw ?? {}) as Partial<VaultEntry>
+        const name = str(e.name)
+        if (!name || !ALL_SLOTS.includes(e.slot as Slot) || !RARITIES.includes(e.rarity as Rarity)) continue
+        const key = `${name}|${e.slot}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        vault.push({ name, slot: e.slot as Slot, rarity: e.rarity as Rarity, element: DAMAGE_ELEMENTS.includes(e.element as never) ? e.element : undefined, archetype: str(e.archetype, 40) || undefined })
+      }
+      const strs = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n).map((x) => str(x)).filter(Boolean) : [])
+      const untracked = (Array.isArray(it.untracked) ? it.untracked.slice(0, 8) : [])
+        .map((u) => ({ slot: (u as { slot: Slot }).slot, name: str((u as { name: unknown }).name) }))
+        .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
+      const first = !p.bungie
+      p.vault = vault
+      p.bungie = {
+        name: str(it.name, 40) || 'Guardian', character: str(it.character, 40), syncedAt: Date.now(),
+        vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked,
+      }
+      if (first) log(run, 'run', `${p.name} linked their Bungie account (${vault.length} eligible Vault items).`)
+      return null
+    }
+    case 'bungie-unlink': {
+      if (p.bungie) log(run, 'run', `${p.name} unlinked their Bungie account.`)
+      p.bungie = undefined
+      p.vault = []
       return null
     }
     case 'resolve': {

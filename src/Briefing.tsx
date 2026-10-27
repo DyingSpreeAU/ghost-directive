@@ -8,6 +8,7 @@ import {
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
+import { BungiePanel } from './BungiePanel'
 import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter, rarityClass } from './ui'
 
@@ -219,6 +220,7 @@ function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warn
       <div className="player-foot">
         <span>{p.artifact.length} artifact mod{p.artifact.length === 1 ? '' : 's'}</span>
         <span>{p.loadouts.length}/{loadoutSlotsOf(run, p)} loadouts</span>
+        {p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} \u00b7 ${p.bungie.character}`}>Bungie linked</span>}
         {setupOpen && <button className="link" onClick={() => setShowChecklist((v) => !v)}>Starting gear {checked}/6</button>}
       </div>
       {setupOpen && showChecklist && (
@@ -464,7 +466,7 @@ function Loadouts({ run, p }: { run: Run; p: Player }) {
 }
 
 function VaultPool({ p }: { p: Player }) {
-  const { dispatch, canControl } = useGD()
+  const { dispatch, canControl, myPlayerId } = useGD()
   const [name, setName] = useState('')
   const [slot, setSlot] = useState<Slot>('Kinetic')
   const [element, setElement] = useState<Element | ''>('')
@@ -474,12 +476,15 @@ function VaultPool({ p }: { p: Player }) {
     dispatch({ type: 'vault-add', entry: { name: name.trim(), slot, rarity: 'Legendary' as Rarity, element: element || undefined } }, p.id)
     setName('')
   }
+  const mine = p.id === myPlayerId
   return (
     <div className="panel lower-panel">
-      <h3>Vault pool <span className="muted">{p.vault.length ? `${p.vault.length} entered` : 'example pool'}</span></h3>
+      <h3>Vault pool <span className="muted">{p.bungie ? `${p.vault.length} from Bungie` : p.vault.length ? `${p.vault.length} entered` : 'example pool'}</span></h3>
+      {mine && <BungiePanel p={p} dispatch={dispatch} />}
       <p className="section-note">
-        Final-boss weapons and trade-ups draw from Legendaries in {p.name}&rsquo;s Vault. In No Login mode, list them here.
-        {!p.vault.length && ' Until you do, an example pool of well-known Legendaries stands in.'}
+        Final-boss weapons and trade-ups draw from Legendaries in {p.name}&rsquo;s Vault.
+        {p.bungie ? ' This list comes from their Bungie account and refreshes on each sync.' : ' In No Login mode, list them here.'}
+        {!p.vault.length && !p.bungie && ' Until you do, an example pool of well-known Legendaries stands in.'}
       </p>
       <div className="vault-list">
         {WEAPON_SLOTS.map((s) => (
@@ -493,7 +498,7 @@ function VaultPool({ p }: { p: Player }) {
           <p className="small">{pool.filter((v) => !WEAPON_SLOTS.includes(v.slot)).length} pieces</p>
         </div>
       </div>
-      {canControl(p.id) && <div className="inline-form wrap">
+      {canControl(p.id) && !p.bungie && <div className="inline-form wrap">
         <input id={`vault-name-${p.id}`} placeholder="Legendary name" value={name} onChange={(e) => setName(e.target.value)} />
         <select id={`vault-slot-${p.id}`} value={slot} onChange={(e) => setSlot(e.target.value as Slot)}>
           {ALL_SLOTS.map((s) => <option key={s}>{s}</option>)}

@@ -3,6 +3,8 @@ import { CLASSES, DUNGEONS, chestCount, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dun
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, SortableList } from './ui'
+import { bungieConfigured, startSignIn } from './bungie'
+import { useBungie } from './BungiePanel'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready'>>
 
@@ -194,6 +196,8 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools }: {
         </dl>
       )}
 
+      {you && <SeatBungie />}
+
       {hostTools && (
         <div className="seat-tools">
           {hostTools.unlink && <button className="link" onClick={hostTools.unlink}>Unlink device</button>}
@@ -327,4 +331,13 @@ function BeginBar({ lobby, isOnline, onBegin }: { lobby: Lobby; isOnline: (cid: 
         : <button className="btn btn-light" disabled={noRoute} onClick={() => (notReady.length ? setConfirm(true) : onBegin())}>Begin run and lock route</button>}
     </div>
   )
+}
+
+/** Optional: sign in during the lobby so the Vault syncs as soon as the run starts. */
+function SeatBungie() {
+  const { signedIn } = useBungie()
+  if (!bungieConfigured) return null
+  return signedIn
+    ? <p className="small seat-bungie"><span className="tag tag-bungie">Bungie</span> Signed in. Your Vault syncs when the run starts.</p>
+    : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional, read-only).</span></p>
 }
