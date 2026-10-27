@@ -59,6 +59,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
             <div className="stack restore-info">
               <p>Your {send.report.character}:</p>
               <ul>{send.report.applied.length ? send.report.applied.map((a) => <li key={a}>{a}</li>) : <li>Already matched this seat. Nothing to change.</li>}</ul>
+              {send.report.already.length > 0 && <><p className="small muted">Already set:</p><ul className="small muted">{send.report.already.map((x) => <li key={x}>{x}</li>)}</ul></>}
               {send.report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t apply:</p><ul className="small">{send.report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
             </div>
           )}

@@ -383,14 +383,22 @@ const SUBCLASS_ELEMENT: Record<string, Element> = {
 }
 
 /** Names of single item definitions (subclasses, ability plugs), cached for this page. */
-const defNames = new Map<number, Promise<string | null>>()
-function defName(hash: number) {
-  if (!defNames.has(hash)) {
-    defNames.set(hash, api<{ displayProperties?: { name?: string } }>(`/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash >>> 0}/`)
-      .then((d) => d.displayProperties?.name?.trim() || null)
-      .catch(() => null))
+type ItemDef = { displayProperties?: { name?: string }; sockets?: { socketEntries?: { singleInitialItemHash?: number; reusablePlugSetHash?: number }[] } }
+const itemDefs = new Map<number, Promise<ItemDef | null>>()
+function itemDef(hash: number) {
+  if (!itemDefs.has(hash)) itemDefs.set(hash, api<ItemDef>(`/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash >>> 0}/`).catch(() => null))
+  return itemDefs.get(hash)!
+}
+const defName = (hash: number) => itemDef(hash).then((d) => d?.displayProperties?.name?.trim() || null)
+
+const plugSets = new Map<number, Promise<number[]>>()
+function plugSet(hash: number) {
+  if (!plugSets.has(hash)) {
+    plugSets.set(hash, api<{ reusablePlugItems?: { plugItemHash: number }[] }>(`/Destiny2/Manifest/DestinyPlugSetDefinition/${hash >>> 0}/`)
+      .then((d) => (d.reusablePlugItems ?? []).map((x) => x.plugItemHash))
+      .catch(() => []))
   }
-  return defNames.get(hash)!
+  return plugSets.get(hash)!
 }
 
 /** The character's equipped subclass and the names of everything slotted in it. */
@@ -640,7 +648,7 @@ export async function restoreGuardian(player: Player, point: RestorePoint | unde
 
 export const LOCATION_MESSAGE = 'You’re in an activity. Bungie only lets apps change your subclass and artifact in orbit, a social space like the Tower or H.E.L.M., or while you’re offline. Go to orbit and try again.'
 
-export type SendReport = { character: string; applied: string[]; problems: string[] }
+export type SendReport = { character: string; applied: string[]; already: string[]; problems: string[] }
 
 /**
  * Applies a seat's setup to the active character: switches to the seat's subclass, slots its
@@ -655,7 +663,7 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   const charId = picked.id
   const cls = CLASS_NAME[picked.char.classType]
   if (cls !== seat.cls) throw new BungieError(`Your active character is your ${cls}. Switch to your ${seat.cls} in game, or change this seat to ${cls}.`)
-  const report: SendReport = { character: `${cls}, ${picked.char.light} Power`, applied: [], problems: [] }
+  const report: SendReport = { character: `${cls}, ${picked.char.light} Power`, applied: [], already: [], problems: [] }
   const act = (path: string, body: object) => api(path, { ...body, characterId: charId, membershipType: mem.membershipType }).catch((e) => {
     if (wrongPlace(e)) throw new BungieError(LOCATION_MESSAGE)
     if (noScope(e)) throw new BungieError(actionMessage(e))
@@ -684,8 +692,7 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   const byName = new Map(subclassAbilities(cls, seat.element).map((a) => [normName(a.name), a]))
   const wanted = new Map(seat.abilities.map((n) => [byName.get(normName(n))?.kind, n] as const))
   const current = p.itemComponents?.sockets?.data?.[subId]?.sockets ?? []
-  const options = p.itemComponents?.reusablePlugs?.data?.[subId]?.plugs ?? {}
-  const optionNamed = async (idx: number) => Promise.all((options[idx] ?? []).map(async (o) => ({ hash: o.plugItemHash, name: (await defName(o.plugItemHash)) ?? '' })))
+  const optionNamed = (idx: number) => socketOptions(p, sub.i, idx)
   type Job = { idx: number; kind: 'fragment' | 'aspect' | 'super' | 'melee' | 'grenade'; name: string }
   const jobs: Job[] = []
   await Promise.all(current.map(async (sock, idx) => {
@@ -697,6 +704,11 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   // Fragments first (aspects decide how many fragment sockets there are), then aspects, then abilities.
   const rank = { fragment: 0, aspect: 1, super: 2, melee: 3, grenade: 4 }
   jobs.sort((a, b) => rank[a.kind] - rank[b.kind] || b.idx - a.idx)
+  for (const kind of ['super', 'melee', 'grenade'] as const) {
+    if (wanted.get(kind) && !jobs.some((j) => j.kind === kind)) report.already.push(`${wanted.get(kind)} already slotted`)
+  }
+  if (!jobs.some((j) => j.kind === 'aspect')) report.already.push('Aspects already empty')
+  if (!jobs.some((j) => j.kind === 'fragment')) report.already.push('Fragments already empty')
   for (const job of jobs) {
     const opts = await optionNamed(job.idx)
     const target = job.kind === 'aspect' || job.kind === 'fragment'
@@ -706,7 +718,9 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
     progress(job.kind === 'aspect' || job.kind === 'fragment' ? `Removing ${job.name}…` : `Slotting ${job.name}…`)
     try { await insert(subId, job.idx, target.hash); report.applied.push(job.kind === 'aspect' || job.kind === 'fragment' ? `Removed ${job.name}` : job.name) } catch (e) {
       if (e instanceof BungieError && e.message === LOCATION_MESSAGE) throw e
-      report.problems.push(`${job.name}: ${actionMessage(e)}`)
+      // Bungie's profile can lag a change by a minute; a refused clear usually means it's already empty.
+      if (job.kind === 'aspect' || job.kind === 'fragment') report.already.push(`${job.name} already removed`)
+      else report.problems.push(`${job.name}: ${actionMessage(e)}`)
     }
   }
 
@@ -727,21 +741,38 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
     }
   }
   if (art?.itemInstanceId) {
+    const artItem = art
     const artSockets = p.itemComponents?.sockets?.data?.[art.itemInstanceId]?.sockets ?? []
-    const artOptions = p.itemComponents?.reusablePlugs?.data?.[art.itemInstanceId]?.plugs ?? {}
+    let changed = false
     for (const [idx, sock] of artSockets.entries()) {
       const name = sock.plugHash ? (await defName(sock.plugHash)) ?? '' : ''
       if (!sock.plugHash || /^Empty/i.test(name)) continue
-      const opts = await Promise.all((artOptions[idx] ?? []).map(async (o) => ({ hash: o.plugItemHash, name: (await defName(o.plugItemHash)) ?? '' })))
+      const opts = await socketOptions(p, artItem, idx)
       const empty = opts.find((o) => /^Empty/i.test(o.name))?.hash ?? EMPTY_ARTIFACT_MOD
       progress(`Turning off ${name}…`)
+      changed = true
       try { await insert(art.itemInstanceId, idx, empty); report.applied.push(`Turned off ${name}`) } catch (e) {
         if (e instanceof BungieError && e.message === LOCATION_MESSAGE) throw e
-        report.problems.push(`${name}: ${actionMessage(e)}`)
+        report.already.push(`${name} already off`)
       }
     }
+    if (!changed) report.already.push('Artifact perks already off')
   }
   return report
 }
+/**
+ * What a socket can take: the item's own reusable plugs (component 310) when Bungie sends them,
+ * otherwise the socket's plug set from the item definition. Subclass sockets only have the latter.
+ */
+async function socketOptions(p: ProfileResponse, item: ItemComponent, idx: number) {
+  const own = (item.itemInstanceId ? p.itemComponents?.reusablePlugs?.data?.[item.itemInstanceId]?.plugs?.[idx] : undefined)?.map((o) => o.plugItemHash) ?? []
+  let hashes = own
+  if (!hashes.length) {
+    const entry = (await itemDef(item.itemHash))?.sockets?.socketEntries?.[idx]
+    hashes = [...(entry?.reusablePlugSetHash ? await plugSet(entry.reusablePlugSetHash) : []), ...(entry?.singleInitialItemHash ? [entry.singleInitialItemHash] : [])]
+  }
+  return Promise.all([...new Set(hashes)].map(async (hash) => ({ hash, name: (await defName(hash)) ?? '' })))
+}
+
 /** "Empty Artifact Mod", the plug an unused artifact perk socket holds. */
 const EMPTY_ARTIFACT_MOD = 1235188590
