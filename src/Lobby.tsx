@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react'
-import { ARTIFACTS, CLASSES, DUNGEONS, artifactByName, chestCount, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
+import { useCallback, useEffect, useState } from 'react'
+import { ARTIFACTS, CLASSES, DUNGEONS, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
-import { ElementMark, EncounterArt, SortableList } from './ui'
-import { bungieConfigured, startSignIn } from './bungie'
+import { ElementMark, EncounterArt, SortableList, rarityClass } from './ui'
+import { bungieConfigured, fetchEquipped, startSignIn, type EquippedPreview } from './bungie'
+import type { Rarity, Slot } from './data'
 import { useBungie } from './BungiePanel'
 
-type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>>
+type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>> & { auto?: boolean }
 
 export function LobbyView({ lobby }: { lobby: Lobby }) {
   const { role, me, online, host, lobbyAct, toast, net } = useGD()
@@ -19,11 +20,17 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     if (host && seat.clientId === null) {
       host.updateLobby((l) => {
         const s = l.seats.find((x) => x.id === seat.id)!
-        Object.assign(s, patch)
+        const { auto: _auto, ...changes } = patch
+        Object.assign(s, changes)
         if (patch.cls || patch.element) s.starter = defaultStarter(s.cls, s.element)
       })
     }
   }
+
+  // Signed-in players: live equipped gear, used to fill their seat once and to warn before readying up.
+  const eq = useEquipped()
+  useAutofill(eq, mine, (patch) => { if (mine) patchSeat(mine, patch) }, toast)
+  const notice = mine && eq.active && eq.data ? <SyncNotice eq={eq} compact /> : undefined
 
   return (
     <div className="lobby">
@@ -57,6 +64,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               connected={s.clientId === null ? null : isOnline(s.clientId)}
               editable={editable}
               onPatch={(p) => patchSeat(s, p)}
+              notice={s.clientId === me ? notice : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -78,7 +86,9 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       <RouteAndProtocol lobby={lobby} />
 
-      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} onBegin={() => {
+      <EquippedNow eq={eq} seat={mine} onApply={(patch) => mine && patchSeat(mine, patch)} />
+
+      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} onBegin={() => {
         host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
         toast('Run started. Route locked.')
       }} /> : (
@@ -123,8 +133,10 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools }: {
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
+  /** Bungie sync status for the player's own seat, shown by the Ready button. */
+  notice?: React.ReactNode
   onPatch: (p: Patch) => void
   hostTools?: { remove: () => void; unlink?: () => void }
 }) {
@@ -181,6 +193,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools }: {
             {art ? <small className="muted">{art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</small>
               : <small className="tone-warn">Pick one before the run starts. All Artifact research comes from it.</small>}
           </div>
+          {notice}
           {!seat.isHost && seat.clientId !== null && (
             <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
               {seat.ready ? 'Not ready yet' : art ? 'I\u2019m ready' : 'Choose an artifact first'}
@@ -312,7 +325,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function BeginBar({ lobby, isOnline, onBegin }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void }) {
+function BeginBar({ lobby, isOnline, onBegin, notice }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void; notice?: React.ReactNode }) {
   const [confirm, setConfirm] = useState(false)
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
@@ -325,6 +338,7 @@ function BeginBar({ lobby, isOnline, onBegin }: { lobby: Lobby; isOnline: (cid: 
         {notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
+        {notice}
       </div>
       {confirm && notReady.length > 0
         ? <div className="row-acts"><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-light" disabled={noArtifact.length > 0} onClick={onBegin}>Begin anyway</button></div>
@@ -355,5 +369,153 @@ function SetupGuide() {
         {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
       </ul>
     </section>
+  )
+}
+
+/** Starting-gear rarity per slot: grey weapons and armor, a green heavy. */
+const EXPECTED: Record<Slot, Rarity> = {
+  Kinetic: 'Common', Energy: 'Common', Power: 'Uncommon',
+  Helmet: 'Common', Gauntlets: 'Common', Chest: 'Common', Legs: 'Common', 'Class Item': 'Common',
+}
+const COLOR_WORD: Partial<Record<Rarity, string>> = { Common: 'grey', Uncommon: 'green', Rare: 'blue', Legendary: 'purple', Exotic: 'Exotic' }
+/** Bungie data older than this is treated as possibly behind the game. */
+const STALE_MS = 3 * 60_000
+
+function since(t: number, now: number) {
+  const s = Math.max(0, Math.round((now - t) / 1000))
+  if (s < 60) return `${s} s ago`
+  const m = Math.round(s / 60)
+  return m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`
+}
+
+type Equipped = ReturnType<typeof useEquipped>
+
+/** The signed-in player's live equipped gear, refreshed every minute while in the lobby. */
+function useEquipped() {
+  const { signedIn } = useBungie()
+  const [data, setData] = useState<EquippedPreview | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [now, setNow] = useState(Date.now())
+  const refresh = useCallback(() => {
+    setBusy(true)
+    setError(null)
+    fetchEquipped().then(setData, (e) => setError((e as Error).message)).finally(() => setBusy(false))
+  }, [])
+  useEffect(() => {
+    if (!signedIn || !bungieConfigured) return
+    refresh()
+    const t = setInterval(refresh, 60_000)
+    return () => clearInterval(t)
+  }, [signedIn, refresh])
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
+  const off = data ? data.items.filter((i) => i.rarity !== EXPECTED[i.slot]) : []
+  const stale = !data?.mintedAt || now - data.mintedAt > STALE_MS
+  // "Synced" here means Bungie's data shows gear that fits the starting rules.
+  const ready = !!data && off.length === 0
+  return { active: bungieConfigured && signedIn, data, busy, error, now, refresh, off, stale, ready }
+}
+
+const norm = (x: string) => x.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '')
+
+/** Seat settings matching the character: class, subclass, and its slotted Super, melee and grenade. */
+function seatFromCharacter(d: EquippedPreview): Patch {
+  if (!d.subclass) return { cls: d.cls as ClassType }
+  const { element, plugs } = d.subclass
+  const abil = subclassAbilities(d.cls as ClassType, element)
+  const base = defaultStarter(d.cls as ClassType, element)
+  const pick = (kind: 'super' | 'melee' | 'grenade') => abil.find((a) => a.kind === kind && plugs.some((n) => norm(n) === norm(a.name)))?.id ?? base[kind]
+  return { cls: d.cls as ClassType, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') } }
+}
+
+/**
+ * Fills the player's seat from their character once, unless they've already set it up themselves
+ * (the seat remembers that, across reloads and the sign-in redirect). Later changes are theirs.
+ */
+function useAutofill(eq: Equipped, seat: Seat | undefined, apply: (p: Patch) => void, toast: (m: string) => void) {
+  useEffect(() => {
+    if (!eq.data || !seat || seat.custom) return
+    const key = `ghost-directive:autofill:${seat.id}`
+    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1') } catch { /* fill anyway */ }
+    apply({ ...seatFromCharacter(eq.data), auto: true })
+    toast(`Seat set from your ${eq.data.cls}${eq.data.subclass ? ` (${eq.data.subclass.element})` : ''}. Change anything you like.`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eq.data, seat?.id])
+}
+
+/** Live preview of the signed-in player's equipped gear, checked against the starting rules. */
+function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply: (p: Patch) => void }) {
+  if (!bungieConfigured) return null
+  if (!eq.active) {
+    return (
+      <section className="panel equipped-now">
+        <div className="equipped-head">
+          <div><div className="eyebrow">Equipped now</div><h2>Check your starting gear</h2></div>
+        </div>
+        <p className="section-note"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> to see what your character has equipped right now, fill your seat from it, and track drops.</p>
+      </section>
+    )
+  }
+  const { data, now } = eq
+  const minted = data?.mintedAt ?? null
+  const tip = data
+    ? `${minted ? `Bungie generated this data at ${new Date(minted).toLocaleTimeString()} (${since(minted, now)}).` : 'Bungie did not say when this data was generated.'} Fetched at ${new Date(data.fetchedAt).toLocaleTimeString()}. Bungie\u2019s data can lag the game by a minute or more.`
+    : ''
+  return (
+    <section className={`panel equipped-now ${data ? (eq.ready ? 'is-ready' : 'is-waiting') : ''}`} aria-labelledby="equipped-now-title">
+      <div className="equipped-head">
+        <div>
+          <div className="eyebrow">Equipped now</div>
+          <h2 id="equipped-now-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h2>
+          {data && seat && data.cls !== seat.cls && <p className="small tone-warn">This is your most recently played character. Your seat is set to {seat.cls}.</p>}
+        </div>
+        <div className="equipped-acts">
+          {data && (
+            <span className="freshness" tabIndex={0} title={tip} aria-label={tip}>
+              <span className={`dot ${eq.stale ? 'is-stale' : ''}`} aria-hidden="true" />
+              Updated {since(minted ?? data.fetchedAt, now)}
+            </span>
+          )}
+          {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}
+          <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={eq.refresh}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
+        </div>
+      </div>
+      {eq.error && <p className="small tone-danger">{eq.error}</p>}
+      {!data && !eq.error && <p className="muted small">Reading your character from Bungie\u2026</p>}
+      {data && <SyncNotice eq={eq} />}
+      {data && (
+        <>
+          <ul className="equipped-grid">
+            {data.items.map((i) => {
+              const ok = i.rarity === EXPECTED[i.slot]
+              return (
+                <li key={i.slot} className={`item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`}>
+                  <div className="item-main">
+                    <span className="item-meta">{i.slot}</span>
+                    <span className="item-name">{i.name}</span>
+                    <span className={`item-meta ${ok ? 'tone-ok' : 'tone-warn'}`}>{ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${COLOR_WORD[EXPECTED[i.slot]]}`}</span>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="small muted">Aspects and fragments aren&rsquo;t checked here. Refreshes every minute.</p>
+        </>
+      )}
+    </section>
+  )
+}
+
+/** Why to wait: the run records equipped gear at the start, and anything new after that counts as a drop. */
+function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
+  if (!eq.data) return null
+  if (eq.ready) {
+    return <p className={`sync-notice is-ok ${compact ? 'small' : ''}`}><span aria-hidden="true">&#10003;</span> Bungie shows your starting gear. Safe to ready up or start.</p>
+  }
+  return (
+    <p className={`sync-notice is-wait ${compact ? 'small' : ''}`}>
+      <strong>Wait before readying up.</strong>{' '}
+      {eq.off.length} slot{eq.off.length > 1 ? 's don\u2019t' : ' doesn\u2019t'} show starting gear yet. When the run starts, your equipped gear is recorded as starting gear and anything new after that counts as a drop. If you&rsquo;ve just changed gear, Bungie can take a minute or two to catch up: wait, then Refresh.
+    </p>
   )
 }

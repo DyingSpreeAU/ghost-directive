@@ -2,7 +2,7 @@
 // Tokens live only in this browser (localStorage). The client secret lives in the
 // Netlify Function at /api/bungie-token. Nothing here equips or moves items.
 
-import { ALL_SLOTS, type ClassType, type DamageElement, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
 import { inClaudeViewer } from './net'
 
@@ -136,10 +136,14 @@ const VAULT_BUCKET = 138197802
 type Membership = { membershipType: number; membershipId: string; crossSaveOverride: number; displayName: string; bungieGlobalDisplayName?: string; bungieGlobalDisplayNameCode?: number }
 type ItemComponent = { itemHash: number; itemInstanceId?: string; bucketHash: number }
 type ProfileResponse = {
+  /** When Bungie's servers produced this response, and the inventory parts of it (ISO times). */
+  responseMintedTimestamp?: string
+  secondaryComponentsMintedTimestamp?: string
   profileInventory?: { data?: { items: ItemComponent[] } }
   characters?: { data?: Record<string, { classType: number; light: number; dateLastPlayed: string }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
+  itemComponents?: { sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> } }
 }
 
 export type BungieSnapshot = {
@@ -264,4 +268,74 @@ export function detectDrops(runId: string, p: Player, snap: BungieSnapshot) {
   return snap.instances
     .filter((i) => !baseline.has(i.instanceId) && !known.has(i.instanceId) && !seen.has(i.instanceId) && (seen.add(i.instanceId), true))
     .map((i) => ({ ...i, starting: base!.starting.includes(i.instanceId) }))
+}
+
+// ------------------------------------------------------------------ equipped preview
+
+const CLASS_NAME: Record<number, ClassType> = { 0: 'Titan', 1: 'Hunter', 2: 'Warlock' }
+
+export type EquippedPreview = {
+  name: string
+  cls: ClassType
+  light: number
+  /** The equipped subclass and the ability names slotted in it (names as Bungie spells them). */
+  subclass: { name: string; element: Element; plugs: string[] } | null
+  items: { slot: Slot; name: string; rarity: Rarity }[]
+  /** When Bungie produced the inventory data (it can lag the game by a minute or more). */
+  mintedAt: number | null
+  fetchedAt: number
+}
+
+/** What the most recently played character has equipped right now, for the lobby preview. */
+export async function fetchEquipped(): Promise<EquippedPreview> {
+  const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,205,305`)
+  const chars = Object.entries(p.characters?.data ?? {}).sort((a, b) => b[1].dateLastPlayed.localeCompare(a[1].dateLastPlayed))
+  if (!chars.length) throw new BungieError('No characters found on this account.')
+  const [id, c] = chars[0]
+  const equipped = (p.characterEquipment?.data?.[id]?.items ?? [])
+    .map((i) => items[i.itemHash])
+    .filter((r): r is ItemRow => !!r)
+    .map((r) => ({ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]] }))
+    .sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot))
+  const minted = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp
+  const cls = CLASS_NAME[c.classType] ?? 'Hunter'
+  return { name, cls, light: c.light, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
+}
+
+// ------------------------------------------------------------------ equipped subclass
+
+const SUBCLASS_BUCKET = 3284755031
+/** Subclass item names -> element (Prismatic subclasses are "Prismatic Hunter" etc.). */
+const SUBCLASS_ELEMENT: Record<string, Element> = {
+  Gunslinger: 'Solar', Sunbreaker: 'Solar', Dawnblade: 'Solar',
+  Arcstrider: 'Arc', Striker: 'Arc', Stormcaller: 'Arc',
+  Nightstalker: 'Void', Sentinel: 'Void', Voidwalker: 'Void',
+  Revenant: 'Stasis', Behemoth: 'Stasis', Shadebinder: 'Stasis',
+  Threadrunner: 'Strand', Berserker: 'Strand', Broodweaver: 'Strand',
+}
+
+/** Names of single item definitions (subclasses, ability plugs), cached for this page. */
+const defNames = new Map<number, Promise<string | null>>()
+function defName(hash: number) {
+  if (!defNames.has(hash)) {
+    defNames.set(hash, api<{ displayProperties?: { name?: string } }>(`/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash >>> 0}/`)
+      .then((d) => d.displayProperties?.name?.trim() || null)
+      .catch(() => null))
+  }
+  return defNames.get(hash)!
+}
+
+/** The character's equipped subclass and the names of everything slotted in it. */
+async function readSubclass(p: ProfileResponse, charId: string, cls: ClassType) {
+  const sub = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === SUBCLASS_BUCKET)
+  if (!sub) return null
+  const name = await defName(sub.itemHash)
+  if (!name) return null
+  const element: Element | undefined = name.startsWith('Prismatic') ? 'Prismatic' : SUBCLASS_ELEMENT[name]
+  if (!element || (name.startsWith('Prismatic') && !name.endsWith(cls))) return null
+  const sockets = sub.itemInstanceId ? p.itemComponents?.sockets?.data?.[sub.itemInstanceId]?.sockets ?? [] : []
+  const hashes = [...new Set(sockets.map((s) => s.plugHash).filter((h): h is number => !!h))]
+  const plugs = (await Promise.all(hashes.map(defName))).filter((n): n is string => !!n)
+  return { name, element, plugs }
 }

@@ -690,6 +690,8 @@ export type Seat = {
   checklist: Record<ChecklistKey, boolean>
   /** Artifact chosen for the run; '' until picked. Required before the run starts. */
   artifact: string
+  /** The player changed class, subclass or abilities themselves, so Bungie auto-fill leaves the seat alone. */
+  custom?: boolean
   ready: boolean
   isHost: boolean
 }
@@ -740,7 +742,7 @@ export function runFromLobby(l: Lobby): Run {
 
 export type LobbyIntent =
   | { type: 'seat-claim'; seatId: string | null }
-  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact'>> }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact'>> & { auto?: boolean } }
   | { type: 'seat-leave' }
 
 /** Seat changes from a player's device (or the host for their own seat). */
@@ -765,6 +767,7 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
     case 'seat-update': {
       if (!mine) return 'Join a seat first.'
       const pt = (it.patch ?? {}) as Record<string, unknown>
+      if (!pt.auto && (pt.cls !== undefined || pt.element !== undefined || pt.starter !== undefined)) mine.custom = true
       if (typeof pt.name === 'string') mine.name = pt.name.slice(0, 24)
       if (CLASSES.includes(pt.cls as ClassType) && pt.cls !== mine.cls) { mine.cls = pt.cls as ClassType; mine.starter = defaultStarter(mine.cls, mine.element) }
       if (ELEMENTS.includes(pt.element as Element) && pt.element !== mine.element) { mine.element = pt.element as Element; mine.starter = defaultStarter(mine.cls, mine.element) }
