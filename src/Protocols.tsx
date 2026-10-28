@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PRESETS, uid, validateRuleset, type Ruleset } from './model'
+import { STANDARD, uid, validateRuleset, type Ruleset } from './model'
 import { allProtocols, useGD, type HostStore } from './store'
 
 export function Protocols() {
@@ -17,7 +17,7 @@ export function Protocols() {
   const doImport = () => {
     try {
       const raw = JSON.parse(io!.text) as Ruleset
-      const r: Ruleset = { ...structuredClone(PRESETS[0]), ...raw, id: uid(), preset: false }
+      const r: Ruleset = { ...structuredClone(STANDARD), ...raw, id: uid(), preset: false }
       const errs = validateRuleset(r)
       if (errs.length) { setIoErr(errs.join(' ')); return }
       saveCustom(r)

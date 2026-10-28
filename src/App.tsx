@@ -12,7 +12,7 @@ import {
   type Ctx, type Flow, type HostStore, type Snapshot, type View,
 } from './store'
 import {
-  PRESETS, applyIntent, applyLobbyIntent, bindBungieId, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
+  STANDARD, applyIntent, applyLobbyIntent, bindBungieId, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
   type Intent, type LobbyIntent, type Run,
 } from './model'
 import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, normalizeCode, snapshotAssembler, type StateChunk, type Transport, type TransportStatus } from './net'
@@ -66,7 +66,7 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
     s.lobby = null
     const c = makeLobbyCode()
     if (example) s.active = exampleRun(c, s.hostCid)
-    else s.lobby = createLobby(c, s.hostCid, PRESETS[0])
+    else s.lobby = createLobby(c, s.hostCid, STANDARD)
     saveHostStore(s)
     onHost()
   }

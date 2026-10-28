@@ -31,7 +31,18 @@ export type Ruleset = {
   loadouts: { baseSlots: number }
 }
 
+/** Listed easiest to hardest; Standard is the default. */
 export const PRESETS: Ruleset[] = [
+  {
+    id: 'grace', name: 'Vanguard Directive', preset: true,
+    description: 'A softer run for learning a route: start at 75, wipes cost 10, a player death costs 2, clears restore 10, and slots hold five items.',
+    integrity: { start: 75, max: 100, clear: 10, wipe: 10, death: 2 },
+    inventory: { capacity: 5, slots: [...ALL_SLOTS] },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
+    tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
+    overflow: 'guided',
+    loadouts: { baseSlots: 2 },
+  },
   {
     id: 'standard', name: 'Standard Directive', preset: true,
     description: 'The baseline: start at 50 Integrity (cap 100), +5 per clear, −20 per wipe, −5 per player death, four items per slot. Two wipes before any clears leave 10; a third ends the run.',
@@ -43,17 +54,7 @@ export const PRESETS: Ruleset[] = [
     loadouts: { baseSlots: 1 },
   },
   {
-    id: 'grace', name: 'Guardian’s Grace', preset: true,
-    description: 'A softer run for learning a route: start at 75, wipes cost 10, a player death costs 2, clears restore 10, and slots hold five items.',
-    integrity: { start: 75, max: 100, clear: 10, wipe: 10, death: 2 },
-    inventory: { capacity: 5, slots: [...ALL_SLOTS] },
-    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
-    tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
-    overflow: 'guided',
-    loadouts: { baseSlots: 2 },
-  },
-  {
-    id: 'iron', name: 'Iron Protocol', preset: true,
+    id: 'iron', name: 'Iron Directive', preset: true,
     description: 'Start at 40 Integrity (cap 60), wipes cost 20, a player death costs 7, three items per slot, and trade-ups need matching rarity. A second wipe before any clears ends the run.',
     integrity: { start: 40, max: 60, clear: 5, wipe: 20, death: 7 },
     inventory: { capacity: 3, slots: [...ALL_SLOTS] },
@@ -63,6 +64,8 @@ export const PRESETS: Ruleset[] = [
     loadouts: { baseSlots: 0 },
   },
 ]
+
+export const STANDARD = PRESETS.find((r) => r.id === 'standard')!
 
 export function validateRuleset(r: Ruleset): string[] {
   const errs: string[] = []
@@ -954,7 +957,7 @@ export function exampleRun(code: string, hostCid: string): Run {
     for (const k of Object.keys(p.checklist) as ChecklistKey[]) p.checklist[k] = true
   })
   // The example is a sandbox: its reward screens can be put off so every part can be explored.
-  const ruleset = structuredClone(PRESETS[0])
+  const ruleset = structuredClone(STANDARD)
   ruleset.rewards.allowLater = true
   const run = createRun({ ruleset, players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
   run.example = true

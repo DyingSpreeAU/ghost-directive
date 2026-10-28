@@ -59,7 +59,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   chips, and the seven artifacts as icon tiles. The player's own seat also shows **Equipped now**: gear
   as icon tiles (red when not starting rarity), equipped abilities, any aspects, fragments or artifact
   perks still on, and the ready check. The bottom bar shows a one-line version.
-- **Lobby**: Protocol Ruleset (snapshot locked per run), up to 3 seats with host. Each player picks
+- **Lobby**: Protocol Ruleset (snapshot locked per run; presets listed easiest to hardest: Vanguard Directive, Standard Directive (default), Iron Directive), up to 3 seats with host. Each player picks
   their committed subclass, starting Super/melee/grenade and **artifact** on their own device; no one
   can ready up or start without an artifact. Starting-gear rules are shown as instructions (nothing
   to tick). Starting weapons may be grey or green; armor grey. Prismatic seats always have their
@@ -113,7 +113,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
 - **Player deaths**: each Guardian column has a death counter. The host can **Record death** on any
   Guardian and **Undo last** (restores the Integrity); each player has **Record my death** on their own.
-  The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Grace −2; Iron −7), it's in the
+  The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
 - **Saved runs**: every unfinished run is kept in the host's browser (`saved` in the host store,
   localStorage; the app asks the browser for persistent storage). Starting a new lobby or switching
