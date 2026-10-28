@@ -170,6 +170,7 @@ function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Rules
           <Toggle id="pr-ca" label="Secret chests offer Artifact research" checked={r.rewards.chestArtifact} onChange={(b) => set((d) => { d.rewards.chestArtifact = b })} />
           <Toggle id="pr-cu" label="Secret chests can offer upgrades" checked={r.rewards.chestUpgrades} onChange={(b) => set((d) => { d.rewards.chestUpgrades = b })} />
           <Toggle id="pr-rc" label="Final bosses show the items in each category before picking (easier)" checked={!!r.rewards.revealCategories} onChange={(b) => set((d) => { d.rewards.revealCategories = b })} />
+          <Toggle id="pr-later" label="Players can put off reward choices (Later)" checked={!!r.rewards.allowLater} onChange={(b) => set((d) => { d.rewards.allowLater = b })} />
         </div>
       </fieldset>
 

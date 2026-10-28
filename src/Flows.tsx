@@ -7,6 +7,7 @@ import {
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, rarityClass } from './ui'
 import { useIcons } from './icons'
+import { bungieConfigured, isSignedIn } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
@@ -117,6 +118,11 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const [compare, setCompare] = useState(false)
   const compared = cat && previews.data ? pend[cat].filter((g) => previews.data![g.name]) : []
   const comparing = compare && step === 'gear' && compared.length > 0
+  // Expanded info needs the player's own Bungie account on this device.
+  const previewable = !!cat && !forSomeoneElse && !!p.bungie && bungieConfigured && isSignedIn()
+  // Players commit to their choice; "Later" is a protocol option (off by default). The host resolving
+  // for a Guardian with no device can always close it.
+  const canLater = !!run.ruleset.rewards.allowLater || forSomeoneElse
 
   const submit = () => {
     dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops }, p.id)
@@ -142,11 +148,11 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     <Modal
       kicker={`${forSomeoneElse ? `For ${p.name} · ` : ''}${pend.where} · step ${i + 1} of ${steps.length}`}
       title={title}
-      onClose={onClose}
+      onClose={canLater ? onClose : undefined}
       wide
       xwide={comparing}
       footer={<>
-        {i === 0 ? <button className="btn btn-ghost" onClick={onClose}>Later</button> : <button className="btn btn-ghost" onClick={() => setI(i - 1)}>Back</button>}
+        {i === 0 ? (canLater ? <button className="btn btn-ghost" onClick={onClose}>{forSomeoneElse ? 'Close' : 'Later'}</button> : null) : <button className="btn btn-ghost" onClick={() => setI(i - 1)}>Back</button>}
         {last
           ? <button className="btn btn-light" disabled={!canNext} onClick={submit}>{step === 'drops' && drops.length === 0 ? 'No drops, claim rewards' : 'Claim rewards'}</button>
           : <button className="btn btn-light" disabled={!canNext} onClick={() => setI(i + 1)}>{step === 'drops' && drops.length === 0 ? 'No drops, continue' : 'Continue'}</button>}
@@ -173,7 +179,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 
       {step === 'gear' && (!cat ? (
         <div className="stack">
-          <p>First pick a category. Then you choose <strong>1 of 3</strong> items from it, and you keep only the one you choose.</p>
+          <p>First pick a category; you can&rsquo;t change it afterwards. Then you choose <strong>1 of 3</strong> items from it, and you keep only the one you choose.</p>
           <ChoiceGrid>
             <button className="choice" disabled={!pend.exotic.length} onClick={() => setCat('exotic')}>
               <span className="choice-kind r-exotic-text">Exotic armor</span>
@@ -191,32 +197,30 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         </div>
       ) : (
         <div className="stack">
-          <p>You keep <strong>one</strong> of these {pend[cat].length}{cat === 'exotic' ? ' Exotics' : ' weapons'}. Pick it, then move it from your Vault (or Collections) in Destiny 2. <button className="link" onClick={() => { setCat(null); setGear(null); setCompare(false) }}>Change category</button></p>
+          <p>You keep <strong>one</strong> of these {pend[cat].length}{cat === 'exotic' ? ' Exotics' : ' weapons'}. Pick it, then move it from your Vault (or Collections) in Destiny 2.</p>
           <ChoiceGrid>
             {pend[cat].map((g) => {
-              const pv = previews.data?.[g.name]
-              const icon = pv?.icon ?? icons.gear(g.name)
+              const icon = icons.gear(g.name)
               return (
               <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${gear?.name === g.name ? 'is-on' : ''}`} onClick={() => setGear(g)}>
                 {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
-                <span className="choice-kind">{g.rarity} {pv?.type ?? g.slot}</span>
+                <span className="choice-kind">{g.rarity} {g.slot}</span>
                 <strong>{g.name}</strong>
-                <span className="muted">{pv ? [pv.element, pv.power && `${pv.power} Power`, pv.armor && pv.intrinsic?.name, !pv.owned && 'Not owned'].filter(Boolean).join(' · ') : <>{g.archetype}{g.element ? ` · ${g.element}` : ''}</>}{(pv?.element ?? g.element) === p.element ? ' · synergy' : ''}</span>
-                {pv && pv.perks.length > 0 && <span className="choice-perks">{pv.perks.slice(0, 5).map((pk) => pk.icon ? <img key={pk.name} src={pk.icon} alt={pk.name} title={pk.name} /> : null)}</span>}
+                <span className="muted">{g.archetype}{g.element ? ` · ${g.element}` : ''}{g.element === p.element ? ' · synergy' : ''}</span>
                 {g.note && <span className="choice-desc">{g.note}</span>}
                 {itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
               </button>
               )
             })}
           </ChoiceGrid>
-          {previews.loading && <p className="small muted">Reading these items from your account…</p>}
-          {previews.error && <p className="small tone-warn">Couldn&rsquo;t read your Vault for details: {previews.error}</p>}
-          {compared.length > 0 && (
+          {previewable && (
             <div className="compare-bar">
-              <button className="btn btn-ghost btn-sm" aria-expanded={comparing} onClick={() => setCompare(!compare)}>{comparing ? 'Hide details' : `Compare details (${compared.length})`}</button>
-              <span className="small muted">{comparing ? 'Best value for each stat is highlighted. Select a card to choose it.' : 'See every roll side by side: stats, frame, perks and mods.'}</span>
+              <button className="btn btn-ghost btn-sm" aria-expanded={compare} onClick={() => setCompare(!compare)}>{compare ? 'Hide expanded info' : 'Show expanded info'}</button>
+              <span className="small muted">{compare ? 'All three side by side; the best value for each stat is highlighted. Select a card to choose it.' : 'Stats, perks and mods for all three, side by side.'}</span>
             </div>
           )}
+          {compare && previews.loading && <p className="small muted">Reading these items from your account…</p>}
+          {compare && previews.error && <p className="small tone-warn">Couldn&rsquo;t read your account for details: {previews.error}</p>}
           {comparing && (
             <div className={`compare-grid n-${compared.length}`}>
               {compared.map((g) => (
@@ -227,7 +231,6 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               ))}
             </div>
           )}
-          {!comparing && gear && previews.data?.[gear.name] && <ItemCard item={previews.data[gear.name]} />}
           {pend[cat].length === 0 && <p>No eligible items in this pool.</p>}
         </div>
       ))}

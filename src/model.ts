@@ -22,6 +22,8 @@ export type Ruleset = {
     chestUpgrades: boolean
     /** Show the three items inside each final-boss category before a player picks one (an easier-mode option). */
     revealCategories?: boolean
+    /** Players may put off a reward choice ("Later"). Off by default: they commit when the screen opens. */
+    allowLater?: boolean
   }
   tradeUp: { enabled: boolean; inputs: number; options: number; sameRarity: boolean }
   overflow: 'guided' | 'warn'
@@ -910,7 +912,10 @@ export function exampleRun(code: string, hostCid: string): Run {
     p.artifactName = artifactByName(arts[i])?.name
     for (const k of Object.keys(p.checklist) as ChecklistKey[]) p.checklist[k] = true
   })
-  const run = createRun({ ruleset: PRESETS[0], players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
+  // The example is a sandbox: its reward screens can be put off so every part can be explored.
+  const ruleset = structuredClone(PRESETS[0])
+  ruleset.rewards.allowLater = true
+  const run = createRun({ ruleset, players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
   run.example = true
   const [pa, pb, pc] = run.players
   const gear: [Player, string, Slot, Rarity][] = [
