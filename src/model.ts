@@ -205,6 +205,8 @@ export type Run = {
   startedAt: number
   endedAt?: number
   example?: boolean
+  /** Guardians the host removed after they left, so their device can be told. */
+  departed?: { name: string; clientId: string | null }[]
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
@@ -301,6 +303,19 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
     run.endedAt = Date.now()
     log(run, 'run', 'Fireteam Integrity reached zero. The run has ended.')
   }
+}
+
+/**
+ * A Guardian left the fireteam: the host takes them out of the run so the rest can carry on.
+ * Their gear, unlocks and waiting rewards go with them; Integrity is untouched.
+ */
+export function removePlayer(run: Run, playerId: string) {
+  const p = run.players.find((x) => x.id === playerId)
+  if (!p || p.isHost || run.players.length <= 1) return
+  run.players = run.players.filter((x) => x !== p)
+  run.pending = run.pending.filter((x) => x.playerId !== playerId)
+  run.departed = [...(run.departed ?? []), { name: p.name, clientId: p.clientId }]
+  log(run, 'run', `${p.name} left the fireteam and was removed from the run. ${run.players.length} Guardian${run.players.length === 1 ? '' : 's'} carry on.`)
 }
 
 /** One Guardian died: Integrity drops by the protocol's death cost and their death count goes up. */

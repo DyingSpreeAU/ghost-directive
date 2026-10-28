@@ -317,8 +317,18 @@ export function CombatReport({ run, embedded }: { run: Run; embedded?: boolean }
 }
 
 function ClaimBanner({ run }: { run: Run }) {
-  const { claimSeat, online } = useGD()
+  const { claimSeat, online, me, leave } = useGD()
   const free = run.players.filter((p) => !p.clientId || !online.includes(p.clientId))
+  const gone = me ? run.departed?.find((d) => d.clientId === me) : undefined
+  if (gone) {
+    return (
+      <section className="panel seat-picker">
+        <h2>You&rsquo;ve been removed from this run</h2>
+        <p className="section-note">The host took {gone.name} out of the run, so the rest of the fireteam can carry on. You can keep watching, or leave.</p>
+        <div className="row-acts"><button className="btn btn-ghost" onClick={leave}>Leave the run</button></div>
+      </section>
+    )
+  }
   return (
     <section className="panel seat-picker">
       <h2>Which Guardian are you?</h2>

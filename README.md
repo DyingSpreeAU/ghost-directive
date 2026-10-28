@@ -54,6 +54,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## What's implemented (manual "No Login" mode)
 
+- **Removing a Guardian mid-run**: if someone leaves, the host uses **Remove from run** at the foot of
+  their column (not on the host's own). After a confirm, `removePlayer` takes them out with their gear,
+  unlocks and waiting rewards; Integrity is untouched and the run carries on. Their device shows that
+  they were removed (`run.departed`) and offers to leave.
 - **Every seat looks the same**: other players' seats show the full picker (class, all subclasses,
   every ability option, all artifacts) with their picks highlighted and the controls disabled.
 - **Lobby layout** matches the run screen: each seat is a Guardian column with the player's emblem

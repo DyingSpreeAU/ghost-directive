@@ -1043,3 +1043,8 @@ button.ab-chip:hover { border-color: var(--dim); }
 .seat-body { display: contents; }
 .seat-body.is-readonly button:disabled { opacity: 1; cursor: default; }
 .seat-body.is-readonly button:disabled:not(.is-on):not(.is-conf):not([aria-checked="true"]) { opacity: 0.55; }
+
+/* ---------------------------------------------------------------- host: remove a Guardian who left */
+.remove-player-link { justify-self: start; color: var(--dim); }
+.remove-player { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--seam)); background: color-mix(in srgb, var(--danger) 8%, var(--ink)); }
+.remove-player p { margin: 0; }

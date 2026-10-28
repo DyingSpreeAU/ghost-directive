@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, equippedNotUnlocked, itemsIn, recordDeath, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { capacityOf, equippedNotUnlocked, itemsIn, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -62,6 +62,7 @@ export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
 function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player; warnings: Warning[]; showLocked: boolean }) {
   const { online, me, role, openFlow, canControl, host, dispatch, toast } = useGD()
   const pend = run.pending.filter((x) => x.playerId === p.id)
+  const [removing, setRemoving] = useState(false)
   const device = p.clientId === null ? 'No device' : p.clientId === me ? 'You' : online.includes(p.clientId) ? 'Online' : 'Offline'
   return (
     <article className={`panel guardian ${p.clientId === me ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[p.element] }} aria-label={p.name}>
@@ -96,6 +97,17 @@ function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player;
       <Inventory run={run} p={p} control={canControl(p.id)} />
       <Abilities p={p} showLocked={showLocked} control={canControl(p.id) && !p.bungie?.subclass} />
       <ArtifactPerks p={p} control={canControl(p.id)} />
+      {role === 'host' && !p.isHost && run.status === 'active' && (
+        removing ? (
+          <div className="remove-player" role="group" aria-label={`Remove ${p.name}`}>
+            <p className="small"><strong>Remove {p.name} from the run?</strong> Use this if they&rsquo;ve left the fireteam. Their gear, unlocks and waiting rewards leave with them; the rest of you carry on. This can&rsquo;t be undone.</p>
+            <div className="row-acts">
+              <button className="btn btn-ghost btn-sm" onClick={() => setRemoving(false)}>Keep</button>
+              <button className="btn btn-danger btn-sm" onClick={() => { host!.updateRun((r) => removePlayer(r, p.id)); toast(`${p.name} removed from the run.`) }}>Remove {p.name}</button>
+            </div>
+          </div>
+        ) : <button className="link small remove-player-link" onClick={() => setRemoving(true)}>Remove from run</button>
+      )}
     </article>
   )
 }
