@@ -726,9 +726,9 @@ select.needs-pick { border-color: var(--warn); }
 .g-slot-head .cap { font-family: var(--f-mono); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 .g-slot-head .link { margin-left: auto; font-size: 0.78rem; }
 .g-slot.is-over .g-slot-name { color: var(--danger); }
-.tiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tiles { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 52px)); gap: 6px; }
 .tile {
-  width: 52px; height: 52px; flex: none; position: relative; display: grid; place-items: center;
+  width: 100%; aspect-ratio: 1; position: relative; display: grid; place-items: center;
   border: 1px solid var(--seam); background: var(--ink); color: var(--dim); font: inherit; padding: 0;
 }
 .tile-empty { border-style: dashed; background: transparent; font-size: 1.1rem; }

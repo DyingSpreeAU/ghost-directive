@@ -130,7 +130,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                 <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
                 {control && tu.enabled && eligibleForTrade(slot) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>Trade up {tu.inputs}&rarr;1</button>}
               </div>
-              <div className="tiles">
+              <div className="tiles" style={{ ['--n' as string]: Math.max(cap, items.length, 4) }}>
                 {items.map((it, i) => (
                   <Tile key={it.id} it={it} icon={icons.gear(it.name)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
