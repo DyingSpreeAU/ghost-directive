@@ -409,6 +409,7 @@ input[type='range'] { accent-color: var(--light); }
 .proto.static { cursor: default; }
 .proto.is-disabled { opacity: 0.5; border-style: dashed; }
 .proto-stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 8px; margin: 6px 0 0; padding-top: 10px; border-top: 1px solid var(--seam); }
+.proto-stats > div { display: grid; grid-template-rows: 1fr auto; gap: 2px; }
 .team-card { padding: 14px; display: grid; gap: 10px; align-content: start; background: var(--ink); }
 .team-foot { display: flex; justify-content: space-between; align-items: center; }
 .el-pick { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }

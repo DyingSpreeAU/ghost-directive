@@ -371,12 +371,12 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
           }}>
             {protocols.map((p) => <option key={p.id} value={p.id}>{p.name}{p.preset ? '' : ' (custom)'}</option>)}
           </select>
-          <small className="muted">{r.description}</small>
         </div>
         <dl className="proto-stats">
           <div><dt>Start</dt><dd>{r.integrity.start}</dd></div>
           <div><dt>Clear</dt><dd>+{r.integrity.clear}</dd></div>
           <div><dt>Wipe</dt><dd>&minus;{r.integrity.wipe}</dd></div>
+          <div><dt>Guardian death</dt><dd>{r.integrity.death ? <>&minus;{r.integrity.death}</> : '0'}</dd></div>
           <div><dt>Starting Slot Cap</dt><dd>{r.inventory.capacity}</dd></div>
         </dl>
         <div className="field">
