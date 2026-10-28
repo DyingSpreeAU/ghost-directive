@@ -110,8 +110,12 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## Not yet built (per spec roadmap / open questions)
 
-- Bungie item transfers (Vault ↔ character). Sign-in and read-only sync are done.
-- Permanent cross-run upgrades and an Artifact capacity rule.
+- Permanent cross-run upgrades (spec open question: how they're earned and whether they carry over).
+- An Artifact capacity rule (limit on equipped perks).
+- Run export/share (only the nightly test tools can copy a run's data).
+- Saved loadouts and the Vault pool editor are built but hidden.
+- Official in-game objective text for encounters (current blurbs are placeholders to proofread).
+- Optional rules from the spec: extra death consequences, dungeon replay with anti-farming safeguards.
 
 ## Hosting outside claude.ai (Netlify etc.)
 
