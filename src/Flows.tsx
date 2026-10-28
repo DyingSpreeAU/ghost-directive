@@ -447,7 +447,7 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
 // ------------------------------------------------------------------ Player: swap (overflow)
 
 function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
-  const { dispatch, toast, me, openFlow } = useGD()
+  const { dispatch, toast, me, openFlow, canControl } = useGD()
   const [moving, setMoving] = useState<string | null>(null)
   const [stage, setStage] = useState<'choose' | 'remove'>('choose')
   const p = run.players.find((x) => x.id === playerId)!
@@ -456,7 +456,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
   const excess = items.length - cap
   const tu = run.ruleset.tradeUp
   const tradeable = items.filter((i) => i.rarity !== 'Exotic')
-  const canTrade = p.clientId === me && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
+  const canTrade = canControl(p.id) && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
   const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
   const toVault = async (it: (typeof items)[number]) => {
@@ -481,7 +481,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
             <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
               <span className="choice-kind">Trade up</span>
               <strong>Trade {tu.inputs} for 1 Legendary</strong>
-              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : p.clientId !== me ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
             </button>
             <button className="choice" onClick={() => setStage('remove')}>
               <span className="choice-kind">Remove items</span>
@@ -518,7 +518,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
 // ------------------------------------------------------------------ Player: trade-up
 
 function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
-  const { dispatch, toast, me } = useGD()
+  const { dispatch, toast, me, canControl } = useGD()
   const [moving, setMoving] = useState(false)
   const tu = run.ruleset.tradeUp
   const p = run.players.find((x) => x.id === playerId)!
@@ -546,8 +546,8 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
     const t = setTimeout(() => setStarting(false), 6000)
     return () => clearTimeout(t)
   }, [starting, trade])
-  // A player trades up for themselves only.
-  if (p.clientId !== me) return null
+  // A player trades up for themselves; the host does it for Guardians with no device.
+  if (!canControl(p.id)) return null
   const start = async () => {
     // Signed in on their own device: the inputs go to the Vault in game first.
     if (inGame) {

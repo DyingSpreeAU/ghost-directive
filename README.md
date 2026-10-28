@@ -136,8 +136,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   capacity opens a prompt with two ways out, **Trade up** (the normal trade-up screen) or **Remove items**,
   which tells the player to dismantle the item in game, or vault it to keep it for normal play, and gives
   each item a Vaulted/Send to Vault and a Dismantled button. A selected inventory tile offers To Vault and
-  **Dismantled** (logged as dismantled). 4→1 trade-up with 5 Vault options. A trade-up is the player's own (no one trades up for another
-  Guardian). Trading the inputs in (`tradeup-start`) takes them out of the run and rolls the options once,
+  **Dismantled** (logged as dismantled). 4→1 trade-up with 5 Vault options. A trade-up is the player's own; the host does it only for Guardians
+  with no device (as with every per-Guardian action). Trading the inputs in (`tradeup-start`) takes them out of the run and rolls the options once,
   stored on `player.trade`; from then on the screen has no Back, Cancel or close, reopens by itself
   (also after a reload), and only ends with a pick (`tradeup`), so options can't be re-rolled. Signed-in players get a
   **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code
