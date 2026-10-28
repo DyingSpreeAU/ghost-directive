@@ -7,12 +7,16 @@ It never enforces rules inside the game.
 
 ## Versions
 
-- **Production**: the `main` branch, deployed by Netlify. Only finished, tested work is merged here.
-- **Nightly (test)**: the `nightly` branch, where new work happens. It is published as a claude.ai
-  artifact, not on Netlify: `npm run build:nightly` writes a single HTML file to `dist-nightly/`.
+- **Production**: the `main` branch, deployed by Netlify at https://ghostdirective.netlify.app. Only
+  finished, tested work is merged here.
+- **Nightly (test)**: the `nightly` branch, where new work happens. Netlify branch-deploys it at
+  https://nightly--ghostdirective.netlify.app with its own Bungie app (its own API key, client id and
+  secret, set as branch-deploy values of the same environment variables). A copy without Bungie can
+  also be published as a claude.ai artifact: `npm run build:nightly` writes a single HTML file to
+  `dist-nightly/`.
   Test builds show a "nightly" badge, their tab title says so, and their lobby ids are separate from
   production, so a code from one version never reaches the other. Bungie sign-in can't work inside
-  claude.ai, so Bungie features are tested with stubbed accounts before they reach production.
+  claude.ai, so test Bungie features on the Netlify nightly.
 - Releasing: merge `nightly` into `main` and push; Netlify deploys it.
 
 ## Run it
