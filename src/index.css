@@ -1079,3 +1079,7 @@ button.ab-chip:hover { border-color: var(--dim); }
 .bonus-banner { margin: 0; padding: 10px 14px; font-family: var(--f-display); letter-spacing: 0.06em; color: var(--light-ink); background: var(--light); }
 .choice .tier-step { font-size: 1rem; flex-wrap: wrap; gap: 4px 6px; }
 .landing-how { justify-self: start; }
+.pick-count { color: var(--dim); }
+.pick-count strong { color: var(--light); font-family: var(--f-mono); }
+.choice.trade-in.is-on::after { content: 'Trading in'; top: auto; bottom: 8px; }
+.choice.trade-in { padding-bottom: 30px; }

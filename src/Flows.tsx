@@ -552,6 +552,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
 
 function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
   const { dispatch, toast, me, canControl } = useGD()
+  const icons = useIcons()
   const [moving, setMoving] = useState(false)
   const tu = run.ruleset.tradeUp
   const p = run.players.find((x) => x.id === playerId)!
@@ -616,19 +617,22 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
           <p>Pick {tu.inputs} {slot} items: Legendary or Exotic, in any mix{tu.sameRarity ? ' (all of one rarity)' : ''}. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
           <p className="small muted">In Destiny 2, dismantle the items you trade in, or vault them if you want to keep them for normal play.</p>
           <p className="callout"><strong>No take-backs.</strong> Once you trade these in, they leave the run and the options are fixed: you can&rsquo;t go back, re-roll or cancel, only pick one.</p>
-          <ul className="pick-list">
-            {items.map((it) => (
-              <li key={it.id}>
-                <label className={`item ${rarityClass(it.rarity)} ${sel.includes(it.id) ? 'is-picked' : ''} ${canPick(it.id) ? '' : 'is-disabled'}`}>
-                  <input type="checkbox" disabled={!canPick(it.id) || starting} checked={sel.includes(it.id)} onChange={() => setSel(sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id])} />
-                  <div className="item-main">
-                    <span className="item-name">{it.name}</span>
-                    <span className="item-meta">{it.rarity} &middot; {it.source}</span>
-                  </div>
-                </label>
-              </li>
-            ))}
-          </ul>
+          <div className="pick-count small"><strong>{sel.length}</strong> of {tu.inputs} selected</div>
+          <ChoiceGrid five>
+            {items.map((it) => {
+              const on = sel.includes(it.id)
+              const icon = icons.gear(it.name)
+              return (
+                <button key={it.id} className={`choice choice-item trade-in ${rarityClass(it.rarity)} ${on ? 'is-on' : ''}`} aria-pressed={on}
+                  disabled={!canPick(it.id) || starting} onClick={() => setSel(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}>
+                  {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
+                  <span className="choice-kind">{it.rarity} {it.slot}</span>
+                  <strong>{it.name}</strong>
+                  <span className="muted">{it.source}{it.equipped ? ' \u00b7 equipped' : ''}</span>
+                </button>
+              )
+            })}
+          </ChoiceGrid>
         </div>
       ) : (
         <div className="stack">
