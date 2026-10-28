@@ -7,7 +7,7 @@ import {
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, rarityClass } from './ui'
 import { useIcons } from './icons'
-import { ItemCard, useItemPreviews } from './ItemPreview'
+import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
   switch (flow.type) {
@@ -25,6 +25,19 @@ export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose
 }
 
 const SOURCES = ['encounter drop', 'secret chest', 'world drop', 'final-boss reward', 'starting gear']
+
+/** Arsenal Expansion: an extra slot added to a row of slots. */
+function ExpansionGlyph() {
+  return (
+    <svg viewBox="0 0 40 40" width="34" height="34" aria-hidden="true">
+      <g fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="14" width="9" height="12" /><rect x="15" y="14" width="9" height="12" />
+        <rect x="27" y="14" width="9" height="12" strokeDasharray="3 2" />
+      </g>
+      <path d="M31.5 17v6M28.5 20h6" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  )
+}
 
 function ChoiceGrid({ children, five }: { children: ReactNode; five?: boolean }) {
   return <div className={`choices ${five ? 'five' : ''}`}>{children}</div>
@@ -99,7 +112,11 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const forSomeoneElse = p.clientId !== me
   const icons = useIcons()
   // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
-  const previews = useItemPreviews(pend.legendary.map((g) => g.name), cat === 'legendary' && !forSomeoneElse && !!p.bungie)
+  // Reward items: the player's own copies (or Bungie's definition for Exotics not owned), with DIM-style cards.
+  const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls)
+  const [compare, setCompare] = useState(false)
+  const compared = cat && previews.data ? pend[cat].filter((g) => previews.data![g.name]) : []
+  const comparing = compare && step === 'gear' && compared.length > 0
 
   const submit = () => {
     dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops }, p.id)
@@ -120,6 +137,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       title={title}
       onClose={onClose}
       wide
+      xwide={comparing}
       footer={<>
         {i === 0 ? <button className="btn btn-ghost" onClick={onClose}>Later</button> : <button className="btn btn-ghost" onClick={() => setI(i - 1)}>Back</button>}
         {last
@@ -134,7 +152,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
             {pend.unlock.map((id) => {
               const a = abilityById(id)
               return (
-                <button key={id} className={`choice el-${a.element.toLowerCase()} ${unlock === id ? 'is-on' : ''}`} onClick={() => setUnlock(id)}>
+                <button key={id} className={`choice el-${a.element.toLowerCase()} ${icons.plug(a.name) ? 'choice-item' : ''} ${unlock === id ? 'is-on' : ''}`} onClick={() => setUnlock(id)}>
+                  {icons.plug(a.name) && <img className="choice-icon" src={icons.plug(a.name)} alt="" loading="lazy" />}
                   <span className="choice-kind"><ElementMark element={a.element} /> {a.element} {KIND_LABEL[a.kind]}</span>
                   <strong>{a.name}</strong>
                   {abilityDesc(id) && <span className="choice-desc">{abilityDesc(id)}</span>}
@@ -153,27 +172,29 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               <span className="choice-kind r-exotic-text">Exotic armor</span>
               <strong>Three {p.cls} Exotics</strong>
               <span className="muted">{p.element} synergy favored where available.</span>
+              <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
               <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
               <strong>Three weapons from your Vault</strong>
               <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
+              <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>
             </button>
           </ChoiceGrid>
         </div>
       ) : (
         <div className="stack">
-          <p>{cat === 'exotic' ? 'Exotic armor' : 'Vault Legendary weapon'}: pick one, then move it from your Vault in Destiny 2.</p>
+          <p>{cat === 'exotic' ? 'Exotic armor' : 'Vault Legendary weapon'}: pick one, then move it from your Vault in Destiny 2. <button className="link" onClick={() => { setCat(null); setGear(null); setCompare(false) }}>Change category</button></p>
           <ChoiceGrid>
             {pend[cat].map((g) => {
-              const pv = cat === 'legendary' ? previews.data?.[g.name] : undefined
+              const pv = previews.data?.[g.name]
               const icon = pv?.icon ?? icons.gear(g.name)
               return (
               <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${gear?.name === g.name ? 'is-on' : ''}`} onClick={() => setGear(g)}>
                 {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
                 <span className="choice-kind">{g.rarity} {pv?.type ?? g.slot}</span>
                 <strong>{g.name}</strong>
-                <span className="muted">{pv ? [pv.element, pv.power && `${pv.power} Power`].filter(Boolean).join(' · ') : <>{g.archetype}{g.element ? ` · ${g.element}` : ''}</>}{(pv?.element ?? g.element) === p.element ? ' · synergy' : ''}</span>
+                <span className="muted">{pv ? [pv.element, pv.power && `${pv.power} Power`, pv.armor && pv.intrinsic?.name, !pv.owned && 'Not owned'].filter(Boolean).join(' · ') : <>{g.archetype}{g.element ? ` · ${g.element}` : ''}</>}{(pv?.element ?? g.element) === p.element ? ' · synergy' : ''}</span>
                 {pv && pv.perks.length > 0 && <span className="choice-perks">{pv.perks.slice(0, 5).map((pk) => pk.icon ? <img key={pk.name} src={pk.icon} alt={pk.name} title={pk.name} /> : null)}</span>}
                 {g.note && <span className="choice-desc">{g.note}</span>}
                 {itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
@@ -181,10 +202,25 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               )
             })}
           </ChoiceGrid>
-          {cat === 'legendary' && previews.loading && <p className="small muted">Reading these weapons from your Vault…</p>}
-          {cat === 'legendary' && previews.error && <p className="small tone-warn">Couldn&rsquo;t read your Vault for details: {previews.error}</p>}
-          {cat === 'legendary' && gear && previews.data?.[gear.name] && <ItemCard item={previews.data[gear.name]} />}
-          {cat === 'legendary' && previews.data && !gear && <p className="small muted">Select a weapon to see its roll.</p>}
+          {previews.loading && <p className="small muted">Reading these items from your account…</p>}
+          {previews.error && <p className="small tone-warn">Couldn&rsquo;t read your Vault for details: {previews.error}</p>}
+          {compared.length > 0 && (
+            <div className="compare-bar">
+              <button className="btn btn-ghost btn-sm" aria-expanded={comparing} onClick={() => setCompare(!compare)}>{comparing ? 'Hide details' : `Compare details (${compared.length})`}</button>
+              <span className="small muted">{comparing ? 'Best value for each stat is highlighted. Select a card to choose it.' : 'See every roll side by side: stats, frame, perks and mods.'}</span>
+            </div>
+          )}
+          {comparing && (
+            <div className={`compare-grid n-${compared.length}`}>
+              {compared.map((g) => (
+                <button key={g.name} className={`compare-pick ${gear?.name === g.name ? 'is-on' : ''}`} aria-pressed={gear?.name === g.name} onClick={() => setGear(g)}>
+                  <ItemCard item={previews.data![g.name]} compact best={compared.length > 1 ? bestStats(compared.map((x) => previews.data![x.name])) : undefined} />
+                  <span className="compare-choose">{gear?.name === g.name ? 'Chosen' : `Choose ${g.name}`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {!comparing && gear && previews.data?.[gear.name] && <ItemCard item={previews.data[gear.name]} />}
           {pend[cat].length === 0 && <p>No eligible items in this pool.</p>}
         </div>
       ))}
@@ -192,7 +228,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       {step === 'artifact' && (
         <ChoiceGrid>
           {pend.artifact.map((m) => (
-            <button key={m} className={`choice ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
+            <button key={m} className={`choice choice-artifact ${icons.plug(m) ? 'choice-item' : ''} ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
+              {icons.plug(m) && <img className="choice-icon" src={icons.plug(m)} alt="" loading="lazy" />}
               <span className="choice-kind">{p.artifactName} &middot; Tier {artifactPerk(p.artifactName, m)?.tier ?? '?'}</span>
               <strong>{m}</strong>
               {artifactPerk(p.artifactName, m)?.desc && <span className="choice-desc">{artifactPerk(p.artifactName, m)!.desc}</span>}
@@ -204,7 +241,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       {step === 'chest' && (
         <ChoiceGrid>
           {pend.chest.map((c, k) => (
-            <button key={chestLabel(c)} className={`choice ${chest === k ? 'is-on' : ''} ${c.kind !== 'artifact' ? 'choice-upgrade' : ''}`} onClick={() => setChest(k)}>
+            <button key={chestLabel(c)} className={`choice choice-item ${chest === k ? 'is-on' : ''} ${c.kind !== 'artifact' ? 'choice-upgrade' : 'choice-artifact'}`} onClick={() => setChest(k)}>
+              {c.kind === 'artifact' ? (icons.plug(c.mod) ? <img className="choice-icon" src={icons.plug(c.mod)} alt="" loading="lazy" /> : <span className="choice-icon choice-glyph" aria-hidden="true"><span className="mod-hex" /></span>)
+                : <span className="choice-icon choice-glyph" aria-hidden="true"><ExpansionGlyph /></span>}
               <span className="choice-kind">{c.kind === 'artifact' ? `${p.artifactName} \u00b7 Tier ${artifactPerk(p.artifactName, c.mod)?.tier ?? '?'}` : 'Upgrade'}</span>
               <strong>{chestLabel(c)}</strong>
               {c.kind === 'artifact' && artifactPerk(p.artifactName, c.mod)?.desc && <span className="choice-desc">{artifactPerk(p.artifactName, c.mod)!.desc}</span>}

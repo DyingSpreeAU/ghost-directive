@@ -803,7 +803,11 @@ const EMPTY_ARTIFACT_MOD = 1235188590
 
 // ------------------------------------------------------------------ item preview (DIM-style, basic)
 
-/** Weapon stats in the order DIM and the game list them; bars for 0-100 stats, plain numbers for the rest. */
+/** Stats in the order DIM and the game list them; bars for scaled stats, plain numbers for the rest. */
+const ARMOR_STATS: [hash: number, name: string, bar: boolean][] = [
+  [2996146975, 'Weapons', true], [392767087, 'Health', true], [1943323491, 'Class', true],
+  [1735777505, 'Grenade', true], [144602215, 'Super', true], [4244567218, 'Melee', true],
+]
 const WEAPON_STATS: [hash: number, name: string, bar: boolean][] = [
   [4284893193, 'Rounds Per Minute', false], [2961396640, 'Charge Time', false], [447667954, 'Draw Time', false],
   [3614673599, 'Blast Radius', true], [2523465841, 'Velocity', true], [2837207746, 'Swing Speed', true],
@@ -816,8 +820,10 @@ const WEAPON_STATS: [hash: number, name: string, bar: boolean][] = [
 const INTRINSIC = 3956125808
 const WEAPON_PERKS = 4241085061
 const WEAPON_MODS = 2685412949
+const ARMOR_PERKS = 3154740035
+const ARMOR_MODS = 590099826
 /** Plugs not worth showing in a basic preview. */
-const NOISE = /^(Empty|Default |Kill Tracker|Crucible Tracker|Weapon Mod|Upgrade Masterwork|Tracker Disabled)/i
+const NOISE = /^(Empty|Default |Kill Tracker|Crucible Tracker|Weapon Mod|Upgrade Masterwork|Upgrade Armor|Tracker Disabled|Locked )/i
 
 export type PreviewPlug = { name: string; icon?: string; description?: string }
 export type ItemPreview = {
@@ -829,9 +835,13 @@ export type ItemPreview = {
   icon?: string
   screenshot?: string
   flavor?: string
-  stats: { name: string; value: number; bar: boolean }[]
+  /** False when the player has no copy on their account (shown from Bungie's definition instead). */
+  owned: boolean
+  armor: boolean
+  /** `max` scales the bar: 100 for weapon stats, 45 for a single armor piece's stats. */
+  stats: { name: string; value: number; bar: boolean; max: number }[]
   intrinsic?: PreviewPlug
-  /** Selected perk in each perk column (barrel, magazine, traits, origin). */
+  /** Weapons: selected perk in each perk column (barrel, magazine, traits, origin). Armor: archetype and other perks. */
   perks: PreviewPlug[]
   mods: PreviewPlug[]
 }
@@ -849,7 +859,7 @@ async function plugInfo(hash?: number): Promise<PreviewPlug | null> {
  * Details of the player's own copies of these items (Vault first, then characters): the rolled
  * stats, intrinsic frame, selected perks and mods. Items not found are left out.
  */
-export async function fetchItemPreviews(names: string[]): Promise<Record<string, ItemPreview>> {
+export async function fetchItemPreviews(names: string[], cls?: ClassType): Promise<Record<string, ItemPreview>> {
   const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,300,304,305`)
   const all: ItemComponent[] = [
@@ -863,21 +873,39 @@ export async function fetchItemPreviews(names: string[]): Promise<Record<string,
     const copies = all.filter((i) => i.itemInstanceId && items[i.itemHash]?.[0] === name)
     const power = (i: ItemComponent) => p.itemComponents?.instances?.data?.[i.itemInstanceId!]?.primaryStat?.value ?? 0
     const item = copies.sort((a, b) => power(b) - power(a))[0]
-    if (!item) return
-    const id = item.itemInstanceId!
-    const def = await itemDef(item.itemHash)
-    const row = items[item.itemHash]
-    const rolled = p.itemComponents?.stats?.data?.[id]?.stats ?? {}
-    const stats = WEAPON_STATS.filter(([h]) => rolled[h] !== undefined).map(([h, n, bar]) => ({ name: n, value: rolled[h].value, bar }))
-    const sockets = p.itemComponents?.sockets?.data?.[id]?.sockets ?? []
-    const cat = (hash: number) => def?.sockets?.socketCategories?.find((c) => c.socketCategoryHash === hash)?.socketIndexes ?? []
-    const at = (idxs: number[]) => Promise.all(idxs.map((i) => plugInfo(sockets[i]?.plugHash))).then((x) => x.filter((v): v is PreviewPlug => !!v))
-    const [intrinsic, perks, mods] = await Promise.all([at(cat(INTRINSIC)), at(cat(WEAPON_PERKS)), at(cat(WEAPON_MODS))])
-    const dmg = p.itemComponents?.instances?.data?.[id]?.damageType ?? def?.defaultDamageType ?? row[4]
+    // Not on the account (e.g. an Exotic only in Collections): describe it from its definition.
+    const hash = item?.itemHash ?? Number(Object.keys(items).find((h) => items[h][0] === name && (cls === undefined || items[h][3] === 3 || items[h][3] === CLASS_TYPE[cls])))
+    if (!hash || !items[hash]) return
+    const id = item?.itemInstanceId
+    const def = await itemDef(hash)
+    const row = items[hash]
+    const armor = row[1] >= 3
+    const rolled = id ? p.itemComponents?.stats?.data?.[id]?.stats ?? {} : {}
+    const stats = (armor ? ARMOR_STATS : WEAPON_STATS).filter(([h]) => rolled[h] !== undefined)
+      .map(([h, n, bar]) => ({ name: n, value: rolled[h].value, bar, max: armor ? 45 : 100 }))
+    if (armor && stats.length) stats.push({ name: 'Total', value: stats.reduce((t, x) => t + x.value, 0), bar: false, max: 0 })
+    const sockets = id ? p.itemComponents?.sockets?.data?.[id]?.sockets ?? [] : []
+    const entries = def?.sockets?.socketEntries ?? []
+    const cat = (h: number) => def?.sockets?.socketCategories?.find((c) => c.socketCategoryHash === h)?.socketIndexes ?? []
+    // The copy's plug where there is one, otherwise the definition's default.
+    const at = (idxs: number[]) => Promise.all(idxs.map((i) => plugInfo(sockets[i]?.plugHash ?? entries[i]?.singleInitialItemHash))).then((x) => x.filter((v): v is PreviewPlug => !!v))
+    let intrinsic: PreviewPlug | undefined, perks: PreviewPlug[], mods: PreviewPlug[]
+    if (armor) {
+      // The Exotic perk is the armor perk the definition fixes; anything else there (archetype) is a perk.
+      const fixed = await at(cat(ARMOR_PERKS).filter((i) => entries[i]?.singleInitialItemHash))
+      const all = await at(cat(ARMOR_PERKS))
+      intrinsic = row[2] === 4 ? fixed[fixed.length - 1] : undefined
+      perks = all.filter((x) => x.name !== intrinsic?.name)
+      mods = id ? await at(cat(ARMOR_MODS)) : []
+    } else {
+      ;[[intrinsic], perks, mods] = await Promise.all([at(cat(INTRINSIC)), at(cat(WEAPON_PERKS)), at(cat(WEAPON_MODS))])
+      if (!id) { perks = []; mods = [] }
+    }
+    const dmg = (id ? p.itemComponents?.instances?.data?.[id]?.damageType : undefined) ?? def?.defaultDamageType ?? row[4]
     out[name] = {
-      name, type: def?.itemTypeDisplayName ?? ALL_SLOTS[row[1]], rarity: TIERS[row[2]], element: DAMAGE[dmg],
-      power: power(item) || undefined, icon: IMG(def?.displayProperties?.icon), screenshot: IMG(def?.screenshot),
-      flavor: def?.flavorText || undefined, stats, intrinsic: intrinsic[0], perks, mods,
+      name, type: def?.itemTypeDisplayName ?? ALL_SLOTS[row[1]], rarity: TIERS[row[2]], element: armor ? undefined : DAMAGE[dmg],
+      power: (item && power(item)) || undefined, icon: IMG(def?.displayProperties?.icon), screenshot: IMG(def?.screenshot),
+      flavor: def?.flavorText || undefined, owned: !!item, armor, stats, intrinsic, perks, mods,
     }
   }))
   return out

@@ -12,6 +12,7 @@
   --danger: #e2553f;
   --warn: #e6a73c;
   --ok: #57c48f;
+  --artifact: #35d0bd;      /* the in-game artifact teal */
 
   --r-common: #c2bdb4;
   --r-uncommon: #4e9a5b;
@@ -346,7 +347,7 @@ input[type='range'] { accent-color: var(--light); }
 /* ---------------------------------------------------------------- modals */
 .scrim {
   position: fixed; inset: 0; z-index: 50; background: rgba(4, 5, 8, 0.78); backdrop-filter: blur(3px);
-  display: grid; place-items: center;
+  display: grid; place-items: center; grid-template-rows: minmax(0, 1fr); /* a definite row so the modal's max-height caps it */
   padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
 }
@@ -805,3 +806,38 @@ button.ab-chip:hover { border-color: var(--dim); }
 .ip-plug.is-round img, .ip-plug.is-round .ip-plug-blank { border-radius: 50%; border: 1px solid #5d7aa3; background: #2a4568; }
 .ip-plug-name { overflow-wrap: anywhere; }
 .ip-flavor { margin: 0; padding: 10px 12px; border-top: 1px solid var(--seam); font-style: italic; color: var(--dim); font-size: 0.82rem; }
+
+/* ---------------------------------------------------------------- reward art + comparison */
+.modal-xwide { width: min(1180px, 100%); }
+.choice-glyph { display: grid; place-items: center; color: var(--light); background: var(--ink); }
+.choice-glyph .mod-hex { width: 22px; height: 22px; }
+.choice-thumbs { display: flex; gap: 6px; margin-top: 6px; }
+.choice-thumbs img { width: 40px; height: 40px; border: 1px solid var(--seam); }
+.compare-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.compare-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
+.compare-grid.n-1 { grid-template-columns: minmax(0, 380px); }
+.compare-grid.n-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.compare-pick { display: grid; gap: 0; padding: 0; text-align: left; font: inherit; color: inherit; background: none; border: 1px solid transparent; cursor: pointer; }
+.compare-pick:hover { border-color: var(--dim); }
+.compare-pick.is-on { border-color: var(--light); box-shadow: 0 0 0 1px var(--light); }
+.compare-pick .item-card { max-width: none; border: 0; }
+.compare-choose { padding: 8px 12px; text-align: center; font-family: var(--f-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.82rem; background: var(--hull-2); border-top: 1px solid var(--seam); }
+.compare-pick.is-on .compare-choose { background: var(--light); color: var(--light-ink); }
+.item-card.is-compact .ip-stat { grid-template-columns: 5.6em 2.4em minmax(0, 1fr); }
+.item-card.is-compact .ip-title h3 { font-size: 1.1rem; }
+.ip-stat.is-best dd { color: var(--light); font-weight: 600; }
+.ip-stat.is-best .ip-bar > span { background: var(--light); }
+@media (max-width: 900px) { .compare-grid, .compare-grid.n-2 { grid-template-columns: minmax(0, 1fr); } }
+
+/* Artifact perk choices use the in-game artifact teal so they stand out from ability and gear picks. */
+.choice.choice-artifact {
+  border-color: color-mix(in srgb, var(--artifact) 55%, var(--seam));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--artifact) 16%, var(--hull)) 0%, var(--hull) 70%);
+}
+.choice.choice-artifact .choice-kind { color: var(--artifact); }
+.choice.choice-artifact strong { color: color-mix(in srgb, var(--artifact) 35%, var(--text)); }
+.choice.choice-artifact .choice-icon { border-color: var(--artifact); box-shadow: 0 0 10px color-mix(in srgb, var(--artifact) 45%, transparent); }
+.choice.choice-artifact .choice-glyph .mod-hex { background: var(--artifact); }
+.choice.choice-artifact:hover { border-color: var(--artifact); }
+.choice.choice-artifact.is-on { border-color: var(--artifact); box-shadow: inset 0 0 0 1px var(--artifact), 0 0 18px color-mix(in srgb, var(--artifact) 35%, transparent); }
+.ip-note { margin: 0; padding: 8px 12px; font-size: 0.8rem; color: var(--warn); background: var(--ink); border-top: 1px solid var(--seam); }

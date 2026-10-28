@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ELEMENT_COLOR, dungeonArt, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
 
-export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
+export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; xwide?: boolean; footer?: ReactNode }) {
   const { onClose } = props
   useEffect(() => {
     if (!onClose) return
@@ -11,7 +11,7 @@ export function Modal(props: { title: string; kicker?: string; onClose?: () => v
   }, [onClose])
   return (
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className={`modal ${props.wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={props.title}>
+      <div className={`modal ${props.wide ? 'modal-wide' : ''} ${props.xwide ? 'modal-xwide' : ''}`} role="dialog" aria-modal="true" aria-label={props.title}>
         <header className="modal-head">
           <div>
             {props.kicker && <div className="eyebrow">{props.kicker}</div>}
