@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
@@ -10,4 +11,6 @@ const channel = process.env.VITE_CHANNEL ?? (process.env.CONTEXT && process.env.
 export default defineConfig({
   plugins: process.env.SINGLE ? [react(), viteSingleFile()] : [react()],
   define: { __CHANNEL__: JSON.stringify(channel) },
+  // Test tools only exist in test builds; production gets an empty stand-in.
+  resolve: { alias: channel ? [] : [{ find: /^\.\/DevTools$/, replacement: fileURLToPath(new URL('./src/DevToolsOff.tsx', import.meta.url)) }] },
 })

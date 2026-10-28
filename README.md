@@ -17,6 +17,12 @@ It never enforces rules inside the game.
   Test builds show a "nightly" badge, their tab title says so, and their lobby ids are separate from
   production, so a code from one version never reaches the other. Bungie sign-in can't work inside
   claude.ai, so test Bungie features on the Netlify nightly.
+- **Test tools** (nightly only): a hazard-striped panel at the bottom right of the run screen, in the
+  host's browser. Queue an encounter, final-boss, chest or chest-with-Expansion reward for everyone or
+  one Guardian without clearing anything; change Integrity; jump to any encounter; add drops, Arsenal
+  Expansions, abilities and artifact perks; clear waiting rewards; copy the run's data for a bug
+  report. `src/DevTools.tsx` is loaded only when the build has a channel; production builds swap in
+  `src/DevToolsOff.tsx` (an empty component, see `vite.config.ts`), so none of it ships.
 - Releasing: merge `nightly` into `main` and push; Netlify deploys it.
 
 ## Run it

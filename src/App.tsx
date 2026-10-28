@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
@@ -18,6 +18,9 @@ import {
 import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, normalizeCode, snapshotAssembler, type StateChunk, type Transport, type TransportStatus } from './net'
 
 type Mode = { kind: 'landing' } | { kind: 'host' } | { kind: 'guest'; code: string }
+
+// Test tools exist only in test builds: in production CHANNEL is '' at build time, so this is never loaded.
+const DevTools = CHANNEL ? lazy(() => import('./DevTools')) : null
 
 /** A corner badge on test deploys so nobody mistakes them for the real app. */
 function ChannelBadge() {
@@ -540,6 +543,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
       </div>
       {activeFlow && run && <FlowHost key={JSON.stringify(activeFlow)} flow={activeFlow} run={run} onClose={closeFlow} />}
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
+      {DevTools && <Suspense fallback={null}><DevTools /></Suspense>}
     </GDContext.Provider>
   )
 }
