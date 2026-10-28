@@ -81,7 +81,12 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
     <div className="landing">
       <div className="landing-inner">
         <div className="brand big"><GhostGlyph /><div><div className="brand-name">Ghost Directive</div><div className="brand-sub">Destiny 2 roguelite companion</div></div></div>
-        <p className="landing-lede">Play Destiny 2 as normal. The host keeps the run; every Guardian joins from their own device to pick rewards and manage their own gear.</p>
+        <p className="landing-lede">A roguelite challenge mode for Destiny 2 dungeons. Your fireteam starts stripped back to basic gear and a bare subclass, then fights through a chain of dungeons, earning abilities, artifact perks and better gear one encounter at a time.</p>
+        <ul className="landing-points">
+          <li><strong>Shared Integrity.</strong> Clears restore it; deaths and wipes drain it. Hit zero and the run is over.</li>
+          <li><strong>Earn your kit.</strong> Every clear offers a choice of rewards. Pick one, and only use what you&rsquo;ve unlocked.</li>
+          <li><strong>One run, every device.</strong> The host tracks the run; each Guardian joins on their own phone or PC to choose rewards and manage their gear.</li>
+        </ul>
         <BungieStart />
         {bungieConfigured && <div className="eyebrow landing-step">Step 2 &middot; Host or join</div>}
         <SavedRuns
