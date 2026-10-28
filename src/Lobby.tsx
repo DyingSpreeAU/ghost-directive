@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
-import { ElementMark, EncounterArt, Modal, rarityClass } from './ui'
+import { ElementMark, EncounterArt, Modal, SwipeCols, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
@@ -111,7 +111,14 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       {role === 'guest' && !mine && <SeatPicker lobby={lobby} />}
 
-      <section id="seats" className={`section-anchor seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}>
+      <SwipeCols
+        id="seats"
+        className={`section-anchor seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}
+        tabs={[
+          ...lobby.seats.map((s) => ({ key: s.id, label: <>{s.name}{s.clientId === me ? <span className="swipe-you">You</span> : null}</> })),
+          ...(role === 'host' && lobby.seats.length < MAX_SEATS ? [{ key: 'open', label: '+ Open seat', tone: 'is-add' }] : []),
+        ]}
+      >
         {lobby.seats.map((s) => {
           const editable = s.clientId === me || (role === 'host' && s.clientId === null)
           return (
@@ -140,7 +147,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
             <p className="small muted">You will choose rewards for a Guardian with no device. A player can take the seat later.</p>
           </div>
         )}
-      </section>
+      </SwipeCols>
 
       <RouteAndProtocol lobby={lobby} />
 
@@ -542,7 +549,7 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
       </div>
       <div className="begin-acts">
         <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || notReady.length > 0} onClick={onBegin}>
-          {notReady.length ? `Waiting on ${notReady.length} Guardian${notReady.length === 1 ? '' : 's'}` : 'Begin run and lock route'}
+          {notReady.length ? `Waiting on ${notReady.length} Guardian${notReady.length === 1 ? '' : 's'}` : <>Begin run<span className="hide-narrow"> and lock route</span></>}
         </button>
         {notReady.length > 0 && !noRoute && noArtifact.length === 0 && (confirm ? (
           <div className="override">

@@ -103,6 +103,50 @@ export function EncounterArt({ dungeon, encounter, compact }: { dungeon: Dungeon
   )
 }
 
+/** Phone-width layout: show one slide per screen. Matches the CSS breakpoint for `.swipe-track`. */
+const SWIPE_QUERY = '(max-width: 900px)'
+
+/**
+ * Guardian columns: side by side on wide screens; on a phone, one per screen, swiped left and right
+ * (native scroll snapping), with a tab strip naming each slide. `tabs` labels the slides in order.
+ */
+export function SwipeCols({ id, className, tabs, children }: { id?: string; className: string; tabs: { key: string; label: ReactNode; tone?: string }[]; children: ReactNode }) {
+  const track = useRef<HTMLElement>(null)
+  const [on, setOn] = useState(0)
+  const [narrow, setNarrow] = useState(() => typeof matchMedia !== 'undefined' && matchMedia(SWIPE_QUERY).matches)
+  useEffect(() => {
+    const mq = matchMedia(SWIPE_QUERY)
+    const change = () => setNarrow(mq.matches)
+    mq.addEventListener('change', change)
+    return () => mq.removeEventListener('change', change)
+  }, [])
+  const onScroll = () => {
+    const el = track.current
+    if (el && el.clientWidth) setOn(Math.min(tabs.length - 1, Math.round(el.scrollLeft / el.clientWidth)))
+  }
+  const go = (i: number) => {
+    const el = track.current
+    if (el) el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' })
+  }
+  return (
+    <>
+      {narrow && tabs.length > 1 && (
+        <div className="swipe-tabs" role="tablist" aria-label="Guardians">
+          {tabs.map((t, i) => (
+            <button key={t.key} role="tab" aria-selected={i === on} className={`swipe-tab ${i === on ? 'is-on' : ''} ${t.tone ?? ''}`} onClick={() => go(i)}>{t.label}</button>
+          ))}
+        </div>
+      )}
+      <section id={id} ref={track} className={`${className} swipe-track`} onScroll={narrow ? onScroll : undefined}>
+        {children}
+      </section>
+      {narrow && tabs.length > 1 && (
+        <div className="swipe-dots" aria-hidden="true">{tabs.map((t, i) => <span key={t.key} className={i === on ? 'is-on' : ''} />)}</div>
+      )}
+    </>
+  )
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>
 }

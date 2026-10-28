@@ -42,7 +42,11 @@ function grant(run: Run, kind: Kind, who: Player[]) {
 
 export default function DevTools() {
   const { host, run, toast, myPlayerId } = useGD()
-  const [open, setOpen] = useState(() => { try { return localStorage.getItem(OPEN_KEY) !== 'closed' } catch { return true } })
+  // Starts open on wide screens; on a phone it would cover the page, so it starts as the tab.
+  const [open, setOpen] = useState(() => {
+    try { const v = localStorage.getItem(OPEN_KEY); if (v) return v !== 'closed' } catch { /* fine */ }
+    return !matchMedia('(max-width: 900px)').matches
+  })
   const [target, setTarget] = useState<string>('all')
   const [slot, setSlot] = useState<Slot>('Kinetic')
   const [rarity, setRarity] = useState<Rarity>('Legendary')

@@ -464,7 +464,7 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
   .sidebar { display: none; }
   .main { padding-block: 18px calc(84px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .tabbar {
-    display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); position: fixed; z-index: 40; left: 0; right: 0; bottom: 0;
     background: color-mix(in srgb, var(--ink) 92%, transparent); backdrop-filter: blur(8px); border-top: 1px solid var(--seam);
     padding-bottom: env(safe-area-inset-bottom, 0px);
     padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px);
@@ -978,3 +978,44 @@ button.ab-chip:hover { border-color: var(--dim); }
 .route-card.is-out { filter: grayscale(0.85); opacity: 0.7; }
 .route-card.is-out:hover { filter: none; opacity: 1; }
 .route-empty { grid-column: 1 / -1; padding: 18px; text-align: center; border: 1px dashed var(--seam); }
+
+/* ---------------------------------------------------------------- phone: one Guardian per screen, swiped */
+.swipe-tabs, .swipe-dots { display: none; }
+@media (max-width: 900px) {
+  .swipe-track.guardian-cols, .swipe-track.seats.guardian-cols {
+    display: flex; gap: 12px; align-items: flex-start;
+    overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scrollbar-width: none;
+    margin: 0 -16px; padding: 0 16px; scroll-padding: 0 16px;
+  }
+  .swipe-track::-webkit-scrollbar { display: none; }
+  .swipe-track > * { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+  .swipe-tabs {
+    display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin-bottom: -4px;
+    position: sticky; top: 0; z-index: 4; padding: 8px 0; background: var(--ink);
+  }
+  .swipe-tab {
+    flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px;
+    background: var(--hull); border: 1px solid var(--seam); border-radius: 999px; color: var(--dim);
+    font-family: var(--f-display); font-size: 0.9rem; letter-spacing: 0.03em;
+  }
+  .swipe-tab.is-on { color: var(--light-ink); background: var(--light); border-color: var(--light); }
+  .swipe-tab.is-add { border-style: dashed; }
+  .swipe-tab.is-add.is-on { color: var(--light-ink); }
+  .swipe-you { font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.75; }
+  .swipe-flag { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); box-shadow: 0 0 6px var(--warn); }
+  .swipe-dots { display: flex; justify-content: center; gap: 6px; margin-top: 2px; }
+  .swipe-dots span { width: 6px; height: 6px; border-radius: 50%; background: var(--seam); transition: background 0.2s, transform 0.2s; }
+  .swipe-dots span.is-on { background: var(--light); transform: scale(1.3); }
+}
+@media (max-width: 900px) {
+  /* Compact bars that sit just above the bottom tab bar. */
+  .begin-bar, .waiting-bar { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); padding: 10px 12px; gap: 8px 10px; flex-wrap: nowrap; align-items: center; }
+  .begin-bar > div:first-child, .waiting-bar .waiting-text { flex: 1; min-width: 0; font-size: 0.78rem; line-height: 1.35; }
+  .begin-bar > div:first-child > .muted { display: none; }
+  .begin-bar p, .waiting-bar p { margin: 2px 0 0; font-size: 0.74rem; }
+  .begin-bar .btn, .waiting-bar .btn { padding: 9px 12px; font-size: 0.8rem; white-space: nowrap; }
+  .begin-acts { flex: 0 0 auto; }
+  .begin-acts .override { max-width: 220px; }
+  .hide-narrow { display: none; }
+  .devtools-tab { bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important; }
+}

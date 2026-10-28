@@ -10,13 +10,18 @@ import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
 import { useGD } from './store'
-import { ElementMark, Empty, rarityClass } from './ui'
+import { ElementMark, Empty, SwipeCols, rarityClass } from './ui'
 
 const GUIDE_KEY = 'ghost-directive:fireteam-guide'
 
 export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
+  const { me } = useGD()
   const [showLocked, setShowLocked] = useState(true)
-  const [guideOpen, setGuideOpen] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) !== 'closed' } catch { return true } })
+  // Open by default on wide screens; on a phone it would push the Guardians far down, so it starts closed.
+  const [guideOpen, setGuideOpen] = useState(() => {
+    try { const v = localStorage.getItem(GUIDE_KEY); if (v) return v !== 'closed' } catch { /* fine */ }
+    return !matchMedia('(max-width: 900px)').matches
+  })
   const toggleGuide = (open: boolean) => { setGuideOpen(open); try { localStorage.setItem(GUIDE_KEY, open ? 'open' : 'closed') } catch { /* fine */ } }
   return (
     <section id="arsenal" className="section fireteam" aria-labelledby="fireteam-title">
@@ -47,9 +52,9 @@ export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
           </div>
         </div>
       </details>
-      <div className={`guardian-cols players-${run.players.length}`}>
+      <SwipeCols className={`guardian-cols players-${run.players.length}`} tabs={run.players.map((p) => ({ key: p.id, label: <>{p.name}{p.clientId === me ? <span className="swipe-you">You</span> : null}{run.pending.some((x) => x.playerId === p.id) ? <span className="swipe-flag" title="Rewards waiting" /> : null}</> }))}>
         {run.players.map((p) => <GuardianColumn key={p.id} run={run} p={p} warnings={warnings.filter((w) => w.playerId === p.id)} showLocked={showLocked} />)}
-      </div>
+      </SwipeCols>
     </section>
   )
 }
