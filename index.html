@@ -11,6 +11,11 @@
   </head>
   <body>
     <div id="root"></div>
+    <!-- Registers the bug report form with Netlify Forms; the app posts to it (src/BugReport.tsx). -->
+    <form name="bug-report" data-netlify="true" netlify-honeypot="bot-field" hidden>
+      <input name="bot-field" /><textarea name="what"></textarea><textarea name="expected"></textarea><input name="contact" />
+      <input name="page" /><input name="role" /><input name="channel" /><input name="browser" /><input name="screen" /><input name="at" /><textarea name="data"></textarea>
+    </form>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

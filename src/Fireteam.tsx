@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import {
-  ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
+  ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
 import { capacityOf, equippedNotUnlocked, itemsIn, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
@@ -249,8 +249,8 @@ function Abilities({ p, showLocked, control }: { p: Player; showLocked: boolean;
                   const icon = icons.plug(a.name)
                   const body = <>{icon ? <img src={icon} alt="" loading="lazy" /> : null}<span>{a.name}</span></>
                   return control
-                    ? <button key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}. Select to mark ${conf ? 'not ' : ''}equipped in game.`} aria-pressed={conf} onClick={() => dispatch({ type: 'configure', abilityId: a.id }, p.id)}>{body}</button>
-                    : <span key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}`}>{body}</span>
+                    ? <button key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}. Select to mark ${conf ? 'not ' : ''}equipped in game.${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`} aria-pressed={conf} onClick={() => dispatch({ type: 'configure', abilityId: a.id }, p.id)}>{body}</button>
+                    : <span key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`}>{body}</span>
                 })}
               </div>
             </div>

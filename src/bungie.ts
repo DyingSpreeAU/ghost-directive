@@ -1007,7 +1007,8 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned
 
 // ------------------------------------------------------------------ run inventory moves (Vault ⇄ run character)
 
-export type MoveOp = { name: string; instanceId?: string; to: 'vault' | 'character' }
+/** `slot` tells same-named pieces apart (an armor set's pieces share one name). */
+export type MoveOp = { name: string; instanceId?: string; slot?: Slot; to: 'vault' | 'character' }
 export type MoveResult = {
   character: string
   /** Items moved, as "Name → Vault" / "Name → Hunter". */
@@ -1037,7 +1038,11 @@ export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResu
     api('/Destiny2/Actions/Items/TransferItem/', { itemReferenceHash: h.itemHash, stackSize: 1, transferToVault: toVault, itemId: h.instanceId, characterId, membershipType: mem.membershipType })
 
   for (const op of ops) {
-    const copies = held.filter((h) => !used.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name))
+    const fits = (h: Held) => {
+      const row = items[h.itemHash]
+      return !op.slot || (!!row && ALL_SLOTS[row[1]] === op.slot && (row[3] === 3 || row[3] === CLASS_TYPE[player.cls]))
+    }
+    const copies = held.filter((h) => !used.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name && fits(h)))
     // Pulling: the best copy not already on the character (Vault first). Vaulting: the copy on the character.
     const pick = op.to === 'character'
       ? copies.find((h) => h.where === charId) ?? copies.filter((h) => h.where !== 'postmaster').sort((a, b) => Number(b.where === 'vault') - Number(a.where === 'vault') || power(b) - power(a))[0]

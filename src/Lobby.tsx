@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
+import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
-import { allProtocols, useGD } from './store'
+import { allProtocols, endSavedRuns, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
@@ -152,7 +152,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
       <RouteAndProtocol lobby={lobby} />
 
       {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={() => {
-        host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
+        host!.mutate((s) => { endSavedRuns(s); s.active = runFromLobby(s.lobby!); s.lobby = null })
         toast('Run started. Route locked.')
       }} /> : (
         <div className="panel waiting-bar">
@@ -228,7 +228,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
     const a = abil.find((x) => x.id === id)
     if (!a) return null
     const body = <>{icons.plug(a.name) && <img src={icons.plug(a.name)} alt="" loading="lazy" />}<span>{a.name}</span></>
-    return <button key={id} role="radio" aria-checked={on} className={`ab-chip is-unlocked ${on ? 'is-conf' : ''}`} disabled={ro} onClick={onClick}>{body}</button>
+    return <button key={id} role="radio" aria-checked={on} className={`ab-chip is-unlocked ${on ? 'is-conf' : ''}`} disabled={ro} onClick={onClick} title={abilityDesc(id) ? `${a.name}\n\n${abilityDesc(id)}` : undefined}>{body}</button>
   }
   return (
     <article className={`panel guardian seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }} aria-label={seat.name}>
@@ -523,6 +523,8 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
   const noRoute = lobby.route.length === 0
+  const { host } = useGD()
+  const replaces = host?.store.saved ?? []
   return (
     <div className="panel begin-bar">
       <div>
@@ -531,6 +533,7 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
         {readyRow ?? (notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>)}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
+        {replaces.length > 0 && <p className="small tone-warn">Beginning ends your saved run{replaces.length > 1 ? 's' : ''} {replaces.map((r) => `\u201c${r.name}\u201d`).join(', ')}: only one run is kept at a time. {replaces.length > 1 ? 'They move' : 'It moves'} to Run History.</p>}
         {notice}
       </div>
       <div className="begin-acts">

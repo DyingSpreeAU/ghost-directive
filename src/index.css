@@ -601,7 +601,7 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
 .drag-grip circle { fill: currentColor; }
 .sortable li:hover .drag-grip, .drag-grip:focus-visible { color: var(--light); }
 .sort-name { min-width: 0; overflow-wrap: anywhere; }
-.choice-desc { font-size: 0.8rem; line-height: 1.45; color: var(--dim); }
+.choice-desc { font-size: 0.8rem; line-height: 1.45; color: var(--dim); white-space: pre-line; }
 .choice.el-prismatic { --rc: #f39ad9; }
 .el-pick { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .el-pick button span { font-size: 0.68rem; }
@@ -1055,3 +1055,13 @@ button.ab-chip:hover { border-color: var(--dim); }
 .roll-perk > span { flex: 1; min-width: 0; }
 .roll-perk img { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); }
 .roll-perk strong { display: block; font-size: 0.86rem; }
+
+/* ---------------------------------------------------------------- bug report */
+.bug-link { justify-self: start; color: var(--dim); font-size: 0.8rem; }
+.bug-form .field { display: grid; gap: 6px; }
+.bug-form textarea { width: 100%; resize: vertical; min-height: 60px; padding: 8px 10px; font: inherit; color: var(--text); background: var(--ink); border: 1px solid var(--seam); border-radius: var(--radius); }
+.bug-form textarea:focus { outline: 2px solid var(--light); outline-offset: 1px; }
+.main-foot { margin-top: 24px; text-align: center; }
+.show-narrow { display: none; }
+@media (max-width: 900px) { .show-narrow { display: block; } }
+.landing-inner > .bug-link { margin-top: -8px; }

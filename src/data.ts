@@ -1,5 +1,6 @@
 import { COMPENDIUM } from './compendium'
 import { CLASS_ABILITIES, CLASS_ABILITY_DESC } from './classAbilities'
+import { ABILITY_TEXT } from './abilityText'
 
 // Static game content. Everything here is data-driven so it can be revised
 // when Destiny 2 content changes without touching run logic.
@@ -77,8 +78,8 @@ export function subclassAbilities(cls: ClassType, element: Element): Ability[] {
   ]
 }
 
-/** One-line description from the compendium, if it has one. */
-export const abilityDesc = (id: string): string | undefined => C.desc[id] ?? CLASS_ABILITY_DESC[id]
+/** The ability's in-game description (falls back to the compendium's note). */
+export const abilityDesc = (id: string): string | undefined => ABILITY_TEXT[id] ?? CLASS_ABILITY_DESC[id] ?? C.desc[id]
 
 export function abilityById(id: string): Ability {
   const [element, kind, name] = id.split('|') as [Element, AbilityKind, string]

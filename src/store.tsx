@@ -71,6 +71,15 @@ export function resumeRun(s: HostStore, runId: string) {
   s.lobby = null
 }
 
+/**
+ * One run at a time: when a new run begins, any saved unfinished run ends and goes to history as
+ * abandoned, so loot from two runs never mixes on the account.
+ */
+export function endSavedRuns(s: HostStore) {
+  for (const r of s.saved) if (!s.history.some((h) => h.id === r.id)) s.history.unshift({ ...r, status: 'abandoned', endedAt: Date.now() })
+  s.saved = []
+}
+
 /** Deletes a saved run for good, with its drop-detection baselines. */
 export function deleteRun(s: HostStore, runId: string) {
   if (s.active?.id === runId) s.active = null

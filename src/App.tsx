@@ -1,3 +1,4 @@
+import { BugReport } from './BugReport'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
@@ -111,7 +112,7 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
             <h2>{saved || runs.length ? 'Start a new lobby' : 'Start a lobby'}</h2>
             <p className="muted">Your browser stores the run, so you can close the window and pick it up later. You get a code to share with your fireteam.</p>
             <button className={`btn ${saved || runs.length ? 'btn-ghost' : 'btn-light'}`} onClick={() => host(false)}>{saved || runs.length ? 'Create new lobby' : 'Create lobby'}</button>
-            {runs.length > 0 && <p className="small muted">Unfinished runs stay in Saved runs.</p>}
+            {runs.length > 0 && <p className="small muted">One run is kept at a time: your saved run stays until a new run begins, then it moves to Run History.</p>}
             <button className="link" onClick={() => host(true)}>Or explore an example run</button>
           </section>
           <section className="panel landing-card">
@@ -127,6 +128,7 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
           </section>
         </div>
         {!inClaudeViewer() && <p className="small muted">Outside claude.ai, lobbies connect browsers directly (WebRTC) through the public PeerJS broker.</p>}
+        <BugReport />
       </div>
     </div>
   )
@@ -589,6 +591,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
           <div className="sidebar-foot">
             <button className="link" onClick={base.leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
             <p>{role === 'host' ? 'The run lives in this browser. Close the window any time; it resumes here.' : 'The host’s browser keeps the run. You control your own Guardian.'}</p>
+            <BugReport run={run} lobby={lobby} role={role} />
           </div>
         </aside>
 
@@ -603,6 +606,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
             : run ? <Briefing run={run} warnings={warnings} pendingDeferred={myPending.length} onOpenRewards={() => { setDeferred([]); if (myPending[0]) setFlow({ type: 'reward', pendingId: myPending[0].id }) }} />
             : lobby ? <LobbyView lobby={lobby} />
             : null}
+          <div className="main-foot show-narrow"><BugReport run={run} lobby={lobby} role={role} /></div>
         </main>
 
         <nav className="tabbar" aria-label="Sections">
