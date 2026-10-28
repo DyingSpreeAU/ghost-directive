@@ -31,8 +31,8 @@ export type Ruleset = {
 export const PRESETS: Ruleset[] = [
   {
     id: 'standard', name: 'Standard Directive', preset: true,
-    description: 'The test baseline from the design spec: 100 Integrity, +5 per clear, −15 per wipe, four items per slot.',
-    integrity: { start: 100, max: 100, clear: 5, wipe: 15 },
+    description: 'The baseline: start at 50 Integrity (cap 100), +5 per clear, −15 per wipe, four items per slot. Three wipes before any clears leave 5; a fourth ends the run.',
+    integrity: { start: 50, max: 100, clear: 5, wipe: 15 },
     inventory: { capacity: 4, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
@@ -41,8 +41,8 @@ export const PRESETS: Ruleset[] = [
   },
   {
     id: 'grace', name: 'Guardian’s Grace', preset: true,
-    description: 'A softer run for learning a route: wipes cost 10, clears restore 10, and slots hold five items.',
-    integrity: { start: 100, max: 100, clear: 10, wipe: 10 },
+    description: 'A softer run for learning a route: start at 75, wipes cost 10, clears restore 10, and slots hold five items.',
+    integrity: { start: 75, max: 100, clear: 10, wipe: 10 },
     inventory: { capacity: 5, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
@@ -51,8 +51,8 @@ export const PRESETS: Ruleset[] = [
   },
   {
     id: 'iron', name: 'Iron Protocol', preset: true,
-    description: 'Start at 60 Integrity, wipes cost 20, three items per slot, and trade-ups need matching rarity.',
-    integrity: { start: 60, max: 80, clear: 5, wipe: 20 },
+    description: 'Start at 40 Integrity (cap 60), wipes cost 20, three items per slot, and trade-ups need matching rarity. A second wipe before any clears ends the run.',
+    integrity: { start: 40, max: 60, clear: 5, wipe: 20 },
     inventory: { capacity: 3, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
