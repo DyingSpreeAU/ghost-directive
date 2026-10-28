@@ -63,7 +63,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   their committed subclass, starting Super/class ability/melee/grenade and **artifact** on their own device; no one
   can ready up or start without an artifact. **Begin** stays disabled until every Guardian with a device is
   ready; the host has a small **Host override** that names who isn't ready and asks to confirm. Starting-gear rules are shown as instructions (nothing
-  to tick). Starting weapons may be grey or green; armor grey. Prismatic seats always have their
+  to tick). Starting gear is grey, except the heavy weapon, which may be grey or green. Prismatic seats always have their
   class's Prismatic grenade (Freezing Singularity, Hailfire Spike or Electrified Snare) as base kit,
   so it's unlocked from the start and not offered as the starting grenade. The host picks the
   chronological expedition (defaults to every dungeon) or a custom one: the dungeon tiles are dragged
@@ -233,7 +233,7 @@ and empties the artifact's perk sockets (InsertSocketPlugFree, using component 3
 socket's options; each subclass socket is identified by its plugs' category, e.g. `warlock.prism.grenades`,
 so Prismatic's separate Transcendence grenade socket is left alone), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
 social space or while offline; in an activity it stops and explains why. When Send to finishes with no problems and
-its own read shows a grey/green weapon and grey armor piece (with an instance id) in all eight slots,
+its own read shows starting-rarity gear (grey, or a green heavy) with an instance id in all eight slots,
 the seat is marked ready straight away, and the lobby trusts the subclass and artifact until Bungie
 returns data minted after the send (at most five minutes). Bungie sends `secondaryComponentsMintedTimestamp`
 as 0001-01-01 when it doesn't apply; that value is ignored in favour of `responseMintedTimestamp`.

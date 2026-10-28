@@ -605,13 +605,13 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
   )
 }
 
-/** Starting-gear rarity per slot: grey or green weapons in every slot, grey armor. */
-const WEAPON_OK: Rarity[] = ['Common', 'Uncommon']
-const ARMOR_OK: Rarity[] = ['Common']
+/** Starting-gear rarity per slot: grey everywhere, except the heavy weapon may be grey or green. */
+const GREY: Rarity[] = ['Common']
+const HEAVY_OK: Rarity[] = ['Common', 'Uncommon']
 const GEAR_SLOTS: Slot[] = ['Kinetic', 'Energy', 'Power', 'Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
 const EXPECTED: Record<Slot, Rarity[]> = {
-  Kinetic: WEAPON_OK, Energy: WEAPON_OK, Power: WEAPON_OK,
-  Helmet: ARMOR_OK, Gauntlets: ARMOR_OK, Chest: ARMOR_OK, Legs: ARMOR_OK, 'Class Item': ARMOR_OK,
+  Kinetic: GREY, Energy: GREY, Power: HEAVY_OK,
+  Helmet: GREY, Gauntlets: GREY, Chest: GREY, Legs: GREY, 'Class Item': GREY,
 }
 const COLOR_WORD: Partial<Record<Rarity, string>> = { Common: 'grey', Uncommon: 'green', Rare: 'blue', Legendary: 'purple', Exotic: 'Exotic' }
 /** Bungie data older than this is treated as possibly behind the game. */
@@ -742,7 +742,7 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
       {data && (
         <>
           <div className="equipped-grid" aria-label="Equipped gear">
-            <span className="ab-kind-name">Weapons <span className="muted">grey or green</span></span>
+            <span className="ab-kind-name">Weapons <span className="muted">grey; heavy grey or green</span></span>
             {gearRow(['Kinetic', 'Energy', 'Power'])}
             <span className="ab-kind-name">Armor <span className="muted">grey</span></span>
             {gearRow(['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item'])}

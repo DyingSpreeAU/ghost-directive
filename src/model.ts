@@ -111,7 +111,7 @@ export type Loadout = { id: string; name: string; itemIds: string[]; abilityIds:
 export type ChecklistKey = 'weapons' | 'greyArmor' | 'noAspects' | 'noFragments'
 
 export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
-  { key: 'weapons', label: 'Grey or Green Weapons', hint: 'Common (grey) or Uncommon (green) kinetic, energy and heavy weapons, from Collections where available.' },
+  { key: 'weapons', label: 'Grey weapons, green heavy allowed', hint: 'Common (grey) kinetic and energy weapons. The heavy weapon can be grey or Uncommon (green), since grey heavies are scarce. Pull them from Collections where available.' },
   { key: 'greyArmor', label: 'Grey armor on every slot', hint: 'The lowest-rarity armor you can pull, in all five slots.' },
   { key: 'noAspects', label: 'No aspects', hint: 'Unequip all aspects. They unlock during the run.' },
   { key: 'noFragments', label: 'No fragments', hint: 'Unequip all fragments. They unlock during the run.' },
@@ -990,7 +990,7 @@ export function exampleRun(code: string, hostCid: string): Run {
   run.example = true
   const [pa, pb, pc] = run.players
   const gear: [Player, string, Slot, Rarity][] = [
-    [pa, 'Prosecutor', 'Energy', 'Uncommon'], [pa, 'Pillager', 'Kinetic', 'Common'], [pa, 'Tarantula', 'Power', 'Uncommon'],
+    [pa, 'Prosecutor', 'Energy', 'Common'], [pa, 'Pillager', 'Kinetic', 'Common'], [pa, 'Tarantula', 'Power', 'Uncommon'],
     [pb, 'Bad Neighbors', 'Kinetic', 'Common'], [pb, 'Chain of Command', 'Energy', 'Common'], [pb, 'Pentatonic-48', 'Power', 'Uncommon'],
     [pc, 'Nightshade', 'Kinetic', 'Common'], [pc, 'Dead-Eye', 'Energy', 'Common'], [pc, 'Pentatonic-48', 'Power', 'Uncommon'],
   ]
