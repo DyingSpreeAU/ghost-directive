@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
   capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeUpChoices,
@@ -71,7 +71,7 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
 
 // ------------------------------------------------------------------ Player: resolve a reward
 
-type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'drops' | 'confirm'
+type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'drops'
 
 function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: () => void }) {
   const { dispatch, toast, me } = useGD()
@@ -83,7 +83,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     ...(pend.artifact.length ? ['artifact' as const] : []),
     ...(pend.chest.length ? ['chest' as const] : []),
     // Signed-in players' drops are detected from Bungie, so they skip typing them in.
-    ...(p.bungie ? [] : ['drops' as const]), 'confirm',
+    ...(p.bungie ? [] : ['drops' as const]),
   ]
   const [i, setI] = useState(0)
   const [unlock, setUnlock] = useState<string | undefined>()
@@ -103,7 +103,12 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
 
-  const title = { unlock: 'Choose an unlock', gear: 'Final-boss reward', artifact: 'Artifact research', chest: 'Chest reward', drops: 'Register your drops', confirm: 'Confirm your rewards' }[step]
+  // Nothing to choose (all abilities unlocked, drops tracked by Bungie): claim it straight away.
+  useEffect(() => { if (steps.length === 0) submit() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!step) return null
+  const last = i === steps.length - 1
+
+  const title = { unlock: 'Choose an unlock', gear: 'Final-boss reward', artifact: 'Artifact research', chest: 'Chest reward', drops: 'Register your drops' }[step]
   return (
     <Modal
       kicker={`${forSomeoneElse ? `For ${p.name} · ` : ''}${pend.where} · step ${i + 1} of ${steps.length}`}
@@ -112,8 +117,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       wide
       footer={<>
         {i === 0 ? <button className="btn btn-ghost" onClick={onClose}>Later</button> : <button className="btn btn-ghost" onClick={() => setI(i - 1)}>Back</button>}
-        {step === 'confirm'
-          ? <button className="btn btn-light" onClick={submit}>Claim rewards</button>
+        {last
+          ? <button className="btn btn-light" disabled={!canNext} onClick={submit}>{step === 'drops' && drops.length === 0 ? 'No drops, claim rewards' : 'Claim rewards'}</button>
           : <button className="btn btn-light" disabled={!canNext} onClick={() => setI(i + 1)}>{step === 'drops' && drops.length === 0 ? 'No drops, continue' : 'Continue'}</button>}
       </>}
     >
@@ -197,15 +202,6 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 
       {step === 'drops' && <DropsEditor run={run} playerId={p.id} drops={drops} setDrops={setDrops} source={pend.kind === 'chest' ? 'secret chest' : 'encounter drop'} />}
 
-      {step === 'confirm' && (
-        <ul className="summary">
-          {unlock && <li><span className="eyebrow">Unlock</span> {abilityById(unlock).name}</li>}
-          {gear && <li><span className="eyebrow">Item</span> {gear.name} ({gear.rarity} {gear.slot})</li>}
-          {mod && <li><span className="eyebrow">Artifact</span> {mod}</li>}
-          {chest !== undefined && <li><span className="eyebrow">Chest</span> {chestLabel(pend.chest[chest])}</li>}
-          <li><span className="eyebrow">Drops</span> {p.bungie ? 'Detected automatically from your Bungie account' : drops.length ? drops.map((d) => d.name).join(', ') : 'none'}</li>
-        </ul>
-      )}
     </Modal>
   )
 }

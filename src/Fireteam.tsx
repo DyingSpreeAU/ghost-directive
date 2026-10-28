@@ -14,7 +14,7 @@ import { ElementMark, Empty, rarityClass } from './ui'
 const GUIDE_KEY = 'ghost-directive:fireteam-guide'
 
 export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
-  const [showLocked, setShowLocked] = useState(false)
+  const [showLocked, setShowLocked] = useState(true)
   const [guideOpen, setGuideOpen] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) !== 'closed' } catch { return true } })
   const toggleGuide = (open: boolean) => { setGuideOpen(open); try { localStorage.setItem(GUIDE_KEY, open ? 'open' : 'closed') } catch { /* fine */ } }
   return (
