@@ -132,6 +132,7 @@ function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Rules
           <Num id="pr-max" label="Maximum Integrity" value={r.integrity.max} onChange={(n) => set((d) => { d.integrity.max = n })} />
           <Num id="pr-clear" label="Per clear" value={r.integrity.clear} onChange={(n) => set((d) => { d.integrity.clear = n })} />
           <Num id="pr-wipe" label="Per wipe" value={r.integrity.wipe} onChange={(n) => set((d) => { d.integrity.wipe = n })} />
+          <Num id="pr-death" label="Per player death" value={r.integrity.death ?? 0} onChange={(n) => set((d) => { d.integrity.death = n })} />
         </div>
         <p className="small muted">With no clears, the run ends on wipe {wipesToFail}. {clearsPerWipe} clears offset one wipe.</p>
       </fieldset>

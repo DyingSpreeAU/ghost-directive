@@ -101,6 +101,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
           <dl className="int-rules">
             <div><dt>Clear</dt><dd>+{r.clear}</dd></div>
             <div><dt>Wipe</dt><dd>&minus;{r.wipe}</dd></div>
+            {!!r.death && <div><dt>Death</dt><dd>&minus;{r.death}</dd></div>}
             <div><dt>Wipes left</dt><dd>{Math.max(0, Math.ceil(run.integrity / r.wipe) - 1)}</dd></div>
           </dl>
         </div>
@@ -270,7 +271,7 @@ export function VaultPool({ p }: { p: Player }) {
 
 const FILTERS: { label: string; kinds: LogKind[] | null }[] = [
   { label: 'All', kinds: null },
-  { label: 'Encounters', kinds: ['clear', 'wipe', 'chest', 'run'] },
+  { label: 'Encounters', kinds: ['clear', 'wipe', 'death', 'chest', 'run'] },
   { label: 'Unlocks', kinds: ['unlock', 'artifact', 'upgrade'] },
   { label: 'Gear', kinds: ['gear', 'drop', 'trade', 'vault'] },
 ]

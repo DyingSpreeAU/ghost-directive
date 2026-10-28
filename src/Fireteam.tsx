@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_LABEL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, itemsIn, type Item, type Player, type Run, type Warning } from './model'
+import { capacityOf, itemsIn, recordDeath, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -55,7 +55,7 @@ export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
 }
 
 function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player; warnings: Warning[]; showLocked: boolean }) {
-  const { online, me, role, openFlow, canControl } = useGD()
+  const { online, me, role, openFlow, canControl, host, dispatch, toast } = useGD()
   const pend = run.pending.filter((x) => x.playerId === p.id)
   const device = p.clientId === null ? 'No device' : p.clientId === me ? 'You' : online.includes(p.clientId) ? 'Online' : 'Offline'
   return (
@@ -75,6 +75,14 @@ function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player;
           {role === 'host' && p.clientId === null && <button className="link" onClick={() => openFlow({ type: 'reward', pendingId: pend[0].id })}>Resolve for them</button>}
         </div>
       )}
+      <DeathRow run={run} p={p} isHost={role === 'host'} mine={p.clientId === me}
+        record={() => {
+          // The host records for anyone; a player records their own through the host.
+          if (role === 'host') host!.updateRun((r) => recordDeath(r, r.players.find((x) => x.id === p.id)!))
+          else dispatch({ type: 'death' }, p.id)
+          toast(`${p.clientId === me ? 'Your' : `${p.name}'s`} death recorded.`)
+        }}
+        undo={() => { host!.updateRun((r) => undoDeath(r, r.players.find((x) => x.id === p.id)!)); toast(`${p.name}'s last death taken back.`) }} />
       {warnings.length > 0 && (
         <ul className="player-warnings">
           {warnings.map((w) => <li key={w.id} className={`sev-${w.severity}`}>{w.title}</li>)}
@@ -265,5 +273,24 @@ function ArtifactPerks({ p, control }: { p: Player; control: boolean }) {
         </ul>
       )}
     </section>
+  )
+}
+
+/** Each Guardian's death count, with Record death (host: any Guardian; players: their own) and the host's undo. */
+function DeathRow({ run, p, isHost, mine, record, undo }: { run: Run; p: Player; isHost: boolean; mine: boolean; record: () => void; undo: () => void }) {
+  const cost = run.ruleset.integrity.death ?? 0
+  const deaths = p.deaths ?? 0
+  const active = run.status === 'active'
+  return (
+    <div className="death-row">
+      <span className={`death-count ${deaths ? 'has-deaths' : ''}`} title={`${deaths} death${deaths === 1 ? '' : 's'} recorded for ${p.name} this run`}>
+        <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M8 1.5C4.4 1.5 2 3.9 2 7c0 1.9.9 3.3 2.2 4.1V13.5h1.6v-1.3h1.4v1.3h1.6v-1.3h1.4v1.3h1.6v-2.4C13.1 10.3 14 8.9 14 7c0-3.1-2.4-5.5-6-5.5zM5.6 9.3a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8zm4.8 0a1.4 1.4 0 1 1 0-2.8 1.4 1.4 0 0 1 0 2.8z" fill="currentColor" /></svg>
+        Deaths <strong className="mono">{deaths}</strong>
+      </span>
+      {active && (isHost || mine) && (
+        <button className="btn btn-danger btn-sm" onClick={record}>{mine ? 'Record my death' : 'Record death'}{cost > 0 && <small> &minus;{cost}</small>}</button>
+      )}
+      {isHost && deaths > 0 && <button className="link" onClick={undo}>Undo last</button>}
+    </div>
   )
 }

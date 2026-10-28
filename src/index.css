@@ -184,7 +184,7 @@ input[type='range'] { accent-color: var(--light); }
 .int-value .num.tone-danger { color: var(--danger); }
 .int-value .num.tone-warn { color: var(--warn); }
 .int-value .of { font-family: var(--f-mono); color: var(--dim); }
-.int-rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.int-rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(52px, 1fr)); gap: 8px; margin: 0; }
 .int-rules div { display: grid; gap: 2px; }
 .int-rules dt, .proto-stats dt { font-size: 0.7rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.1em; font-family: var(--f-display); }
 .int-rules dd, .proto-stats dd { margin: 0; font-family: var(--f-mono); font-size: 0.95rem; }
@@ -903,3 +903,12 @@ button.ab-chip:hover { border-color: var(--dim); }
 .tiles .tile.tile-empty.is-off { border-style: dashed; box-shadow: none; }
 @media (max-width: 1000px) { .seats.guardian-cols, .seats.guardian-cols.players-2 { grid-template-columns: minmax(0, 1fr); } }
 .g-sec .equipped-subclass > div { padding: 0; background: none; border: 0; box-shadow: none; }
+
+/* ---------------------------------------------------------------- player deaths */
+.death-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.death-count { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-family: var(--f-display); }
+.death-count strong { font-size: 1rem; color: var(--text); letter-spacing: 0; }
+.death-count.has-deaths { color: var(--danger); }
+.death-row .btn-sm small { margin-left: 4px; opacity: 0.8; }
+.death-row .link { font-size: 0.8rem; }
+.death-row .btn-sm { white-space: nowrap; }

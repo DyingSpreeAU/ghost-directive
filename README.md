@@ -104,6 +104,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices. With loadouts hidden, the
   Loadout Archive chest reward, loadout warnings and the protocol's loadout-slot setting are off too.
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
+- **Player deaths**: each Guardian column has a death counter. The host can **Record death** on any
+  Guardian and **Undo last** (restores the Integrity); each player has **Record my death** on their own.
+  The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Grace −2; Iron −7), it's in the
+  Combat Report, and a death that reaches 0 Integrity ends the run.
 - **Saved runs**: every unfinished run is kept in the host's browser (`saved` in the host store,
   localStorage; the app asks the browser for persistent storage). Starting a new lobby or switching
   runs puts the current one aside instead of ending it. The start screen lists them with route

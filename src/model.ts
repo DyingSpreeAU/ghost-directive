@@ -12,7 +12,8 @@ export type Ruleset = {
   name: string
   description: string
   preset: boolean
-  integrity: { start: number; max: number; clear: number; wipe: number }
+  /** `death`: Integrity lost when one Guardian dies (rulesets from before deaths existed have none). */
+  integrity: { start: number; max: number; clear: number; wipe: number; death?: number }
   inventory: { capacity: number; slots: Slot[] }
   rewards: {
     unlockChoices: number
@@ -33,8 +34,8 @@ export type Ruleset = {
 export const PRESETS: Ruleset[] = [
   {
     id: 'standard', name: 'Standard Directive', preset: true,
-    description: 'The baseline: start at 50 Integrity (cap 100), +5 per clear, −15 per wipe, four items per slot. Three wipes before any clears leave 5; a fourth ends the run.',
-    integrity: { start: 50, max: 100, clear: 5, wipe: 15 },
+    description: 'The baseline: start at 50 Integrity (cap 100), +5 per clear, −20 per wipe, −5 per player death, four items per slot. Two wipes before any clears leave 10; a third ends the run.',
+    integrity: { start: 50, max: 100, clear: 5, wipe: 20, death: 5 },
     inventory: { capacity: 4, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
@@ -43,8 +44,8 @@ export const PRESETS: Ruleset[] = [
   },
   {
     id: 'grace', name: 'Guardian’s Grace', preset: true,
-    description: 'A softer run for learning a route: start at 75, wipes cost 10, clears restore 10, and slots hold five items.',
-    integrity: { start: 75, max: 100, clear: 10, wipe: 10 },
+    description: 'A softer run for learning a route: start at 75, wipes cost 10, a player death costs 2, clears restore 10, and slots hold five items.',
+    integrity: { start: 75, max: 100, clear: 10, wipe: 10, death: 2 },
     inventory: { capacity: 5, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
@@ -53,8 +54,8 @@ export const PRESETS: Ruleset[] = [
   },
   {
     id: 'iron', name: 'Iron Protocol', preset: true,
-    description: 'Start at 40 Integrity (cap 60), wipes cost 20, three items per slot, and trade-ups need matching rarity. A second wipe before any clears ends the run.',
-    integrity: { start: 40, max: 60, clear: 5, wipe: 20 },
+    description: 'Start at 40 Integrity (cap 60), wipes cost 20, a player death costs 7, three items per slot, and trade-ups need matching rarity. A second wipe before any clears ends the run.',
+    integrity: { start: 40, max: 60, clear: 5, wipe: 20, death: 7 },
     inventory: { capacity: 3, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
@@ -71,6 +72,7 @@ export function validateRuleset(r: Ruleset): string[] {
   if (start < 1 || start > max) errs.push('Starting Integrity must be between 1 and the maximum.')
   if (clear < 0) errs.push('Clear reward cannot be negative.')
   if (wipe < 1) errs.push('Wipe penalty must be at least 1.')
+  if ((r.integrity.death ?? 0) < 0 || (r.integrity.death ?? 0) > wipe) errs.push('A player death costs 0 up to the wipe penalty.')
   if (r.inventory.capacity < 1 || r.inventory.capacity > 12) errs.push('Slot capacity must be 1–12.')
   if (r.rewards.unlockChoices < 1 || r.rewards.unlockChoices > 5) errs.push('Unlock choices must be 1–5.')
   if (r.tradeUp.inputs < 2 || r.tradeUp.inputs > 8) errs.push('Trade-up inputs must be 2–8.')
@@ -126,6 +128,8 @@ export type Player = {
   loadouts: Loadout[]
   /** Set when the player's device has synced their Bungie account (Netlify build only). */
   bungie?: BungieLink
+  /** Individual deaths recorded this run. */
+  deaths?: number
   /** Bungie instances the player removed from the run (app only), so they aren't detected again. */
   dismissed?: string[]
   /** The Bungie.net account of the player's device, so a new device or session finds this Guardian again. */
@@ -155,7 +159,7 @@ export type BungieLink = {
   restore?: RestorePoint & { at: number }
 }
 
-export type LogKind = 'clear' | 'wipe' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
+export type LogKind = 'clear' | 'wipe' | 'death' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
 
 export type LogEntry = { at: number; kind: LogKind; text: string; delta?: number; integrity?: number; where?: string }
 
@@ -281,6 +285,21 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
     run.endedAt = Date.now()
     log(run, 'run', 'Fireteam Integrity reached zero. The run has ended.')
   }
+}
+
+/** One Guardian died: Integrity drops by the protocol's death cost and their death count goes up. */
+export function recordDeath(run: Run, p: Player) {
+  p.deaths = (p.deaths ?? 0) + 1
+  changeIntegrity(run, -(run.ruleset.integrity.death ?? 0), `${p.name} died (death ${p.deaths}).`, 'death')
+}
+
+/** Takes back a Guardian's last recorded death (a mis-tap): restores the Integrity it cost. */
+export function undoDeath(run: Run, p: Player) {
+  if (!p.deaths) return
+  p.deaths--
+  const cost = run.ruleset.integrity.death ?? 0
+  if (run.status === 'defeat' && cost > 0) { run.status = 'active'; run.endedAt = undefined }
+  changeIntegrity(run, cost, `${p.name}'s last death was taken back.`, 'death')
 }
 
 export function advance(run: Run) {
@@ -507,6 +526,7 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'sync-request' }
+  | { type: 'death' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null }
   | { type: 'remove-item'; itemId: string }
@@ -678,6 +698,11 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       p.inventory = p.inventory.filter((x) => x !== item)
       dismiss(p, [item])
       log(run, 'vault', `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
+      return null
+    }
+    case 'death': {
+      if (run.status !== 'active') return 'The run has ended.'
+      recordDeath(run, p)
       return null
     }
     case 'sync-request': {
