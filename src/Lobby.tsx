@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
-import { ElementMark, EncounterArt, Modal, SortableList, rarityClass } from './ui'
+import { ElementMark, EncounterArt, Modal, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
@@ -111,7 +111,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       {role === 'guest' && !mine && <SeatPicker lobby={lobby} />}
 
-      <section className={`seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}>
+      <section id="seats" className={`section-anchor seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}>
         {lobby.seats.map((s) => {
           const editable = s.clientId === me || (role === 'host' && s.clientId === null)
           return (
@@ -344,7 +344,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
 
   if (!set) {
     return (
-      <section className="panel route-summary">
+      <section id="route" className="panel route-summary section-anchor">
         <div>
           <div className="eyebrow">Protocol</div>
           <strong>{r.name}</strong>
@@ -360,7 +360,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
 
   const setChrono = (n: number) => { setChronoCount(n); set((l) => { l.route = CHRONOLOGICAL_ROUTE.slice(0, n) }) }
   return (
-    <section className="panel host-setup">
+    <section id="route" className="panel host-setup section-anchor">
       <div className="host-setup-col">
         <h2>Protocol</h2>
         <div className="field">
@@ -397,46 +397,131 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
             <span className="mono">{chronoCount}</span>
           </div>
         ) : (
-          <div className="route-builder">
-            <div>
-              <h4 className="flow-sub">Available</h4>
-              <ul className="route-list">
-                {DUNGEONS.filter((d) => !lobby.route.includes(d.id)).map((d) => (
-                  <li key={d.id}><span>{d.name} <small className="muted">{d.released.slice(0, 4)}</small></span><button className="chip" onClick={() => set((l) => { l.route.push(d.id) })}>Add</button></li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="flow-sub">Route order</h4>
-              <SortableList
-                items={lobby.route}
-                keyOf={(id) => id}
-                label={(id) => dungeonById(id).name}
-                onReorder={(next) => set((l) => { l.route = next })}
-                render={(id, i) => (
-                  <>
-                    <span className="sort-name"><span className="mono muted">{i + 1}.</span> {dungeonById(id).name}</span>
-                    <button className="chip" onClick={() => set((l) => { l.route = l.route.filter((x) => x !== id) })}>Remove</button>
-                  </>
-                )}
-              />
-              {lobby.route.length > 1 && <p className="small muted">Drag to reorder.</p>}
-            </div>
-          </div>
+          <RouteTiles route={lobby.route} onChange={(next) => set((l) => { l.route = next })} />
         )}
+        {lobby.expedition === 'chronological' && (
         <div className="route-preview">
-          {lobby.route.map((id) => {
-            const d = dungeonById(id)
-            return (
-              <div key={id} className="route-card">
-                <EncounterArt dungeon={d} encounter={d.encounters[d.encounters.length - 1]} compact />
-                <div><strong>{d.name}</strong><span className="muted small">{d.destination ? <>{d.destination} &middot; </> : null}{d.encounters.length} encounters{chestCount(d) ? ` \u00b7 ${chestCount(d)} chest${chestCount(d) > 1 ? 's' : ''}` : ''}</span></div>
-              </div>
-            )
-          })}
+          {lobby.route.map((id, i) => <div key={id} className="route-card"><RouteCard id={id} n={i + 1} /></div>)}
         </div>
+        )}
       </div>
     </section>
+  )
+}
+
+function RouteCard({ id, n }: { id: string; n?: number }) {
+  const d = dungeonById(id)
+  return (
+    <>
+      <EncounterArt dungeon={d} encounter={d.encounters[d.encounters.length - 1]} compact />
+      {n !== undefined && <span className="route-num mono">{n}</span>}
+      <div className="route-info"><strong>{d.name}</strong><span className="muted small">{d.destination ? <>{d.destination} &middot; </> : null}{d.encounters.length} encounters{chestCount(d) ? ` \u00b7 ${chestCount(d)} chest${chestCount(d) > 1 ? 's' : ''}` : ''}</span></div>
+    </>
+  )
+}
+
+/**
+ * Custom route: the dungeon tiles in run order, dragged into place. Tiles dragged into the box
+ * below are left out of the run. Buttons and arrow keys do the same without a mouse.
+ */
+function RouteTiles({ route, onChange }: { route: string[]; onChange: (next: string[]) => void }) {
+  const excludedOf = (r: string[]) => DUNGEONS.map((d) => d.id).filter((id) => !r.includes(id))
+  type Drag = { id: string; route: string[]; x: number; y: number; dx: number; dy: number; w: number }
+  const [drag, setDragState] = useState<Drag | null>(null)
+  // The latest drag, for a pointer-up that arrives before the last move has rendered.
+  const live = useRef<Drag | null>(null)
+  const setDrag = (d: Drag | null) => { live.current = d; setDragState(d) }
+  const routeRef = useRef<HTMLOListElement>(null)
+  const outRef = useRef<HTMLUListElement>(null)
+  const shown = drag ? drag.route : route
+  const excluded = excludedOf(shown)
+
+  // Where in the route a point falls, reading the tiles left to right, top to bottom.
+  const slotAt = (x: number, y: number, order: string[], held: string) => {
+    const tiles = [...(routeRef.current?.querySelectorAll<HTMLElement>('[data-id]') ?? [])].filter((t) => t.dataset.id !== held)
+    const i = tiles.findIndex((t) => { const r = t.getBoundingClientRect(); return y < r.top || (y <= r.bottom && x < r.left + r.width / 2) })
+    return i === -1 ? order.filter((id) => id !== held).length : i
+  }
+  const inside = (el: Element | null, x: number, y: number) => { const r = el?.getBoundingClientRect(); return !!r && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom }
+
+  const down = (e: React.PointerEvent<HTMLElement>, id: string) => {
+    if (e.button !== 0 || (e.target as HTMLElement).closest('button')) return
+    const r = e.currentTarget.getBoundingClientRect()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ id, route, x: e.clientX, y: e.clientY, dx: e.clientX - r.left, dy: e.clientY - r.top, w: r.width })
+  }
+  const move = (e: React.PointerEvent) => {
+    const drag = live.current
+    if (!drag) return
+    const { clientX: x, clientY: y } = e
+    const rest = drag.route.filter((id) => id !== drag.id)
+    let next = drag.route
+    if (inside(outRef.current, x, y)) next = rest
+    else if (inside(routeRef.current, x, y) || drag.route.includes(drag.id)) {
+      const at = slotAt(x, y, drag.route, drag.id)
+      next = [...rest.slice(0, at), drag.id, ...rest.slice(at)]
+    }
+    setDrag({ ...drag, route: next, x, y })
+  }
+  const up = () => {
+    const drag = live.current
+    if (!drag) return
+    const changed = drag.route.join('|') !== route.join('|')
+    setDrag(null)
+    if (changed) onChange(drag.route)
+  }
+  const key = (e: React.KeyboardEvent, id: string) => {
+    const i = route.indexOf(id)
+    const to = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? i + 1 : -1
+    if (i < 0 || to < 0 || to >= route.length) return
+    e.preventDefault()
+    const next = route.filter((x) => x !== id); next.splice(to, 0, id); onChange(next)
+    requestAnimationFrame(() => routeRef.current?.querySelector<HTMLElement>(`[data-id="${id}"]`)?.focus())
+  }
+  const held = drag && dungeonById(drag.id)
+  // Near the top or bottom of the window while dragging, the page scrolls so the box below can be reached.
+  const pointerY = drag?.y
+  useEffect(() => {
+    if (pointerY === undefined) return
+    const edge = 70
+    const speed = pointerY > innerHeight - edge ? 14 : pointerY < edge ? -14 : 0
+    if (!speed) return
+    const t = setInterval(() => scrollBy(0, speed), 16)
+    return () => clearInterval(t)
+  }, [pointerY])
+
+  return (
+    <div className={`route-tiles ${drag ? 'is-dragging' : ''}`} onPointerMove={move} onPointerUp={up} onPointerCancel={() => setDrag(null)}>
+      <p className="small muted">Drag the dungeons into the order you&rsquo;ll run them. Drag any you want to skip into the box below.</p>
+      <ol className="route-preview route-order" ref={routeRef} aria-label="Route order">
+        {shown.map((id, i) => (
+          <li key={id} data-id={id} tabIndex={0} className={`route-card is-draggable ${drag?.id === id ? 'is-held' : ''}`}
+            aria-label={`${i + 1}. ${dungeonById(id).name}. Arrow keys move it.`}
+            onPointerDown={(e) => down(e, id)} onKeyDown={(e) => key(e, id)} onDragStart={(e) => e.preventDefault()}>
+            <RouteCard id={id} n={i + 1} />
+            <button className="route-x" title="Exclude from the run" aria-label={`Exclude ${dungeonById(id).name}`} onClick={() => onChange(route.filter((x) => x !== id))}>&times;</button>
+          </li>
+        ))}
+        {shown.length === 0 && <li className="route-empty muted small">No dungeons in the route. Drag one up here.</li>}
+      </ol>
+      <div className="route-out">
+        <div className="eyebrow">Excluded &middot; {excluded.length}</div>
+        <ul className="route-preview route-excluded" ref={outRef} aria-label="Excluded dungeons">
+          {excluded.map((id) => (
+            <li key={id} data-id={id} className={`route-card is-draggable is-out ${drag?.id === id ? 'is-held' : ''}`} onPointerDown={(e) => down(e, id)} onDragStart={(e) => e.preventDefault()}>
+              <RouteCard id={id} />
+              <button className="route-x route-add" title="Add to the end of the route" aria-label={`Add ${dungeonById(id).name} to the route`} onClick={() => onChange([...route, id])}>+</button>
+            </li>
+          ))}
+          {excluded.length === 0 && <li className="route-empty muted small">Every dungeon is in the route. Drag one here to skip it.</li>}
+        </ul>
+      </div>
+      {drag && held && (
+        <div className="route-card route-ghost" style={{ left: drag.x - drag.dx, top: drag.y - drag.dy, width: drag.w }} aria-hidden="true">
+          <RouteCard id={drag.id} />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -485,7 +570,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
   const i = r.integrity
   const tu = r.tradeUp
   return (
-    <section className="panel setup-guide" aria-labelledby="setup-guide-title">
+    <section id="setup" className="panel setup-guide section-anchor" aria-labelledby="setup-guide-title">
       <div className="guide-part">
         <div className="eyebrow">Before the first encounter</div>
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
@@ -561,7 +646,7 @@ function useEquipped() {
   // A Send to that passed every check vouches for the subclass and artifact until Bungie's data
   // catches up (data minted after the send), and its own read of the gear stands in for the preview's.
   const [sent, setSent] = useState<{ at: number; gear: SendReport['gear'] } | null>(null)
-  const vouched = !!sent && (!data?.mintedAt || data.mintedAt < sent.at)
+  const vouched = !!sent && (!data?.mintedAt || data.mintedAt < sent.at) && now - sent.at < 5 * 60_000
   const gear = vouched ? sent!.gear : data?.items
   const off = gear ? gear.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
   const empty = gear ? GEAR_SLOTS.filter((slot) => !gear.some((i) => i.slot === slot)) : []

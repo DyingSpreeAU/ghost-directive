@@ -447,45 +447,70 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
 // ------------------------------------------------------------------ Player: swap (overflow)
 
 function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
-  const { dispatch, toast, me } = useGD()
-  const [moving, setMoving] = useState(false)
+  const { dispatch, toast, me, openFlow } = useGD()
+  const [moving, setMoving] = useState<string | null>(null)
+  const [stage, setStage] = useState<'choose' | 'remove'>('choose')
   const p = run.players.find((x) => x.id === playerId)!
   const items = itemsIn(p, slot)
   const cap = capacityOf(run, p)
   const excess = items.length - cap
-  const [sel, setSel] = useState<string[]>([])
+  const tu = run.ruleset.tradeUp
+  const tradeable = items.filter((i) => i.rarity !== 'Exotic')
+  const canTrade = tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
+  const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
+  const toVault = async (it: (typeof items)[number]) => {
+    if (inGame) {
+      setMoving(it.id)
+      const r = await moveInGame(p, [{ name: it.name, instanceId: it.instanceId, to: 'vault' }], toast)
+      setMoving(null)
+      if (!r || r.problems.length) return
+    }
+    dispatch({ type: 'vault', itemIds: [it.id], why: 'over capacity' }, playerId)
+  }
   return (
-    <Modal kicker={`${p.name} · ${slot}`} title={`Over capacity: ${items.length} of ${cap}`} onClose={onClose}
-      footer={<>
-        <button className="btn btn-ghost" onClick={() => { toast('Kept over capacity; the warning stays visible'); onClose() }}>Keep all for now</button>
-        <button className="btn btn-light" disabled={sel.length < excess || moving} onClick={async () => {
-          if (canMoveInGame(p, me)) {
-            setMoving(true)
-            const r = await moveInGame(p, items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
-            setMoving(false)
-            if (!r) return
-          }
-          dispatch({ type: 'vault', itemIds: sel, why: 'over capacity' }, playerId); onClose()
-        }}>
-          {moving ? 'Moving\u2026' : `Move ${sel.length || excess} to Vault`}
-        </button>
-      </>}
+    <Modal kicker={`${p.name} · ${slot}`} title={`${slot} is over capacity: ${items.length} of ${cap}`} onClose={onClose}
+      footer={stage === 'choose'
+        ? <button className="btn btn-ghost" onClick={() => { toast('Kept over capacity; the warning stays visible'); onClose() }}>Decide later</button>
+        : <><button className="btn btn-ghost" onClick={() => setStage('choose')}>Back</button><span className="small muted">{excess} more to go</span></>}
     >
-      <p>Choose {excess} item{excess > 1 ? 's' : ''} to leave the run inventory. {canMoveInGame(p, me) ? `${excess > 1 ? 'They go' : 'It goes'} to your Vault in Destiny 2 when you confirm` : `Move ${excess > 1 ? 'them' : 'it'} to the Vault in Destiny 2`}; dismantling is never required.</p>
-      <ul className="pick-list">
-        {items.map((it) => (
-          <li key={it.id}>
-            <label className={`item ${rarityClass(it.rarity)} ${sel.includes(it.id) ? 'is-picked' : ''}`}>
-              <input type="checkbox" checked={sel.includes(it.id)} onChange={() => setSel(sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id])} />
-              <div className="item-main">
-                <span className="item-name">{it.name}{it.equipped && <span className="tag">Equipped</span>}</span>
-                <span className="item-meta">{it.rarity} &middot; {it.source}</span>
-              </div>
-            </label>
-          </li>
-        ))}
-      </ul>
+      {stage === 'choose' ? (
+        <div className="stack">
+          <p>Your {slot} slot holds {cap} item{cap === 1 ? '' : 's'}, and you now have {items.length}. Make room in one of two ways:</p>
+          <ChoiceGrid>
+            <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
+              <span className="choice-kind">Trade up</span>
+              <strong>Trade {tu.inputs} for 1 Legendary</strong>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
+            </button>
+            <button className="choice" onClick={() => setStage('remove')}>
+              <span className="choice-kind">Remove items</span>
+              <strong>Dismantle or vault {excess === 1 ? 'one item' : `${excess} items`}</strong>
+              <span className="muted">Take {excess === 1 ? 'it' : 'them'} out of your run inventory.</span>
+            </button>
+          </ChoiceGrid>
+        </div>
+      ) : (
+        <div className="stack">
+          <p>For each item you let go: in Destiny 2, <strong>dismantle it</strong>, or <strong>move it to your Vault</strong> if you want to keep it for normal play. Then mark it here to take it out of the run. Remove {excess} to get back to {cap}.</p>
+          <ul className="pick-list">
+            {items.map((it) => (
+              <li key={it.id}>
+                <div className={`item ${rarityClass(it.rarity)}`}>
+                  <div className="item-main">
+                    <span className="item-name">{it.name}{it.equipped && <span className="tag">Equipped</span>}</span>
+                    <span className="item-meta">{it.rarity} &middot; {it.source}</span>
+                  </div>
+                  <div className="item-acts row">
+                    <button className="chip" disabled={!!moving} title={inGame ? 'Send it to your Vault in Destiny 2 and take it out of the run.' : 'You moved it to your Vault in Destiny 2: take it out of the run.'} onClick={() => toVault(it)}>{moving === it.id ? 'Moving\u2026' : inGame ? 'Send to Vault' : 'Vaulted'}</button>
+                    <button className="chip chip-danger" disabled={!!moving} title="You dismantled it in Destiny 2: take it out of the run." onClick={() => { dispatch({ type: 'remove-item', itemId: it.id, dismantled: true }, playerId); toast(`${it.name} dismantled`) }}>Dismantled</button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </Modal>
   )
 }

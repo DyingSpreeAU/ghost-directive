@@ -154,13 +154,13 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               {sel && sel.slot === slot && (
                 <div className={`tile-detail ${rarityClass(sel.rarity)}`} role="group" aria-label={sel.name}>
                   <div className="item-main">
-                    <span className="item-name">{removing ? `Remove ${sel.name} from the app?` : sel.name}</span>
-                    <span className="item-meta">{removing ? 'Only Ghost Directive changes. The item stays in Destiny 2, and Bungie sync won’t add it back.' : <>{sel.rarity} &middot; {sel.source}{sel.equipped ? ' · Equipped' : ''}</>}</span>
+                    <span className="item-name">{removing ? `Dismantled ${sel.name}?` : sel.name}</span>
+                    <span className="item-meta">{removing ? 'It comes out of your run inventory. Press this only once you’ve dismantled it in Destiny 2.' : <>{sel.rarity} &middot; {sel.source}{sel.equipped ? ' · Equipped' : ''}</>}</span>
                   </div>
                   {control && (removing ? (
                     <div className="item-acts row">
-                      <button className="chip chip-danger" onClick={() => { dispatch({ type: 'remove-item', itemId: sel.id }, p.id); setSelected(null); setRemoving(false); toast(`${sel.name} removed from the run (still in Destiny 2)`) }}>Remove</button>
-                      <button className="chip" onClick={() => setRemoving(false)}>Keep</button>
+                      <button className="chip chip-danger" onClick={() => { dispatch({ type: 'remove-item', itemId: sel.id, dismantled: true }, p.id); setSelected(null); setRemoving(false); toast(`${sel.name} dismantled and removed from the run`) }}>Yes, dismantled</button>
+                      <button className="chip" onClick={() => setRemoving(false)}>Cancel</button>
                     </div>
                   ) : (
                     <div className="item-acts row">
@@ -175,7 +175,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                         dispatch({ type: 'vault', itemIds: [sel.id], why: 'player choice' }, p.id); setSelected(null)
                         if (!inGame) toast(`${sel.name} taken out of the run. Move it to your Vault in Destiny 2.`)
                       }}>{moving ? 'Moving\u2026' : 'To Vault'}</button>
-                      <button className="chip chip-quiet" title="Remove from Ghost Directive only. Nothing changes in Destiny 2." onClick={() => setRemoving(true)}>Remove</button>
+                      <button className="chip chip-quiet" title="You dismantled it in Destiny 2: take it out of the run." onClick={() => setRemoving(true)}>Dismantled</button>
                     </div>
                   ))}
                 </div>

@@ -186,6 +186,15 @@ type ProfileResponse = {
   }
 }
 
+/**
+ * When Bungie produced the inventory data: the secondary components' time, else the response's.
+ * Bungie sends 0001-01-01 for the secondary time when it doesn't apply, so that one is ignored.
+ */
+function mintedAt(p: ProfileResponse): number | null {
+  const valid = (t?: string) => { const ms = t ? Date.parse(t) : NaN; return ms > Date.UTC(2017, 0) ? ms : null }
+  return valid(p.secondaryComponentsMintedTimestamp) ?? valid(p.responseMintedTimestamp)
+}
+
 export type BungieSnapshot = {
   name: string
   character: string
@@ -291,7 +300,7 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     vault, vaultItems: vaultItems.length, owned, equipped, instances,
     subclass: charId ? await readSubclass(p, charId, cls).catch(() => null) : null,
     artifact: charId ? await readArtifact(p, charId).catch(() => null) : null,
-    mintedAt: (() => { const m = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp; return m ? Date.parse(m) : null })(),
+    mintedAt: mintedAt(p),
     restore: charId ? restorePoint(p, charId, items) : null,
     emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
     exotics: collectedExotics(p, exoticRows, cls, owned),
@@ -401,10 +410,9 @@ export async function fetchEquipped(): Promise<EquippedPreview> {
     .filter((r): r is ItemRow => !!r)
     .map((r) => ({ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]] }))
     .sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot))
-  const minted = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp
   const cls = CLASS_NAME[c.classType] ?? 'Hunter'
   const emblem = c.emblemPath && c.emblemBackgroundPath ? { icon: c.emblemPath, background: c.emblemBackgroundPath } : null
-  return { name, cls, light: c.light, online, emblem, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), artifact: await readArtifact(p, id).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
+  return { name, cls, light: c.light, online, emblem, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), artifact: await readArtifact(p, id).catch(() => null), mintedAt: mintedAt(p), fetchedAt: Date.now() }
 }
 
 // ------------------------------------------------------------------ equipped subclass

@@ -366,10 +366,22 @@ export function exoticChoices(p: Player): VaultEntry[] {
   const unlocked = p.bungie?.exotics ? new Set(p.bungie.exotics.unlocked) : null
   const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name) && (!unlocked || unlocked.has(e.name)))
   // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
-  return favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
+  const picks = favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
     .slice(0, 3)
-    .map((e) => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
+    .map((e): VaultEntry => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
+  // Prismatic only: now and then an Exotic class item takes a spot, but only one the player has in their Vault.
+  const classItem = EXOTIC_CLASS_ITEM[p.cls]
+  if (p.element === 'Prismatic' && p.bungie?.exotics?.held.includes(classItem) && !owned.has(classItem) && Math.random() < 0.5) {
+    picks.splice(Math.floor(Math.random() * Math.max(1, picks.length)), picks.length >= 3 ? 1 : 0, {
+      name: classItem, slot: 'Class Item', rarity: 'Exotic', element: 'Prismatic', archetype: 'Exotic Class Item',
+      note: 'Two Exotic perks from other Exotics, rolled per copy. Pick it to use the copy in your Vault.',
+    })
+  }
+  return picks
 }
+
+/** Each class's Prismatic Exotic class item. */
+const EXOTIC_CLASS_ITEM: Record<ClassType, string> = { Titan: 'Stoicism', Hunter: 'Relativism', Warlock: 'Solipsism' }
 
 export const vaultPool = (p: Player) => (p.vault.length ? p.vault : EXAMPLE_VAULT)
 
@@ -536,7 +548,7 @@ export type Intent =
   | { type: 'death' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null }
-  | { type: 'remove-item'; itemId: string }
+  | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
 
 const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
@@ -710,7 +722,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (!item) return 'Item not in your run inventory.'
       p.inventory = p.inventory.filter((x) => x !== item)
       dismiss(p, [item])
-      log(run, 'vault', `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
+      log(run, 'vault', it.dismantled ? `${p.name} dismantled ${item.name}.` : `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
       return null
     }
     case 'death': {

@@ -1,4 +1,4 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
@@ -420,15 +420,81 @@ function GuestApp({ code, onLeave }: { code: string; onLeave: () => void }) {
 
 // ====================================================================== shell
 
-const NAV: { view: View; anchor?: string; label: string; short: string; hostOnly?: boolean }[] = [
-  { view: 'briefing', label: 'Mission Briefing', short: 'Briefing' },
-  { view: 'briefing', anchor: 'archive', label: 'Subclass Archive', short: 'Archive' },
-  { view: 'briefing', anchor: 'artifact', label: 'Artifact Research', short: 'Artifact' },
-  { view: 'briefing', anchor: 'arsenal', label: 'Field Arsenal', short: 'Arsenal' },
+type NavItem = { view: View; anchor?: string; label: string; short: string; hostOnly?: boolean }
+/** Sections of the run page, in page order; `top` is the head of the page. */
+const RUN_NAV: NavItem[] = [
+  { view: 'briefing', anchor: 'top', label: 'Mission Briefing', short: 'Briefing' },
+  { view: 'briefing', anchor: 'arsenal', label: 'Fireteam', short: 'Fireteam' },
   { view: 'briefing', anchor: 'report', label: 'Combat Report', short: 'Report' },
+]
+/** Sections of the lobby page, in page order. */
+const LOBBY_NAV: NavItem[] = [
+  { view: 'briefing', anchor: 'top', label: 'Lobby', short: 'Lobby' },
+  { view: 'briefing', anchor: 'setup', label: 'Setup and rules', short: 'Rules' },
+  { view: 'briefing', anchor: 'seats', label: 'Guardians', short: 'Guardians' },
+  { view: 'briefing', anchor: 'route', label: 'Protocol and route', short: 'Route' },
+]
+const PAGE_NAV: NavItem[] = [
   { view: 'protocols', label: 'Protocol Rulesets', short: 'Protocols', hostOnly: true },
   { view: 'history', label: 'Run History', short: 'History', hostOnly: true },
 ]
+
+/** The section of the page currently in view: the last one whose top has passed the upper third of the window. */
+function useActiveSection(ids: string[], enabled: boolean) {
+  const [active, setActive] = useState(ids[0])
+  // After a click the marker goes straight to the target; scroll positions are ignored while the page glides there.
+  const lock = useRef(0)
+  const key = ids.join('|')
+  useEffect(() => {
+    if (!enabled) return
+    let frame = 0
+    const measure = () => {
+      frame = 0
+      if (Date.now() < lock.current) return
+      const line = innerHeight * 0.33
+      let on = ids[0]
+      if (ids[0] === 'top' && scrollY < 60) { setActive('top'); return }
+      for (const id of ids) {
+        const el = id === 'top' ? null : document.getElementById(id)
+        if (el && el.getBoundingClientRect().top <= line) on = id
+      }
+      // At the very bottom, the last section counts even if it's short.
+      if (innerHeight + scrollY >= document.documentElement.scrollHeight - 4) on = ids.filter((id) => id === 'top' || document.getElementById(id)).pop() ?? on
+      setActive(on)
+    }
+    const onScroll = () => { if (!frame) frame = requestAnimationFrame(measure) }
+    measure()
+    addEventListener('scroll', onScroll, { passive: true })
+    addEventListener('resize', onScroll)
+    const t = setInterval(measure, 1000) // sections can grow or appear without a scroll
+    return () => { removeEventListener('scroll', onScroll); removeEventListener('resize', onScroll); clearInterval(t); if (frame) cancelAnimationFrame(frame) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, enabled])
+  const jump = useCallback((id: string) => { lock.current = Date.now() + 900; setActive(id) }, [])
+  return [active, jump] as const
+}
+
+/** Sidebar links with a highlight that slides to the active one. */
+function SideNav({ items, isOn, onGo, badge }: { items: NavItem[]; isOn: (n: NavItem) => boolean; onGo: (n: NavItem) => void; badge?: (n: NavItem) => React.ReactNode }) {
+  const ref = useRef<HTMLElement>(null)
+  const [bar, setBar] = useState<{ top: number; height: number } | null>(null)
+  const on = items.findIndex(isOn)
+  useLayoutEffect(() => {
+    const el = on >= 0 ? ref.current?.querySelectorAll<HTMLElement>('.nav-link')[on] : null
+    setBar(el ? { top: el.offsetTop, height: el.offsetHeight } : null)
+  }, [on, items.length])
+  return (
+    <nav className="nav" ref={ref}>
+      {bar && <span className="nav-marker" style={{ transform: `translateY(${bar.top}px)`, height: bar.height }} aria-hidden="true" />}
+      {items.map((n, i) => (
+        <button key={n.label} className={`nav-link ${i === on ? 'is-on' : ''}`} aria-current={i === on ? 'location' : undefined} onClick={() => onGo(n)}>
+          <span>{n.label}</span>
+          {badge?.(n)}
+        </button>
+      ))}
+    </nav>
+  )
+}
 
 function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'>; toastRef: React.MutableRefObject<(m: string) => void> }) {
   const [view, setView] = useState<View>('briefing')
@@ -454,9 +520,9 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const go = useCallback((v: View, anchor?: string) => {
     setView(v)
     requestAnimationFrame(() => {
-      const el = anchor ? document.getElementById(anchor) : null
+      const el = anchor && anchor !== 'top' ? document.getElementById(anchor) : null
       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      else window.scrollTo({ top: 0 })
+      else window.scrollTo({ top: 0, behavior: anchor === 'top' ? 'smooth' : 'auto' })
     })
   }, [])
 
@@ -487,8 +553,11 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const warnings = run ? computeWarnings(run) : []
   const crit = warnings.filter((w) => w.severity === 'critical').length
   const code = run?.code ?? lobby?.code ?? ''
-  const nav = NAV.filter((n) => !n.hostOnly || role === 'host')
+  const sections = run ? RUN_NAV : lobby ? LOBBY_NAV : []
+  const pages = PAGE_NAV.filter((n) => !n.hostOnly || role === 'host')
+  const nav = [...sections, ...pages]
   const inRun = !!run && view === 'briefing'
+  const [section, setSection] = useActiveSection(sections.map((n) => n.anchor!), view === 'briefing')
 
   return (
     <GDContext.Provider value={ctx}>
@@ -502,19 +571,12 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
             </div>
           </div>
           <LobbyBadge />
-          <nav className="nav">
-            {nav.map((n) => (
-              <button
-                key={n.label}
-                className={`nav-link ${!n.anchor && view === n.view ? 'is-on' : ''}`}
-                onClick={() => go(n.view, n.anchor)}
-                disabled={!!n.anchor && !run}
-              >
-                <span>{n.view === 'briefing' && !n.anchor && !run ? 'Lobby' : n.label}</span>
-                {n.view === 'briefing' && !n.anchor && crit > 0 && <span className="badge-crit">{crit}</span>}
-              </button>
-            ))}
-          </nav>
+          <SideNav
+            items={nav}
+            isOn={(n) => (n.anchor ? view === 'briefing' && section === n.anchor : view === n.view)}
+            onGo={(n) => { if (n.anchor) setSection(n.anchor); go(n.view, n.anchor) }}
+            badge={(n) => (n.anchor === 'top' && crit > 0 ? <span className="badge-crit">{crit}</span> : null)}
+          />
           <div className="sidebar-foot">
             <button className="link" onClick={base.leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
             <p>{role === 'host' ? 'The run lives in this browser. Close the window any time; it resumes here.' : 'The host’s browser keeps the run. You control your own Guardian.'}</p>
@@ -535,9 +597,9 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
         </main>
 
         <nav className="tabbar" aria-label="Sections">
-          {(inRun ? nav.filter((n) => ['Briefing', 'Arsenal', 'Archive', 'Report'].includes(n.short)) : nav.filter((n) => !n.anchor)).map((n) => (
-            <button key={n.short} onClick={() => go(n.view, n.anchor)} className={view === n.view && !n.anchor ? 'is-on' : ''}>
-              {n.view === 'briefing' && !n.anchor && !run ? 'Lobby' : n.short}
+          {nav.map((n) => (
+            <button key={n.short} onClick={() => { if (n.anchor) setSection(n.anchor); go(n.view, n.anchor) }} className={(n.anchor ? view === 'briefing' && section === n.anchor : view === n.view) ? 'is-on' : ''}>
+              {n.short}
             </button>
           ))}
           {role === 'guest' && !inRun && <button onClick={base.leave}>Leave</button>}
