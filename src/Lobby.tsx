@@ -348,7 +348,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
         <div>
           <div className="eyebrow">Protocol</div>
           <strong>{r.name}</strong>
-          <p className="small muted">{r.integrity.start} Integrity, +{r.integrity.clear} per clear, &minus;{r.integrity.wipe} per wipe, {r.inventory.capacity} items per slot.</p>
+          <p className="small muted">{r.integrity.start} Integrity, +{r.integrity.clear} per clear, &minus;{r.integrity.wipe} per wipe, {r.inventory.capacity} item slots per gear slot.</p>
         </div>
         <div>
           <div className="eyebrow">{lobby.expedition === 'chronological' ? 'Chronological Expedition' : 'Custom Expedition'}</div>
@@ -377,7 +377,7 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
           <div><dt>Clear</dt><dd>+{r.integrity.clear}</dd></div>
           <div><dt>Wipe</dt><dd>&minus;{r.integrity.wipe}</dd></div>
           <div><dt>Guardian death</dt><dd>{r.integrity.death ? <>&minus;{r.integrity.death}</> : '0'}</dd></div>
-          <div><dt>Starting Slot Cap</dt><dd>{r.inventory.capacity}</dd></div>
+          <div><dt>Starting Item Slots</dt><dd>{r.inventory.capacity}</dd></div>
         </dl>
         <div className="field">
           <label htmlFor="run-name">Run name (optional)</label>

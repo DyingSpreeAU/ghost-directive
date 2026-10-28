@@ -56,7 +56,7 @@ export function Protocols() {
                 <div><dt>Start</dt><dd>{p.integrity.start}/{p.integrity.max}</dd></div>
                 <div><dt>Clear</dt><dd>+{p.integrity.clear}</dd></div>
                 <div><dt>Wipe</dt><dd>&minus;{p.integrity.wipe}</dd></div>
-                <div><dt>Starting Slot Cap</dt><dd>{p.inventory.capacity}</dd></div>
+                <div><dt>Starting Item Slots</dt><dd>{p.inventory.capacity}</dd></div>
                 <div><dt>Trade-up</dt><dd>{p.tradeUp.enabled ? `${p.tradeUp.inputs}→${p.tradeUp.options}` : 'Off'}</dd></div>
                 <div><dt>Overflow</dt><dd>{p.overflow === 'guided' ? 'Swap' : 'Warn'}</dd></div>
               </dl>
@@ -140,7 +140,7 @@ function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Rules
       <fieldset>
         <legend>Inventory</legend>
         <div className="field-grid">
-          <Num id="pr-cap" label="Items per slot" value={r.inventory.capacity} onChange={(n) => set((d) => { d.inventory.capacity = n })} hint="Includes the equipped item" />
+          <Num id="pr-cap" label="Starting item slots" value={r.inventory.capacity} onChange={(n) => set((d) => { d.inventory.capacity = n })} hint="Includes the equipped item" />
           {/* Starting loadout slots: hidden while saved loadouts are. */}
           <div className="field">
             <label htmlFor="pr-ovf">When a reward overflows</label>
