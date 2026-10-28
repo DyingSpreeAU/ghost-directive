@@ -127,9 +127,16 @@
 @keyframes xp-flip { to { transform: none; background: color-mix(in srgb, var(--light) 10%, var(--hull)); } }
 @keyframes xp-face { to { opacity: 1; } }
 @keyframes xp-glow { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--light) 60%, transparent); } }
-.xp-bonus { position: absolute; top: -18px; right: -24px; padding: 4px 10px; background: var(--light); color: var(--light-ink); font: 700 0.85rem var(--f-display); letter-spacing: 0.12em; opacity: 0; transform: scale(0.4) rotate(-8deg); }
+.xp-rewards { display: grid; gap: 22px; justify-items: center; }
+.xp-bonus { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border: 1px solid var(--light); background: color-mix(in srgb, var(--light) 8%, var(--ink)); font-family: var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; opacity: 0; transform: translateY(14px) scale(0.92); box-shadow: 0 0 22px color-mix(in srgb, var(--light) 30%, transparent); }
+.xp-bonus-tag { padding: 2px 8px; background: var(--light); color: var(--light-ink); font-weight: 700; letter-spacing: 0.12em; }
+.xp-bonus-slot { color: var(--text); }
+.xp-bonus-arrow { color: var(--dim); }
+.xp-bonus .t-rare { opacity: 0.25; }
 .xp-sec.is-in .xp-bonus { animation: xp-bonus 0.6s 1.6s forwards cubic-bezier(0.3, 1.6, 0.5, 1); }
-@keyframes xp-bonus { to { opacity: 1; transform: rotate(-8deg); } }
+.xp-sec.is-in .xp-bonus .t-rare { animation: xp-tierup 0.5s 2.3s forwards; }
+@keyframes xp-bonus { to { opacity: 1; transform: none; } }
+@keyframes xp-tierup { 50% { opacity: 1; text-shadow: 0 0 12px currentColor; transform: scale(1.15); } to { opacity: 1; } }
 
 /* ---- 06 arsenal */
 .xp-trade { position: relative; width: 300px; height: 200px; }
@@ -166,7 +173,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .xp *, .xp::before { animation: none !important; transition: none !important; }
-  .xp-copy > *, .xp-pop, .xp-card-face, .xp-out, .xp-bonus { opacity: 1; transform: none; }
+  .xp-copy > *, .xp-pop, .xp-card-face, .xp-out, .xp-bonus, .xp-bonus .t-rare { opacity: 1; transform: none; }
   .xp-draw, .xp-ghost path { stroke-dashoffset: 0; }
   .xp-rung { opacity: 1; }
   .xp-card { transform: none; }

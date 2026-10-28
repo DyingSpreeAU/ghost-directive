@@ -127,16 +127,24 @@ function TierArt() {
   )
 }
 
-/** Three reward cards turn over; one sparks with a BONUS. */
+/** Three reward cards turn over; then, separately, a BONUS tier-up for one slot. */
 function RewardArt() {
   return (
-    <div className="xp-cards">
-      {['Ability', 'Exotic', 'Artifact perk'].map((t, i) => (
-        <div key={t} className="xp-card" style={{ ['--d' as string]: `${0.2 + i * 0.25}s` }}>
-          <span className="xp-card-face">{t}</span>
-        </div>
-      ))}
-      <span className="xp-bonus">BONUS!</span>
+    <div className="xp-rewards">
+      <div className="xp-cards">
+        {['Ability', 'Exotic', 'Artifact perk'].map((t, i) => (
+          <div key={t} className="xp-card" style={{ ['--d' as string]: `${0.2 + i * 0.25}s` }}>
+            <span className="xp-card-face">{t}</span>
+          </div>
+        ))}
+      </div>
+      <div className="xp-bonus">
+        <span className="xp-bonus-tag">BONUS!</span>
+        <span className="xp-bonus-slot">Kinetic</span>
+        <span className="tier-word t-uncommon">Uncommon</span>
+        <span className="xp-bonus-arrow">&rarr;</span>
+        <span className="tier-word t-rare">Rare</span>
+      </div>
     </div>
   )
 }
