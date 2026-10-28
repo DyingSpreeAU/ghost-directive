@@ -181,6 +181,11 @@ export type Run = {
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
 
+/** True for a name the app gave a seat or Guardian ("Guardian 2"), which a Bungie name may replace. */
+export const isDefaultName = (name: string) => /^Guardian \d+$/.test(name.trim())
+/** A Bungie name without its trailing "#1234" code; only the last "#" and its digits go. */
+export const bungieDisplayName = (bungieName: string) => bungieName.replace(/#\d+$/, '').trim().slice(0, 24)
+
 export function newPlayer(n: number, cls: ClassType, element: Element): Player {
   return {
     id: uid(), clientId: null, name: `Guardian ${n}`, cls, element, isHost: n === 1,
@@ -621,6 +626,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
       const prevRestore = p.bungie?.restore
+      const shown = bungieDisplayName(str(it.name, 40))
+      if (shown && isDefaultName(p.name)) { log(run, 'run', `${p.name} is now ${shown} (Bungie name).`); p.name = shown }
       p.vault = vault
       const sub = it.subclass && typeof it.subclass === 'object' && ELEMENTS.includes((it.subclass as { element: Element }).element)
         ? { name: str((it.subclass as { name: unknown }).name, 40), element: (it.subclass as { element: Element }).element } : undefined

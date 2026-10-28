@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
-import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, defaultStarter, newSeat, runFromLobby, type Lobby, type Seat } from './model'
+import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SortableList, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
@@ -30,6 +30,12 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   // Signed-in players: live equipped gear, used to fill their seat once and to warn before readying up.
   const eq = useEquipped()
   useAutofill(eq, mine, (patch) => { if (mine) patchSeat(mine, patch) }, toast)
+  // A seat still called "Guardian N" takes the player's Bungie name; a name they typed stays.
+  const bungieName = eq.data ? bungieDisplayName(eq.data.name) : ''
+  useEffect(() => {
+    if (mine && bungieName && isDefaultName(mine.name)) patchSeat(mine, { name: bungieName })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bungieName, mine?.id, mine?.name])
   const notice = mine && eq.active && eq.data ? <SyncNotice eq={eq} compact /> : undefined
   // Fetch the active character fresh and fill the player's seat from it.
   const syncSeat = () => eq.refresh().then((d) => {
