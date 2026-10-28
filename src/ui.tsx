@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ELEMENT_COLOR, dungeonArt, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
+import solarIcon from './assets/elements/solar.png'
+import arcIcon from './assets/elements/arc.png'
+import voidIcon from './assets/elements/void.png'
+import stasisIcon from './assets/elements/stasis.png'
+import strandIcon from './assets/elements/strand.png'
+import { dungeonArt, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
 
 export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; xwide?: boolean; footer?: ReactNode }) {
   const { onClose } = props
@@ -28,11 +33,21 @@ export function Modal(props: { title: string; kicker?: string; onClose?: () => v
 
 export const rarityClass = (r: Rarity) => `r-${r.toLowerCase()}`
 
+/** Element symbols: Bungie's damage-type icons (bundled); Prismatic, which has none, gets a matching prism. */
+const ELEMENT_ICON: Partial<Record<Element, string>> = { Solar: solarIcon, Arc: arcIcon, Void: voidIcon, Stasis: stasisIcon, Strand: strandIcon }
+
 export function ElementMark({ element, size = 14 }: { element: Element; size?: number }) {
+  const src = ELEMENT_ICON[element]
+  if (src) return <img src={src} width={size} height={size} alt="" aria-hidden="true" className="el-mark" />
   return (
-    <svg width={size} height={size} viewBox="0 0 16 16" aria-hidden="true" className="el-mark">
-      <path d="M8 1 L15 8 L8 15 L1 8 Z" fill="none" stroke={ELEMENT_COLOR[element]} strokeWidth="1.6" />
-      <path d="M8 5 L11 8 L8 11 L5 8 Z" fill={ELEMENT_COLOR[element]} />
+    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="el-mark">
+      <defs>
+        <linearGradient id="prism-g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#ffb3e6" /><stop offset="0.5" stopColor="#e07ad6" /><stop offset="1" stopColor="#8f6cf0" />
+        </linearGradient>
+      </defs>
+      <path d="M16 2 L28 11 L23 29 L9 29 L4 11 Z" fill="url(#prism-g)" />
+      <path d="M16 2 L16 18 M4 11 L16 18 L28 11 M16 18 L9 29 M16 18 L23 29" stroke="#2a1530" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
     </svg>
   )
 }

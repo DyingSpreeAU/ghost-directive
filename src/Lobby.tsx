@@ -264,7 +264,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
             <div className="el-pick" role="radiogroup" aria-label="Committed subclass">
               {ELEMENTS.map((el) => (
                 <button key={el} role="radio" aria-checked={seat.element === el} className={seat.element === el ? 'is-on' : ''} style={{ ['--el' as string]: ELEMENT_COLOR[el] }} onClick={() => onPatch({ element: el })}>
-                  <ElementMark element={el} size={18} /><span>{el}</span>
+                  <ElementMark element={el} size={24} /><span>{el}</span>
                 </button>
               ))}
             </div>
