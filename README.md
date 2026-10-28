@@ -195,6 +195,13 @@ its own read shows a grey/green weapon and grey armor piece (with an instance id
 the seat is marked ready straight away, and the lobby trusts the subclass and artifact until Bungie
 returns data minted after the send.
 
+**Inventory actions move items in game** (signed-in player's own device, `moveItems` in `src/bungie.ts`):
+To Vault on a run item sends it to the Vault first and only takes it out of the run if that worked;
+trade-ups send the four inputs to the Vault and pull the pick to the run character; overflow swaps send
+the chosen items to the Vault; claiming a final-boss Vault weapon or owned Exotic pulls it to the
+character (Exotics only in Collections must be claimed in game). Equipped items are reported, not moved.
+Equipping is not offered during a run; it stays with Send to and Restore my Guardian.
+
 **Restore my Guardian** (Field Arsenal, signed-in players). Each sync where everything equipped is
 part of the run and the subclass matches records a restore point: the character, the equipped
 instance ids, the subclass's socket plugs and the artifact with its perks (`BungieLink.restore`). Syncs while playing other gear

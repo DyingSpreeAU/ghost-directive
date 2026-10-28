@@ -913,3 +913,61 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType): Promi
   }))
   return out
 }
+
+// ------------------------------------------------------------------ run inventory moves (Vault ⇄ run character)
+
+export type MoveOp = { name: string; instanceId?: string; to: 'vault' | 'character' }
+export type MoveResult = {
+  character: string
+  /** Items moved, as "Name → Vault" / "Name → Hunter". */
+  moved: string[]
+  problems: string[]
+  /** Instance ids of items pulled to the character, by name, so the run can track the exact copy. */
+  pulled: Record<string, string>
+}
+
+/**
+ * Moves weapons and armor between the Vault and the player's run character (the character their
+ * last clean sync recorded, else their most recently played one of the run's class). Items on
+ * another character go via the Vault. Equipped items can't be moved; those are reported.
+ */
+export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResult> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205,300`)
+  const chars = p.characters?.data ?? {}
+  const point = player.bungie?.restore
+  const charId = point && chars[point.characterId]?.classType === CLASS_TYPE[player.cls] ? point.characterId : pickCharacter(p, player.cls)?.id
+  if (!charId) throw new BungieError(`There's no ${player.cls} on this account.`)
+  const out: MoveResult = { character: player.cls, moved: [], problems: [], pulled: {} }
+  const held = holdings(p, items)
+  const power = (h: Held) => p.itemComponents?.instances?.data?.[h.instanceId]?.primaryStat?.value ?? 0
+  const used = new Set<string>()
+  const move = (h: Held, toVault: boolean, characterId: string) =>
+    api('/Destiny2/Actions/Items/TransferItem/', { itemReferenceHash: h.itemHash, stackSize: 1, transferToVault: toVault, itemId: h.instanceId, characterId, membershipType: mem.membershipType })
+
+  for (const op of ops) {
+    const copies = held.filter((h) => !used.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name))
+    // Pulling: the best copy not already on the character (Vault first). Vaulting: the copy on the character.
+    const pick = op.to === 'character'
+      ? copies.find((h) => h.where === charId) ?? copies.filter((h) => h.where !== 'postmaster').sort((a, b) => Number(b.where === 'vault') - Number(a.where === 'vault') || power(b) - power(a))[0]
+      : copies.find((h) => h.where === charId && !h.equipped) ?? copies.find((h) => h.where !== 'vault' && h.where !== 'postmaster') ?? copies.find((h) => h.where === 'vault')
+    if (!pick) { out.problems.push(op.to === 'character' ? `${op.name}: not on your account (claim it from Collections in game)` : `${op.name}: not found on your account`); continue }
+    used.add(pick.instanceId)
+    if (op.to === 'character' && pick.where === charId) { out.pulled[op.name] = pick.instanceId; out.moved.push(`${op.name} is already on your ${player.cls}`); continue }
+    if (op.to === 'vault' && pick.where === 'vault') { out.moved.push(`${op.name} is already in the Vault`); continue }
+    if (pick.equipped) { out.problems.push(`${op.name}: equipped${pick.where === charId ? '' : ' on another character'}; swap it out in game first`); continue }
+    try {
+      if (op.to === 'vault') await move(pick, true, pick.where)
+      else {
+        if (pick.where !== 'vault') await move(pick, true, pick.where)
+        await move(pick, false, charId)
+        out.pulled[op.name] = pick.instanceId
+      }
+      out.moved.push(`${op.name} → ${op.to === 'vault' ? 'Vault' : player.cls}`)
+    } catch (e) {
+      if (noScope(e)) throw new BungieError(actionMessage(e))
+      out.problems.push(`${op.name}: ${actionMessage(e)}`)
+    }
+  }
+  return out
+}

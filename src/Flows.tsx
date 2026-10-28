@@ -7,6 +7,7 @@ import {
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, rarityClass } from './ui'
 import { useIcons } from './icons'
+import { canMoveInGame, moveInGame } from './gearMoves'
 import { bungieConfigured, isSignedIn } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
@@ -128,6 +129,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops }, p.id)
     toast('Rewards recorded')
     onClose()
+    // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
+    if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, to: 'character' }], toast)
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
 
@@ -399,7 +402,8 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
 // ------------------------------------------------------------------ Player: swap (overflow)
 
 function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
-  const { dispatch, toast } = useGD()
+  const { dispatch, toast, me } = useGD()
+  const [moving, setMoving] = useState(false)
   const p = run.players.find((x) => x.id === playerId)!
   const items = itemsIn(p, slot)
   const cap = capacityOf(run, p)
@@ -410,12 +414,20 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
     <Modal kicker={`${p.name} · ${slot}`} title={`Over capacity: ${items.length} of ${cap}`} onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={() => { toast('Kept over capacity; the warning stays visible'); onClose() }}>Keep all for now</button>
-        <button className="btn btn-light" disabled={sel.length < excess} onClick={() => { dispatch({ type: 'vault', itemIds: sel, why: 'over capacity' }, playerId); onClose() }}>
-          Move {sel.length || excess} to Vault
+        <button className="btn btn-light" disabled={sel.length < excess || moving} onClick={async () => {
+          if (canMoveInGame(p, me)) {
+            setMoving(true)
+            const r = await moveInGame(p, items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
+            setMoving(false)
+            if (!r) return
+          }
+          dispatch({ type: 'vault', itemIds: sel, why: 'over capacity' }, playerId); onClose()
+        }}>
+          {moving ? 'Moving\u2026' : `Move ${sel.length || excess} to Vault`}
         </button>
       </>}
     >
-      <p>Choose {excess} item{excess > 1 ? 's' : ''} to leave the run inventory. Move {excess > 1 ? 'them' : 'it'} to the Vault in Destiny 2; dismantling is never required.</p>
+      <p>Choose {excess} item{excess > 1 ? 's' : ''} to leave the run inventory. {canMoveInGame(p, me) ? `${excess > 1 ? 'They go' : 'It goes'} to your Vault in Destiny 2 when you confirm` : `Move ${excess > 1 ? 'them' : 'it'} to the Vault in Destiny 2`}; dismantling is never required.</p>
       <ul className="pick-list">
         {items.map((it) => (
           <li key={it.id}>
@@ -436,7 +448,8 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
 // ------------------------------------------------------------------ Player: trade-up
 
 function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
-  const { dispatch, toast } = useGD()
+  const { dispatch, toast, me } = useGD()
+  const [moving, setMoving] = useState(false)
   const tu = run.ruleset.tradeUp
   const p = run.players.find((x) => x.id === playerId)!
   const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
@@ -450,25 +463,33 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
     if (sel.length >= tu.inputs) return false
     return !tu.sameRarity || !selRarity || items.find((i) => i.id === id)!.rarity === selRarity
   }
-  const commit = () => {
+  const inGame = canMoveInGame(p, me)
+  const commit = async () => {
     if (!choice) return
+    // Signed in on their own device: the inputs go to the Vault and the pick comes to the character in game.
+    if (inGame) {
+      setMoving(true)
+      const ops = [...items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), { name: choice.name, to: 'character' as const }]
+      const r = await moveInGame(p, ops, toast)
+      setMoving(false)
+      if (!r) return
+    } else toast(`Traded up for ${choice.name}`)
     dispatch({ type: 'tradeup', inputIds: sel, choice }, playerId)
-    toast(`Traded up for ${choice.name}`)
     onClose()
   }
   return (
     <Modal kicker={`${p.name} · ${slot}`} title={stage === 'inputs' ? `Trade up: select ${tu.inputs} items` : 'Choose your Legendary'} onClose={onClose} wide
       footer={stage === 'inputs' ? <>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-light" disabled={sel.length !== tu.inputs} onClick={() => { setOptions(tradeUpChoices(run, p, slot)); setStage('pick') }}>I moved these to the Vault</button>
+        <button className="btn btn-light" disabled={sel.length !== tu.inputs} onClick={() => { setOptions(tradeUpChoices(run, p, slot)); setStage('pick') }}>{inGame ? 'Continue' : 'I moved these to the Vault'}</button>
       </> : <>
         <button className="btn btn-ghost" onClick={() => setStage('inputs')}>Back</button>
-        <button className="btn btn-light" disabled={!choice} onClick={commit}>Register {choice?.name ?? 'choice'}</button>
+        <button className="btn btn-light" disabled={!choice || moving} onClick={commit}>{moving ? 'Moving in Destiny 2\u2026' : inGame ? `Trade up for ${choice?.name ?? 'your choice'}` : `Register ${choice?.name ?? 'choice'}`}</button>
       </>}
     >
       {stage === 'inputs' ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. Move them to your Vault in Destiny 2, then choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. {inGame ? 'They go to your Vault in Destiny 2 when you confirm, and' : 'Move them to your Vault in Destiny 2, then'} choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault{inGame ? ', which comes to your character' : ''}.</p>
           <ul className="pick-list">
             {items.map((it) => (
               <li key={it.id}>

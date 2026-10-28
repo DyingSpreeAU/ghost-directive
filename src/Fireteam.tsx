@@ -8,6 +8,7 @@ import {
 import { capacityOf, itemsIn, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
+import { canMoveInGame, moveInGame } from './gearMoves'
 import { useGD } from './store'
 import { ElementMark, Empty, rarityClass } from './ui'
 
@@ -32,7 +33,7 @@ export function Fireteam({ run, warnings }: { run: Run; warnings: Warning[] }) {
           <div>
             <div className="eyebrow">Field Arsenal</div>
             <h3>Run inventory</h3>
-            <p className="section-note">Only items declared as run acquisitions count. Each slot holds {run.ruleset.inventory.capacity} items including the equipped one; Arsenal Expansion adds more. Keep extras in the Vault; nothing needs dismantling. Select an item to equip it, send it to the Vault or remove it.</p>
+            <p className="section-note">Only items declared as run acquisitions count. Each slot holds {run.ruleset.inventory.capacity} items including the equipped one; Arsenal Expansion adds more. Keep extras in the Vault; nothing needs dismantling. Select an item to send it to the Vault (signed-in players: it moves in Destiny 2 too) or remove it from the app only.</p>
           </div>
           <div id="archive">
             <div className="eyebrow">Subclass Archive</div>
@@ -87,7 +88,9 @@ function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player;
 }
 
 function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean }) {
-  const { dispatch, openFlow, toast } = useGD()
+  const { dispatch, openFlow, toast, me } = useGD()
+  const [moving, setMoving] = useState(false)
+  const inGame = canMoveInGame(p, me)
   const bungie = useBungie()
   const icons = useIcons()
   const cap = capacityOf(run, p)
@@ -153,8 +156,17 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                     </div>
                   ) : (
                     <div className="item-acts row">
-                      <button className="chip" onClick={() => dispatch({ type: 'equip', itemId: sel.id }, p.id)} aria-pressed={sel.equipped}>{sel.equipped ? 'Equipped' : 'Equip'}</button>
-                      <button className="chip" onClick={() => { dispatch({ type: 'vault', itemIds: [sel.id], why: 'player choice' }, p.id); setSelected(null); toast(`${sel.name} moved to the Vault`) }}>To Vault</button>
+                      <button className="chip" disabled={moving} title={inGame ? 'Send it to your Vault in Destiny 2 and take it out of the run.' : 'Take it out of the run; move it to your Vault in Destiny 2 yourself.'} onClick={async () => {
+                        // Signed in on their own device: move it in game first, and only drop it from the run if that worked.
+                        if (inGame) {
+                          setMoving(true)
+                          const r = await moveInGame(p, [{ name: sel.name, instanceId: sel.instanceId, to: 'vault' }], toast)
+                          setMoving(false)
+                          if (!r || r.problems.length) return
+                        }
+                        dispatch({ type: 'vault', itemIds: [sel.id], why: 'player choice' }, p.id); setSelected(null)
+                        if (!inGame) toast(`${sel.name} taken out of the run. Move it to your Vault in Destiny 2.`)
+                      }}>{moving ? 'Moving\u2026' : 'To Vault'}</button>
                       <button className="chip chip-quiet" title="Remove from Ghost Directive only. Nothing changes in Destiny 2." onClick={() => setRemoving(true)}>Remove</button>
                     </div>
                   ))}

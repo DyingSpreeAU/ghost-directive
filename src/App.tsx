@@ -446,7 +446,8 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
 
   useEffect(() => {
     if (!toastMsg) return
-    const t = setTimeout(() => setToastMsg(null), 2800)
+    // Longer messages (such as a list of moved items) stay up longer.
+    const t = setTimeout(() => setToastMsg(null), Math.max(2800, toastMsg.length * 55))
     return () => clearTimeout(t)
   }, [toastMsg])
 
