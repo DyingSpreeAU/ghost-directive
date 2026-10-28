@@ -94,19 +94,37 @@ type PeerObj = {
 // Test channels (nightly) get their own lobby ids, so a code from one version never reaches the other.
 const peerId = (code: string) => `ghost-directive-${CHANNEL ? `${CHANNEL}-` : ''}${code.toLowerCase()}`
 
+/** TURN relay servers from the site's /api/turn function (Cloudflare), or [] where there is none. */
+let relay: Promise<RTCIceServer[]> | null = null
+/** True once the relay answered, so connection problems can be explained accurately. */
+let relayOn = false
+function relayServers() {
+  relay ??= Promise.race([
+    fetch('/api/turn').then((r) => (r.ok ? r.json() : null)).then((d: { iceServers?: RTCIceServer[] } | null) => {
+      const list = Array.isArray(d?.iceServers) ? d!.iceServers.filter((s) => s.urls) : []
+      relayOn = list.some((s) => [s.urls].flat().some((u) => String(u).startsWith('turn')))
+      return list
+    }),
+    new Promise<RTCIceServer[]>((ok) => setTimeout(() => ok([]), 4000)),
+  ]).catch(() => [])
+  return relay
+}
+
 /**
- * Signalling server and ICE servers. Defaults to the free public PeerJS cloud and public STUN.
- * Set VITE_PEERJS_HOST / _PORT / _PATH / _SECURE to use your own PeerServer, and
- * VITE_TURN_URLS (comma-separated) + VITE_TURN_USERNAME + VITE_TURN_CREDENTIAL to add a TURN relay
- * for players behind strict NATs or firewalls.
+ * Signalling server and ICE servers. Defaults to the free public PeerJS cloud and public STUN, plus
+ * the site's TURN relay (see netlify/functions/turn-credentials.mjs) for players whose browser,
+ * VPN or network blocks direct routes. VITE_PEERJS_HOST / _PORT / _PATH / _SECURE point at your own
+ * PeerServer; VITE_TURN_URLS + VITE_TURN_USERNAME + VITE_TURN_CREDENTIAL add a fixed TURN server.
  */
-function peerOptions() {
+async function peerOptions() {
   const env = import.meta.env
   const iceServers: RTCIceServer[] = [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
     { urls: 'stun:stun.cloudflare.com:3478' },
+    ...(await relayServers()),
   ]
   if (env.VITE_TURN_URLS) {
+    relayOn = true
     iceServers.push({ urls: String(env.VITE_TURN_URLS).split(','), username: env.VITE_TURN_USERNAME, credential: env.VITE_TURN_CREDENTIAL })
   }
   const opts: Record<string, unknown> = { config: { iceServers }, debug: Number(env.VITE_PEERJS_DEBUG ?? 0) }
@@ -135,7 +153,9 @@ async function diagnoseDial(c: PeerConn): Promise<string> {
   const tech = `(answer: ${answered ? 'yes' : 'no'}, routes: ${local}, state: ${pc.iceConnectionState})`
   if (!answered) return `The host\u2019s tab did not answer. Keep the host\u2019s tab open and in front, and check it isn\u2019t asleep. ${tech}`
   if (local === 0) return `Your browser offered no network routes for a direct connection. A privacy setting, extension, VPN or Brave Shields is blocking WebRTC. ${tech}`
-  return `The host answered but no direct route worked. A browser privacy setting or extension, VPN, or firewall is blocking it. Try another browser; if that fails too, a TURN relay fixes it (see README). ${tech}`
+  return relayOn
+    ? `The host answered but no route worked, not even the relay. A browser privacy setting or extension (or Brave Shields) is probably blocking WebRTC; try another browser or turn the blocker off for this site. ${tech}`
+    : `The host answered but no direct route worked. A browser privacy setting or extension, VPN, or firewall is blocking it. Try another browser. (This site has no relay set up; see README.) ${tech}`
 }
 
 function peerTransport(code: string, role: 'host' | 'guest'): Transport {
@@ -183,7 +203,8 @@ function peerTransport(code: string, role: 'host' | 'guest'): Transport {
     if (closed) return
     peer?.destroy()
     setStatus(b, 'connecting', 'Reaching the lobby server\u2026')
-    const opts = peerOptions()
+    const opts = await peerOptions()
+    if (closed) return
     const p = (role === 'host' ? new Peer(peerId(code), opts) : new Peer(opts)) as unknown as PeerObj
     peer = p
     p.on('open', () => {

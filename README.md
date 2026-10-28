@@ -127,7 +127,8 @@ configuration → Environment variables, then redeploy):
 | Variable | Purpose |
 | --- | --- |
 | `VITE_PEERJS_HOST`, `VITE_PEERJS_PORT`, `VITE_PEERJS_PATH`, `VITE_PEERJS_SECURE` | Use your own [PeerServer](https://github.com/peers/peerjs-server) instead of the public one. |
-| `VITE_TURN_URLS` (comma-separated), `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` | Add a TURN relay for players whose network blocks direct connections. |
+| `CLOUDFLARE_TURN_KEY_ID`, `CLOUDFLARE_TURN_API_TOKEN` | Cloudflare TURN relay (recommended): `netlify/functions/turn-credentials.mjs` serves short-lived relay credentials at `/api/turn`, so lobbies connect where a browser, VPN or network blocks direct routes. No `VITE_` prefix: the token stays on Netlify. |
+| `VITE_TURN_URLS` (comma-separated), `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL` | A fixed TURN relay instead (its credentials end up in the page). |
 | `VITE_PEERJS_DEBUG` | `1`–`3` logs PeerJS detail to the browser console. |
 
 The join screen says which stage a player is stuck on: reaching the lobby server, finding the
