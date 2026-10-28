@@ -95,7 +95,12 @@ export const EXOTIC_ARMOR: Record<ClassType, ExoticArmor[]> = Object.fromEntries
 
 // ---- Example Vault pool, used in No Login mode until a player enters their own
 
-export type VaultEntry = { name: string; slot: Slot; rarity: Rarity; element?: Element; archetype?: string; note?: string }
+export type VaultEntry = {
+  name: string; slot: Slot; rarity: Rarity; element?: Element; archetype?: string; note?: string
+  /** A specific copy (an Exotic class item's roll): its instance id and rolled perks. */
+  instanceId?: string
+  perks?: { name: string; desc?: string }[]
+}
 
 export const EXAMPLE_VAULT: VaultEntry[] = [
   { name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary', archetype: 'Hand Cannon' },
@@ -191,7 +196,7 @@ export const DUNGEONS: DungeonDef[] = [
     'E:Erebus: The Labyrinth :: Find your way through the twisting, Taken-corrupted paths of Erebus.', 'C', 'E:Vorgeth, The Boundless Hunger :: Gather Wards of Dawn to hold off the corruption and bring the Ogre down.', 'C', 'C', 'F:D\u00fbl Incaru, the Eternal Return :: Read the sigils, kill the matching Knights, and defeat the Taken Wizard.',
   ]),
   dungeon({ id: 'pit-of-heresy', name: 'Pit of Heresy', released: '2019-10', destination: 'Moon', palette: ['#1f0d0d', '#7a1f1a', '#ff8a6a'] }, [
-    'E:Necropolis :: Bank Essences of Sorrow to open the way into the Scarlet Keep.', 'E:Chamber of Suffering :: Push through the dark tunnels and the Harrow toward Zulmak.', 'F:Zulmak, Instrument of Torment :: Bank essence at the shrines and break Zulmak\u2019s shield.',
+    'E:Necropolis :: Bank Essences of Sorrow to open the way into the Scarlet Keep.', 'E:Chamber of Suffering :: Push through the dark tunnels and the Harrow toward Zulmak.', 'C', 'F:Zulmak, Instrument of Torment :: Bank essence at the shrines and break Zulmak\u2019s shield.',
   ]),
   dungeon({ id: 'prophecy', name: 'Prophecy', released: '2020-06', destination: 'Nine\u2019s Realm', palette: ['#0b1a1f', '#246b73', '#e9ffd6'] }, [
     'E:Phalanx Echo :: Collect motes of Light and Dark and cleanse the Phalanx Echo.', 'C', 'E:Hexahedron :: Clear the Hexahedron\u2019s rooms as they shift between Light and Dark.', 'C', 'F:Kell Echo :: Bank motes, dunk the beam, and take down the Kell Echo.',

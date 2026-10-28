@@ -703,7 +703,10 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
       })}
     </div>
   )
-  const plugChip = (n: string, bad?: boolean) => <span key={n} className={`ab-chip is-unlocked ${bad ? 'is-bad' : ''}`}>{icons.plug(n) && <img src={icons.plug(n)} alt="" loading="lazy" />}<span>{n}</span></span>
+  const plugChip = (n: string, bad?: boolean, artifact?: string) => {
+    const icon = artifact ? icons.artifactPerk(artifact, n) : icons.plug(n)
+    return <span key={n} className={`ab-chip is-unlocked ${bad ? 'is-bad' : ''}`}>{icon && <img src={icon} alt="" loading="lazy" />}<span>{n}</span></span>
+  }
   return (
     <section className={`g-sec equipped-now ${data ? (eq.ready ? 'is-ready' : 'is-waiting') : ''}`} aria-labelledby="equipped-now-title">
       <header className="g-sec-head">
@@ -749,7 +752,7 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
               <p className="art-name">{icons.artifact(data.artifact.name) && <img className="art-icon sm" src={icons.artifact(data.artifact.name)} alt="" loading="lazy" />}<strong>{data.artifact.name}</strong>
                 {seat?.artifact && data.artifact.matched && data.artifact.matched !== seat.artifact && <span className="tone-warn small"> (your seat has {seat.artifact})</span>}</p>
               {data.artifact.activePerks.length
-                ? <div className="ab-chips">{data.artifact.activePerks.map((n) => plugChip(n, true))}<span className="small tone-warn">setup calls for none</span></div>
+                ? <div className="ab-chips">{data.artifact.activePerks.map((n) => plugChip(n, true, data.artifact!.name))}<span className="small tone-warn">setup calls for none</span></div>
                 : <span className="small tone-ok">No perks on, fits setup</span>}
             </div>
           ) : <p className="small muted">Couldn&rsquo;t read your artifact.</p>}

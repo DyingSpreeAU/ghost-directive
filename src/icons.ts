@@ -4,7 +4,11 @@
 
 import { useEffect, useState } from 'react'
 
-type IconTable = { gear: Record<string, string>; plugs: Record<string, string>; artifacts?: Record<string, string> }
+type IconTable = {
+  gear: Record<string, string>; plugs: Record<string, string>; artifacts?: Record<string, string>
+  /** Each artifact's own perk icons: perk names repeat across seasons with different art. */
+  artifactPerks?: Record<string, Record<string, string>>
+}
 
 const ROOT = 'https://www.bungie.net/common/destiny2_content/icons/'
 let table: Promise<IconTable | null> | null = null
@@ -26,5 +30,11 @@ export function useIcons() {
     gear: (name: string) => (t?.gear[name] ? ROOT + t.gear[name] : undefined),
     plug: (name: string) => (t?.plugs[name] ? ROOT + t.plugs[name] : undefined),
     artifact: (name: string) => (t?.artifacts?.[name] ? ROOT + t.artifacts[name] : undefined),
+    /** An artifact perk's icon as that artifact has it, else the icon for the name. */
+    artifactPerk: (artifact: string | undefined, perk: string) => {
+      const own = artifact ? t?.artifactPerks?.[artifact] : undefined
+      const hit = own && (own[perk] ?? Object.entries(own).find(([n]) => n.toLowerCase() === perk.toLowerCase())?.[1])
+      return hit ? ROOT + hit : t?.plugs[perk] ? ROOT + t.plugs[perk] : undefined
+    },
   }
 }

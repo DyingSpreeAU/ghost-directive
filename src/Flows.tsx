@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, recordClear,
+  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeable,
   type ChestReward, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -115,7 +115,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const icons = useIcons()
   // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
   // Reward items: the player's own copies (or Bungie's definition for Exotics not owned), with DIM-style cards.
-  const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls)
+  const pinned = cat ? Object.fromEntries(pend[cat].filter((g) => g.instanceId).map((g) => [g.name, g.instanceId!])) : undefined
+  const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls, pinned)
   const [compare, setCompare] = useState(false)
   const comparing = compare && step === 'gear' && cat === 'exotic' && !!previews.data
   // Expanded info needs the player's own Bungie account on this device.
@@ -131,7 +132,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
     // An Exotic they don't hold yet has to be pulled from Collections in game; the next sync links that copy.
     if (gear && notHeld(p, gear)) toast(`Pull ${gear.name} from Collections in Destiny 2. The app links that copy to this reward on its next sync.`)
-    else if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, to: 'character' }], toast)
+    else if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, instanceId: gear.instanceId, to: 'character' }], toast)
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
 
@@ -212,8 +213,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         <p>You research <strong>one</strong> of these {pend.artifact.length} {p.artifactName ?? 'artifact'} perks; the others are not kept. Switch it on in Destiny 2 once it&rsquo;s researched.</p>
         <ChoiceGrid>
           {pend.artifact.map((m) => (
-            <button key={m} className={`choice choice-artifact ${icons.plug(m) ? 'choice-item' : ''} ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
-              {icons.plug(m) && <img className="choice-icon" src={icons.plug(m)} alt="" loading="lazy" />}
+            <button key={m} className={`choice choice-artifact ${icons.artifactPerk(p.artifactName, m) ? 'choice-item' : ''} ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
+              {icons.artifactPerk(p.artifactName, m) && <img className="choice-icon" src={icons.artifactPerk(p.artifactName, m)} alt="" loading="lazy" />}
               <span className="choice-kind">{p.artifactName} &middot; Tier {artifactPerk(p.artifactName, m)?.tier ?? '?'}</span>
               <strong>{m}</strong>
               {artifactPerk(p.artifactName, m)?.desc && <span className="choice-desc">{artifactPerk(p.artifactName, m)!.desc}</span>}
@@ -229,7 +230,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         <ChoiceGrid>
           {pend.chest.map((c, k) => (
             <button key={chestLabel(c)} className={`choice choice-item ${chest === k ? 'is-on' : ''} ${c.kind !== 'artifact' ? 'choice-upgrade' : 'choice-artifact'}`} onClick={() => setChest(k)}>
-              {c.kind === 'artifact' ? (icons.plug(c.mod) ? <img className="choice-icon" src={icons.plug(c.mod)} alt="" loading="lazy" /> : <span className="choice-icon choice-glyph" aria-hidden="true"><span className="mod-hex" /></span>)
+              {c.kind === 'artifact' ? (icons.artifactPerk(p.artifactName, c.mod) ? <img className="choice-icon" src={icons.artifactPerk(p.artifactName, c.mod)} alt="" loading="lazy" /> : <span className="choice-icon choice-glyph" aria-hidden="true"><span className="mod-hex" /></span>)
                 : <span className="choice-icon choice-glyph" aria-hidden="true"><ExpansionGlyph /></span>}
               <span className="choice-kind">{c.kind === 'artifact' ? `${p.artifactName} \u00b7 Tier ${artifactPerk(p.artifactName, c.mod)?.tier ?? '?'}` : 'Upgrade'}</span>
               <strong>{chestLabel(c)}</strong>
@@ -283,7 +284,17 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
                 {g.element === p.element ? ' · synergy' : ''}
                 {!g.element && !info?.power && g.archetype}
               </span>
-              {g.note && <span className="choice-desc">{g.note}</span>}
+              {g.perks ? (
+                <span className="roll-perks">
+                  {g.perks.map((pk) => (
+                    <span key={pk.name} className="roll-perk">
+                      {icons.plug(pk.name) && <img src={icons.plug(pk.name)} alt="" loading="lazy" />}
+                      <span><strong>{pk.name}</strong>{pk.desc && <span className="choice-desc">{pk.desc}</span>}</span>
+                    </span>
+                  ))}
+                  <span className="small muted">This exact copy, from your Vault.</span>
+                </span>
+              ) : g.note && <span className="choice-desc">{g.note}</span>}
               {pull && <span className="choice-tag">In Collections · not on your account</span>}
               {!tradeUp && itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
             </button>
@@ -455,8 +466,8 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
   const cap = capacityOf(run, p)
   const excess = items.length - cap
   const tu = run.ruleset.tradeUp
-  const tradeable = items.filter((i) => i.rarity !== 'Exotic')
-  const canTrade = canControl(p.id) && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
+  const inputs = items.filter(tradeable)
+  const canTrade = canControl(p.id) && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => inputs.filter((i) => i.rarity === r).length >= tu.inputs) : inputs.length >= tu.inputs)
   const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
   const toVault = async (it: (typeof items)[number]) => {
@@ -481,7 +492,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
             <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
               <span className="choice-kind">Trade up</span>
               <strong>Trade {tu.inputs} for 1 Legendary</strong>
-              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} that aren\u2019t Exotic or starting gear.`}</span>
             </button>
             <button className="choice" onClick={() => setStage('remove')}>
               <span className="choice-kind">Remove items</span>
@@ -525,7 +536,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
   // Once the inputs are traded in, the options are fixed on the run until one is picked.
   const trade = p.trade
   const slot = trade?.slot ?? asked
-  const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
+  const items = itemsIn(p, slot).filter(tradeable)
   const [sel, setSel] = useState<string[]>([])
   const [starting, setStarting] = useState(false)
   const [choice, setChoice] = useState<VaultEntry | null>(null)
@@ -548,16 +559,20 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
   }, [starting, trade])
   // A player trades up for themselves; the host does it for Guardians with no device.
   if (!canControl(p.id)) return null
+  const picked = items.filter((i) => sel.includes(i.id))
+  // Grey inputs are sent to the Vault for the player; anything better is theirs to dismantle or vault.
+  const autoVault = inGame ? picked.filter((i) => i.rarity === 'Common') : []
+  const yours = picked.filter((i) => !autoVault.includes(i))
   const start = async () => {
-    // Signed in on their own device: the inputs go to the Vault in game first.
-    if (inGame) {
+    if (autoVault.length) {
       setMoving(true)
-      const r = await moveInGame(p, items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
+      const r = await moveInGame(p, autoVault.map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
       setMoving(false)
       if (!r) return
     }
     setStarting(true)
     dispatch({ type: 'tradeup-start', inputIds: sel }, playerId)
+    if (yours.length) toast(`Dismantle or vault ${yours.map((i) => i.name).join(', ')} in Destiny 2 yourself.`)
   }
   const commit = async () => {
     if (!choice) return
@@ -579,12 +594,13 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
         <button className="btn btn-light" disabled={!choice || moving} onClick={commit}>{moving ? 'Moving in Destiny 2\u2026' : inGame ? `Take ${choice?.name ?? 'your choice'}` : `Register ${choice?.name ?? 'choice'}`}</button>
       ) : <>
         <button className="btn btn-ghost" disabled={starting || moving} onClick={onClose}>Cancel</button>
-        <button className="btn btn-light" disabled={sel.length !== tu.inputs || starting || moving} onClick={start}>{moving ? 'Moving in Destiny 2\u2026' : starting ? 'Trading in\u2026' : inGame ? 'Trade these in' : 'I moved these to the Vault'}</button>
+        <button className="btn btn-light" disabled={sel.length !== tu.inputs || starting || moving} onClick={start}>{moving ? 'Moving in Destiny 2\u2026' : starting ? 'Trading in\u2026' : 'Trade these in'}</button>
       </>}
     >
       {!trade ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. {inGame ? 'They go to your Vault in Destiny 2 when you confirm.' : 'Move them to your Vault in Destiny 2 first.'} Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}; starting gear and Exotics can&rsquo;t be traded. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p className="small muted">{inGame ? 'Grey items go to your Vault in Destiny 2 for you. Anything better is yours to dismantle, or vault if you want to keep it for normal play.' : 'In Destiny 2, dismantle the items you trade in, or vault them if you want to keep them for normal play.'}</p>
           <p className="callout"><strong>No take-backs.</strong> Once you trade these in, they leave the run and the options are fixed: you can&rsquo;t go back, re-roll or cancel, only pick one.</p>
           <ul className="pick-list">
             {items.map((it) => (

@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, equippedNotUnlocked, itemsIn, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { capacityOf, equippedNotUnlocked, itemsIn, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -127,7 +127,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   const select = (id: string) => { setSelected(selected === id ? null : id); setRemoving(false) }
 
   const eligibleForTrade = (slot: Slot) => {
-    const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
+    const items = itemsIn(p, slot).filter(tradeable)
     if (!tu.sameRarity) return items.length >= tu.inputs
     return RARITIES.some((rr) => items.filter((i) => i.rarity === rr).length >= tu.inputs)
   }
@@ -278,7 +278,7 @@ function ArtifactPerks({ p, control }: { p: Player; control: boolean }) {
         <ul className="mod-list">
           {p.artifact.map((m) => {
             const perk = artifactPerk(p.artifactName, m)
-            const icon = icons.plug(m)
+            const icon = icons.artifactPerk(p.artifactName, m)
             return (
               <li key={m} title={perk?.desc}>
                 {icon ? <img className="mod-icon" src={icon} alt="" loading="lazy" /> : <span className="mod-hex" aria-hidden="true" />}

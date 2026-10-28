@@ -1048,3 +1048,10 @@ button.ab-chip:hover { border-color: var(--dim); }
 .remove-player-link { justify-self: start; color: var(--dim); }
 .remove-player { display: grid; gap: 8px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--danger) 50%, var(--seam)); background: color-mix(in srgb, var(--danger) 8%, var(--ink)); }
 .remove-player p { margin: 0; }
+
+/* ---------------------------------------------------------------- Exotic class item roll on a choice card */
+.roll-perks { display: grid; gap: 8px; margin-top: 2px; justify-self: stretch; width: 100%; text-align: left; }
+.roll-perk { display: flex; gap: 8px; align-items: flex-start; }
+.roll-perk > span { flex: 1; min-width: 0; }
+.roll-perk img { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); }
+.roll-perk strong { display: block; font-size: 0.86rem; }

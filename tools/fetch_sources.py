@@ -104,7 +104,24 @@ if item_table and icon_table:
         ic = it.get('displayProperties', {}).get('icon', '')
         if it.get('itemTypeDisplayName') == 'Artifact' and ic.startswith(PRE):
             artifacts.setdefault(it['displayProperties']['name'].strip(), ic[len(PRE):])
-    json.dump({'gear': gear, 'plugs': plugs, 'artifacts': artifacts}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    # Each artifact's own perk icons, from its sockets' plug sets: perk names repeat across seasons
+    # with different art, so a lookup by name alone can show another season's icon.
+    plug_sets = json.loads(get('https://www.bungie.net' + paths['DestinyPlugSetDefinition']))
+    artifact_perks = {}
+    for it in items.values():
+        if it.get('itemTypeDisplayName') != 'Artifact' or not it.get('sockets', {}).get('socketEntries'):
+            continue
+        perks = {}
+        for e in it['sockets']['socketEntries']:
+            ps = plug_sets.get(str(e.get('reusablePlugSetHash') or e.get('randomizedPlugSetHash') or 0), {})
+            for x in ps.get('reusablePlugItems', []):
+                d = items.get(str(x['plugItemHash']), {}).get('displayProperties', {})
+                name, ic = d.get('name', '').strip(), d.get('icon', '')
+                if name and not name.startswith('Empty') and name != 'Reset Artifact' and ic.startswith(PRE):
+                    perks.setdefault(name, ic[len(PRE):])
+        if perks:
+            artifact_perks.setdefault(it['displayProperties']['name'].strip(), perks)
+    json.dump({'gear': gear, 'plugs': plugs, 'artifacts': artifacts, 'artifactPerks': artifact_perks}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', icon_table, len(gear), 'gear', len(plugs), 'plugs')
 
 # Exotic armor Collections entries (collectible hash -> [name, classType]), so a signed-in player's

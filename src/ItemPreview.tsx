@@ -7,14 +7,14 @@ import { ELEMENT_COLOR, type ClassType } from './data'
 import { rarityClass } from './ui'
 
 /** Previews of the player's own copies of these items, read from Bungie on this device. */
-export function useItemPreviews(names: string[], enabled: boolean, cls?: ClassType) {
+export function useItemPreviews(names: string[], enabled: boolean, cls?: ClassType, pinned?: Record<string, string>) {
   const [data, setData] = useState<Record<string, ItemPreview> | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const key = names.join('|')
+  const key = names.join('|') + JSON.stringify(pinned ?? {})
   useEffect(() => {
     if (!enabled || !bungieConfigured || !isSignedIn() || !names.length) return
     let live = true
-    fetchItemPreviews(names, cls).then((d) => live && setData(d), (e) => live && setError((e as Error).message))
+    fetchItemPreviews(names, cls, pinned).then((d) => live && setData(d), (e) => live && setError((e as Error).message))
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled])

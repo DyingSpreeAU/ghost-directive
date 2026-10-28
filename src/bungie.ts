@@ -195,6 +195,8 @@ function mintedAt(p: ProfileResponse): number | null {
   return valid(p.secondaryComponentsMintedTimestamp) ?? valid(p.responseMintedTimestamp)
 }
 
+export type ClassItemRoll = { instanceId: string; perks: { name: string; desc?: string }[] }
+
 export type BungieSnapshot = {
   name: string
   character: string
@@ -217,6 +219,8 @@ export type BungieSnapshot = {
   restore: RestorePoint | null
   /** The character's equipped emblem: its square icon and the wide nameplate banner (bungie.net paths). */
   emblem: { icon: string; background: string } | null
+  /** Copies of this class's Exotic class item on the account, with their rolled perks. */
+  classItems: ClassItemRoll[]
   /** This class's Exotic armor unlocked in Collections, and which of those are on the account; null if Bungie didn't say. */
   exotics: { unlocked: string[]; held: string[] } | null
 }
@@ -304,7 +308,34 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     restore: charId ? restorePoint(p, charId, items) : null,
     emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
     exotics: collectedExotics(p, exoticRows, cls, owned),
+    classItems: await classItemRolls(p, items, cls).catch(() => []),
   }
+}
+
+/** Socket category of an Exotic class item's two rolled perks ("Spirit of the …"). */
+const EXOTIC_CLASS_PERKS = 2518356196
+const EXOTIC_CLASS_ITEM: Record<ClassType, string> = { Titan: 'Stoicism', Hunter: 'Relativism', Warlock: 'Solipsism' }
+
+/** Every copy of this class's Exotic class item on the account, with its two rolled perks. */
+async function classItemRolls(p: ProfileResponse, items: Record<string, ItemRow>, cls: ClassType): Promise<ClassItemRoll[]> {
+  const name = EXOTIC_CLASS_ITEM[cls]
+  const all = [
+    ...(p.profileInventory?.data?.items ?? []),
+    ...Object.values(p.characterInventories?.data ?? {}).flatMap((c) => c.items),
+    ...Object.values(p.characterEquipment?.data ?? {}).flatMap((c) => c.items),
+  ].filter((i) => i.itemInstanceId && items[i.itemHash]?.[0] === name)
+  const out = await Promise.all(all.slice(0, 20).map(async (i): Promise<ClassItemRoll | null> => {
+    const def = await itemDef(i.itemHash)
+    const idx = def?.sockets?.socketCategories?.find((c) => c.socketCategoryHash === EXOTIC_CLASS_PERKS)?.socketIndexes ?? []
+    const sockets = p.itemComponents?.sockets?.data?.[i.itemInstanceId!]?.sockets ?? []
+    const perks = await Promise.all(idx.map(async (k): Promise<ClassItemRoll['perks'][number] | null> => {
+      const d = sockets[k]?.plugHash ? await itemDef(sockets[k].plugHash!) : null
+      return d?.displayProperties?.name ? { name: d.displayProperties.name.trim(), desc: d.displayProperties.description?.trim() || undefined } : null
+    }))
+    const got = perks.filter((x): x is ClassItemRoll['perks'][number] => !!x)
+    return got.length ? { instanceId: i.itemInstanceId!, perks: got } : null
+  }))
+  return out.filter((x): x is ClassItemRoll => !!x)
 }
 
 /** This class's Exotic armor unlocked in Collections (on the profile or any character), or null without Collections data. */
@@ -918,7 +949,7 @@ async function plugInfo(hash?: number): Promise<PreviewPlug | null> {
  * Details of the player's own copies of these items (Vault first, then characters): the rolled
  * stats, intrinsic frame, selected perks and mods. Items not found are left out.
  */
-export async function fetchItemPreviews(names: string[], cls?: ClassType): Promise<Record<string, ItemPreview>> {
+export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned: Record<string, string> = {}): Promise<Record<string, ItemPreview>> {
   const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,300,304,305`)
   const all: ItemComponent[] = [
@@ -931,7 +962,8 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType): Promi
     // The highest-power copy, as that's the one a player would pick.
     const copies = all.filter((i) => i.itemInstanceId && items[i.itemHash]?.[0] === name)
     const power = (i: ItemComponent) => p.itemComponents?.instances?.data?.[i.itemInstanceId!]?.primaryStat?.value ?? 0
-    const item = copies.sort((a, b) => power(b) - power(a))[0]
+    // A pinned copy (an Exotic class item's offered roll) when there is one, else the highest power.
+    const item = copies.find((i) => i.itemInstanceId === pinned[name]) ?? copies.sort((a, b) => power(b) - power(a))[0]
     // Not on the account (e.g. an Exotic only in Collections): describe it from its definition.
     const hash = item?.itemHash ?? Number(Object.keys(items).find((h) => items[h][0] === name && (cls === undefined || items[h][3] === 3 || items[h][3] === CLASS_TYPE[cls])))
     if (!hash || !items[hash]) return
@@ -955,6 +987,8 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType): Promi
       const all = await at(cat(ARMOR_PERKS))
       intrinsic = row[2] === 4 ? fixed[fixed.length - 1] : undefined
       perks = all.filter((x) => x.name !== intrinsic?.name)
+      // An Exotic class item's two rolled perks.
+      if (id) perks = [...await at(cat(EXOTIC_CLASS_PERKS)), ...perks]
       mods = id ? await at(cat(ARMOR_MODS)) : []
     } else {
       ;[[intrinsic], perks, mods] = await Promise.all([at(cat(INTRINSIC)), at(cat(WEAPON_PERKS)), at(cat(WEAPON_MODS))])

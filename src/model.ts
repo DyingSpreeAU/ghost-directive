@@ -171,6 +171,8 @@ export type BungieLink = {
   emblem?: { icon: string; background: string }
   /** Exotic armor for this class unlocked in Collections, and which of those are on the account. Exotic rewards come only from `unlocked`. */
   exotics?: { unlocked: string[]; held: string[] }
+  /** This class's Exotic class item copies on the account, each with its two rolled perks. */
+  classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[]
   /** The last synced setup where everything equipped was part of the run, for "Restore my Guardian". */
   restore?: RestorePoint & { at: number }
 }
@@ -305,6 +307,9 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
   }
 }
 
+/** Items that can go into a trade-up: not Exotic, and not the gear the Guardian started the run with. */
+export const tradeable = (i: Item) => i.rarity !== 'Exotic' && i.source !== 'starting gear'
+
 /**
  * A Guardian left the fireteam: the host takes them out of the run so the rest can carry on.
  * Their gear, unlocks and waiting rewards go with them; Integrity is untouched.
@@ -397,10 +402,14 @@ export function exoticChoices(p: Player): VaultEntry[] {
     .map((e): VaultEntry => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
   // Prismatic only: now and then an Exotic class item takes a spot, but only one the player has in their Vault.
   const classItem = EXOTIC_CLASS_ITEM[p.cls]
-  if (p.element === 'Prismatic' && p.bungie?.exotics?.held.includes(classItem) && !owned.has(classItem) && Math.random() < 0.5) {
+  // The offer is one specific copy: its roll is fixed, and its two perks are shown.
+  const rolls = p.bungie?.classItems ?? []
+  if (p.element === 'Prismatic' && rolls.length && !owned.has(classItem) && Math.random() < 0.5) {
+    const roll = rolls[Math.floor(Math.random() * rolls.length)]
     picks.splice(Math.floor(Math.random() * Math.max(1, picks.length)), picks.length >= 3 ? 1 : 0, {
       name: classItem, slot: 'Class Item', rarity: 'Exotic', element: 'Prismatic', archetype: 'Exotic Class Item',
-      note: 'Two Exotic perks from other Exotics, rolled per copy. Pick it to use the copy in your Vault.',
+      instanceId: roll.instanceId, perks: roll.perks,
+      note: `${roll.perks.map((x) => x.name).join(' + ')}. This exact copy, from your Vault.`,
     })
   }
   return picks
@@ -574,7 +583,7 @@ export type Intent =
   | { type: 'sync-request' }
   | { type: 'death' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
 
@@ -637,14 +646,14 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const inputs = p.inventory.filter((i) => ids.includes(i.id))
       if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
       const slot = inputs[0].slot
-      if (inputs.some((i) => i.slot !== slot || i.rarity === 'Exotic')) return 'Inputs must share a slot and cannot be Exotic.'
+      if (inputs.some((i) => i.slot !== slot || !tradeable(i))) return 'Inputs must share a slot, and can\u2019t be Exotic or starting gear.'
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
       dismiss(p, inputs)
       p.inventory = p.inventory.filter((i) => !ids.includes(i.id))
       p.trade = { slot, inputs: inputs.map((i) => i.name), options }
-      log(run, 'trade', `${p.name} traded in ${inputs.map((i) => i.name).join(', ')} (to Vault).`)
+      log(run, 'trade', `${p.name} traded in ${inputs.map((i) => i.name).join(', ')}.`)
       return null
     }
     case 'tradeup': {
@@ -714,6 +723,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const first = !p.bungie
       const prevRestore = p.bungie?.restore
       const prevExotics = p.bungie?.exotics
+      const prevClassItems = p.bungie?.classItems
       const shown = bungieDisplayName(str(it.name, 40))
       if (shown && isDefaultName(p.name)) { log(run, 'run', `${p.name} is now ${shown} (Bungie name).`); p.name = shown }
       p.vault = vault
@@ -731,6 +741,15 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (iconPath(em.icon) && iconPath(em.background)) p.bungie.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
       const ex = (it.exotics ?? null) as { unlocked?: unknown; held?: unknown } | null
       p.bungie.exotics = ex && Array.isArray(ex.unlocked) ? { unlocked: strs(ex.unlocked, 80), held: strs(ex.held, 80) } : prevExotics
+      if (Array.isArray(it.classItems)) {
+        p.bungie.classItems = it.classItems.slice(0, 20).map((c) => (c ?? {}) as { instanceId?: unknown; perks?: unknown })
+          .map((c) => ({
+            instanceId: str(c.instanceId, 30),
+            perks: (Array.isArray(c.perks) ? c.perks.slice(0, 2) : []).map((x) => (x ?? {}) as { name?: unknown; desc?: unknown })
+              .map((x) => ({ name: str(x.name, 60), desc: str(x.desc, 400) || undefined })).filter((x) => x.name),
+          }))
+          .filter((c) => c.instanceId && c.perks.length)
+      } else if (prevClassItems) p.bungie.classItems = prevClassItems
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
       p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
@@ -753,6 +772,13 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const added = addItem(run, p, item)
         added.instanceId = instanceId
         added.equipped = !!d.starting
+      }
+      // What the character has equipped in game right now, so every device sees it on the run items.
+      if (Array.isArray(it.equipped)) {
+        const eq = it.equipped.slice(0, 20).map((e) => (e ?? {}) as { slot?: unknown; name?: unknown; instanceId?: unknown })
+        const ids = new Set(eq.map((e) => str(e.instanceId, 30)).filter(Boolean))
+        const names = new Set(eq.map((e) => `${str(e.slot)}|${str(e.name)}`))
+        for (const item of p.inventory) item.equipped = item.instanceId ? ids.has(item.instanceId) : names.has(`${item.slot}|${item.name}`)
       }
       return null
     }
@@ -802,7 +828,11 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const a = abilityById(it.unlock)
         log(run, 'unlock', `${p.name} unlocked ${a.name} (${KIND_LABEL[a.kind]}).`)
       }
-      if (gear) addItem(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' })
+      if (gear) {
+        const added = addItem(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' })
+        // A specific copy (an Exotic class item's roll) is tracked as that exact item.
+        if (gear.instanceId) added.instanceId = gear.instanceId
+      }
       if (it.mod) { p.artifact.push(it.mod); log(run, 'artifact', `${p.name} researched ${it.mod}.`) }
       if (chest?.kind === 'artifact') { p.artifact.push(chest.mod); log(run, 'artifact', `${p.name} researched ${chest.mod}.`) }
       if (chest?.kind === 'expansion') { p.capacityBonus++; log(run, 'upgrade', `${p.name} earned Arsenal Expansion: +1 capacity per slot.`) }
