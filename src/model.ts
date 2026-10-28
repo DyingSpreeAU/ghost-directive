@@ -174,6 +174,8 @@ export type Run = {
   chestsDone?: number
   log: LogEntry[]
   code: string
+  /** Set by "Sync all": every signed-in player's device re-reads Bungie when this changes. */
+  syncRequest?: number
   startedAt: number
   endedAt?: number
   example?: boolean
@@ -498,6 +500,7 @@ export type Intent =
   | { type: 'vault-add'; entry: VaultEntry }
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
+  | { type: 'sync-request' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null }
   | { type: 'remove-item'; itemId: string }
@@ -667,6 +670,10 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       p.inventory = p.inventory.filter((x) => x !== item)
       dismiss(p, [item])
       log(run, 'vault', `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
+      return null
+    }
+    case 'sync-request': {
+      run.syncRequest = Date.now()
       return null
     }
     case 'bungie-unlink': {

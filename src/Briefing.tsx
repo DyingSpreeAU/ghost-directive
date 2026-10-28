@@ -1,19 +1,20 @@
 import { useState } from 'react'
 import {
-  ABILITY_KINDS, ALL_SLOTS, DAMAGE_ELEMENTS, artifactByName, artifactPerk, ELEMENT_COLOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
-  abilityById, dungeonById, subclassAbilities, type Element, type Rarity, type Slot,
+  ALL_SLOTS, DAMAGE_ELEMENTS, WEAPON_SLOTS, dungeonById, type Element, type Rarity, type Slot,
 } from './data'
 import {
-  capacityOf, createLobby, current, pendingChest, recordChest, itemsIn, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
+  createLobby, current, pendingChest, recordChest, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
-import { BungiePanel, RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
+import { bungieConfigured } from './bungie'
+import { Fireteam } from './Fireteam'
+import { BungiePanel } from './BungiePanel'
 import { useGD } from './store'
-import { ElementMark, Empty, EncounterArt, Meter, rarityClass } from './ui'
+import { ElementMark, Empty, EncounterArt, Meter } from './ui'
 
 export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { run: Run; warnings: Warning[]; pendingDeferred: number; onOpenRewards: () => void }) {
-  const { openFlow, host, go, toast, role, myPlayerId } = useGD()
+  const { openFlow, host, go, toast, role, myPlayerId, dispatch } = useGD()
   const isHost = role === 'host'
   const { dungeon, encounter, done, total } = current(run)
   const next = nextEncounter(run)
@@ -68,7 +69,12 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
             <span>{run.route.length} dungeon{run.route.length > 1 ? 's' : ''}, route locked</span>
           </div>
         </div>
-        {active && isHost && <button className="btn btn-ghost btn-sm" onClick={() => openFlow({ type: 'abandon' })}>End run</button>}
+        <div className="row-acts">
+          {active && myPlayerId && bungieConfigured && (
+            <button className="btn btn-ghost btn-sm" title="Ask every signed-in Guardian's device to read Bungie now: drops, equipped gear, subclass and artifact." onClick={() => { dispatch({ type: 'sync-request' }); toast('Sync requested for every signed-in Guardian.') }}>Sync all</button>
+          )}
+          {active && isHost && <button className="btn btn-ghost btn-sm" onClick={() => openFlow({ type: 'abandon' })}>End run</button>}
+        </div>
       </header>
 
       {!active && (
@@ -147,7 +153,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
       {warnings.length > 0 && (
         <section className="warnings" aria-label="Warnings">
           {warnings.map((w) => (
-            <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'players' : w.where)}>
+            <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where)}>
               <span className="warn-sev">{w.severity === 'critical' ? 'Discrepancy' : w.severity === 'warn' ? 'Check' : 'Note'}</span>
               <span className="warn-title">
                 {w.playerId && <b>{run.players.find((p) => p.id === w.playerId)?.name}: </b>}
@@ -159,270 +165,12 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
         </section>
       )}
 
-      <section id="players" className={`players players-${run.players.length}`}>
-        {run.players.map((p) => <PlayerPanel key={p.id} run={run} p={p} warnings={warnings.filter((w) => w.playerId === p.id)} />)}
-      </section>
+      <Fireteam run={run} warnings={warnings} />
 
-      <div className="fold-label"><span>Buildcrafting and records</span></div>
+      <div className="fold-label"><span>Records</span></div>
 
-      <SubclassArchive run={run} />
-      <ArtifactResearch run={run} />
-      <FieldArsenal run={run} />
       <CombatReport run={run} />
     </div>
-  )
-}
-
-function PlayerPanel({ run, p, warnings }: { run: Run; p: Player; warnings: Warning[] }) {
-  const { online, me, role, openFlow } = useGD()
-  const pend = run.pending.filter((x) => x.playerId === p.id)
-  const device = p.clientId === null ? 'No device' : p.clientId === me ? 'You' : online.includes(p.clientId) ? 'Online' : 'Offline'
-  const cap = capacityOf(run, p)
-  const counts = ABILITY_KINDS.map((k) => ({ k, n: p.unlocked.filter((id) => abilityById(id).kind === k).length, of: subclassAbilities(p.cls, p.element).filter((a) => a.kind === k).length }))
-  return (
-    <article className="panel player" style={{ ['--el' as string]: ELEMENT_COLOR[p.element] }}>
-      <header className="player-head">
-        <ElementMark element={p.element} size={22} />
-        <div>
-          <h3>{p.name}</h3>
-          <div className="player-sub">{p.element} {p.cls}{p.isHost && <span className="tag tag-host">Host</span>}</div>
-        </div>
-        <span className={`device dev-${device.replace(' ', '').toLowerCase()}`}>{device}</span>
-      </header>
-      {pend.length > 0 && (
-        <div className="pending-row">
-          <span className="mod-hex" aria-hidden="true" />
-          <span>{p.clientId === me ? 'Your rewards are waiting' : `Choosing ${pend.length} reward${pend.length > 1 ? 's' : ''}…`}</span>
-          {role === 'host' && p.clientId === null && <button className="link" onClick={() => openFlow({ type: 'reward', pendingId: pend[0].id })}>Resolve for them</button>}
-        </div>
-      )}
-      <div className="unlock-row">
-        {counts.map(({ k, n, of }) => (
-          <div key={k} className="unlock-stat">
-            <span className="num">{n}<small>/{of}</small></span>
-            <span className="lbl">{KIND_LABEL[k]}s</span>
-          </div>
-        ))}
-      </div>
-      <div className="cap-grid">
-        {ALL_SLOTS.map((slot) => {
-          const n = itemsIn(p, slot).length
-          return (
-            <div key={slot} className={`cap-cell ${n > cap ? 'is-over' : n === cap ? 'is-full' : ''}`} title={`${slot}: ${n} of ${cap}`}>
-              <span className="cap-slot">{slot === 'Class Item' ? 'Class' : slot === 'Gauntlets' ? 'Arms' : slot}</span>
-              <span className="cap-n">{n}/{cap}</span>
-            </div>
-          )
-        })}
-      </div>
-      <div className="player-foot">
-        <span title={artifactByName(p.artifactName)?.focus}>{p.artifactName ?? 'No artifact'} &middot; {p.artifact.length} perk{p.artifact.length === 1 ? '' : 's'}</span>
-        {p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} \u00b7 ${p.bungie.character}`}>Bungie linked</span>}
-      </div>
-      {warnings.length > 0 && (
-        <ul className="player-warnings">
-          {warnings.map((w) => <li key={w.id} className={`sev-${w.severity}`}>{w.title}</li>)}
-        </ul>
-      )}
-    </article>
-  )
-}
-
-
-function PlayerTabs({ run, value, onChange }: { run: Run; value: string; onChange: (id: string) => void }) {
-  const { myPlayerId } = useGD()
-  return (
-    <div className="ptabs" role="tablist">
-      {run.players.map((p) => (
-        <button key={p.id} role="tab" aria-selected={value === p.id} title={p.id === myPlayerId ? 'Your Guardian' : undefined} className={value === p.id ? 'is-on' : ''} onClick={() => onChange(p.id)} style={{ ['--el' as string]: ELEMENT_COLOR[p.element] }}>
-          <ElementMark element={p.element} /> {p.name}{p.id === myPlayerId && <span className="muted small">(you)</span>}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-function usePlayerTab(run: Run) {
-  const { myPlayerId } = useGD()
-  const [id, setId] = useState(myPlayerId ?? run.players[0].id)
-  const p = run.players.find((x) => x.id === id) ?? run.players[0]
-  return [p, setId] as const
-}
-
-function SubclassArchive({ run }: { run: Run }) {
-  const { dispatch, canControl } = useGD()
-  const [p, setId] = usePlayerTab(run)
-  const [showLocked, setShowLocked] = useState(false)
-  const all = subclassAbilities(p.cls, p.element)
-  // With Bungie linked, what's equipped is read from the game; otherwise players tick it themselves.
-  const fromBungie = !!p.bungie?.subclass
-  const control = canControl(p.id) && !fromBungie
-  const toggle = (id: string) => dispatch({ type: 'configure', abilityId: id }, p.id)
-  return (
-    <section id="archive" className="section">
-      <header className="section-head">
-        <div>
-          <div className="eyebrow">Subclass Archive</div>
-          <h2>Unlocked abilities</h2>
-          <p className="section-note">Unlocking and equipping are separate. Tick what you have actually equipped in Destiny 2; anything equipped but not unlocked is flagged. Each player keeps their own Guardian up to date.</p>
-        </div>
-        <label className="switch"><input type="checkbox" checked={showLocked} onChange={(e) => setShowLocked(e.target.checked)} /> Show locked</label>
-      </header>
-      <PlayerTabs run={run} value={p.id} onChange={setId} />
-      {fromBungie && <p className="small muted"><span className="tag tag-bungie">Bungie</span> {p.name}&rsquo;s equipped abilities are read from Destiny 2 ({p.bungie!.subclass!.name}) at each sync.</p>}
-      <div className="kind-grid">
-        {ABILITY_KINDS.map((k) => {
-          const list = all.filter((a) => a.kind === k && (showLocked || p.unlocked.includes(a.id) || p.configured.includes(a.id)))
-          return (
-            <div key={k} className="kind-col">
-              <h3>{KIND_LABEL[k]}s <span className="muted">{all.filter((a) => a.kind === k && p.unlocked.includes(a.id)).length}/{all.filter((a) => a.kind === k).length}</span></h3>
-              {list.length === 0 && <Empty>None unlocked yet</Empty>}
-              <ul className="ability-list">
-                {list.map((a) => {
-                  const unlocked = p.unlocked.includes(a.id)
-                  const conf = p.configured.includes(a.id)
-                  return (
-                    <li key={a.id} className={`ability ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf && !unlocked ? 'is-bad' : ''}`}>
-                      <label>
-                        <input type="checkbox" disabled={!control} checked={conf} onChange={() => toggle(a.id)} aria-label={`${a.name} equipped in game`} />
-                        <span className="ab-name">{a.name}</span>
-                      </label>
-                      <span className="ab-state">{unlocked ? (conf ? 'Equipped' : 'Unlocked') : conf ? 'Out of order' : 'Locked'}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
-}
-
-function ArtifactResearch({ run }: { run: Run }) {
-  const { dispatch, canControl } = useGD()
-  return (
-    <section id="artifact" className="section">
-      <header className="section-head">
-        <div>
-          <div className="eyebrow">Artifact Research</div>
-          <h2>Artifact perks</h2>
-          <p className="section-note">Each Guardian committed to one artifact for the run, and it starts with nothing researched. Final bosses and secret chests offer perks from that artifact only. Set the perks up in Destiny 2 to match.</p>
-        </div>
-      </header>
-      <div className={`art-cols players-${run.players.length}`}>
-        {run.players.map((p) => (
-          <div key={p.id} className="panel art-col">
-            <h3><ElementMark element={p.element} /> {p.name}</h3>
-            <p className="art-name">{p.artifactName ? <><strong>{p.artifactName}</strong> <span className="muted small">{artifactByName(p.artifactName)?.season} &middot; {p.artifact.length}/21 researched</span></> : <span className="tone-warn small">No artifact chosen</span>}</p>
-            {artifactByName(p.artifactName)?.focus && <p className="small muted">{artifactByName(p.artifactName)!.focus}</p>}
-            {p.artifact.length === 0 ? <Empty>No perks researched</Empty> : (
-              <ul className="mod-list">
-                {p.artifact.map((m) => (
-                  <li key={m} title={artifactPerk(p.artifactName, m)?.desc}>
-                    <span className="mod-hex" aria-hidden="true" /><span>{m}{artifactPerk(p.artifactName, m) && <span className="muted small"> &middot; Tier {artifactPerk(p.artifactName, m)!.tier}</span>}</span>
-                    {canControl(p.id) && <button className="icon-btn sm" aria-label={`Remove ${m}`} onClick={() => dispatch({ type: 'artifact-remove', mod: m }, p.id)}>×</button>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ))}
-      </div>
-    </section>
-  )
-}
-
-function FieldArsenal({ run }: { run: Run }) {
-  const { dispatch, canControl, openFlow, toast } = useGD()
-  const [p, setId] = usePlayerTab(run)
-  const cap = capacityOf(run, p)
-  const tu = run.ruleset.tradeUp
-  const control = canControl(p.id)
-  const active = run.status === 'active' && control
-  const toggleEquip = (itemId: string) => dispatch({ type: 'equip', itemId }, p.id)
-  const bungie = useBungie()
-  // Which item is showing its "remove from the app only" confirmation.
-  const [removing, setRemoving] = useState<string | null>(null)
-
-  const eligibleForTrade = (slot: Slot) => {
-    const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
-    if (!tu.sameRarity) return items.length >= tu.inputs
-    return RARITIES.some((rr) => items.filter((i) => i.rarity === rr).length >= tu.inputs)
-  }
-
-  return (
-    <section id="arsenal" className="section">
-      <header className="section-head">
-        <div>
-          <div className="eyebrow">Field Arsenal</div>
-          <h2>Run inventory</h2>
-          <p className="section-note">Only items declared as run acquisitions count. Each slot holds {run.ruleset.inventory.capacity} items including the equipped one{p.capacityBonus ? `, +${p.capacityBonus} from Arsenal Expansion for ${p.name}` : ''}. Keep extras in the Vault; nothing needs dismantling.</p>
-        </div>
-        {!control ? <span className="muted small">Viewing {p.name}. Only their player can change this.</span>
-          : p.bungie ? (
-            <div className="auto-drops">
-              <span><span className="tag tag-bungie">Bungie</span> Drops are checked automatically every minute. <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Add one manually</button></span>
-              {bungie.signedIn && <button className="btn btn-ghost btn-sm" disabled={bungie.busy} onClick={() => syncBungie(run, p, dispatch, (m) => toast(m))}>{bungie.busy ? 'Syncing…' : 'Sync drops now'}</button>}
-              <RestoreGuardian run={run} p={p} />
-            </div>
-          )
-          : <button className="btn btn-light" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id })}>Register drop</button>}
-      </header>
-      <PlayerTabs run={run} value={p.id} onChange={setId} />
-      <div className="slot-grid">
-        {ALL_SLOTS.map((slot) => {
-          const items = itemsIn(p, slot)
-          const over = items.length > cap
-          return (
-            <div key={slot} className={`panel slot ${over ? 'is-over' : ''}`}>
-              <header>
-                <h3>{slot}</h3>
-                <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
-              </header>
-              <div className="cap-ticks">
-                {Array.from({ length: Math.max(cap, items.length) }, (_, i) => <span key={i} className={i < items.length ? (i >= cap ? 'over' : 'on') : ''} />)}
-              </div>
-              {items.length === 0 ? <Empty>Empty</Empty> : (
-                <ul className="items">
-                  {items.map((it) => removing === it.id ? (
-                    <li key={it.id} className={`item item-confirm ${rarityClass(it.rarity)}`} role="group" aria-label={`Remove ${it.name}`}>
-                      <div className="item-main">
-                        <span className="item-name">Remove {it.name} from the app?</span>
-                        <span className="item-meta">Only Ghost Directive changes. The item stays in Destiny 2, and Bungie sync won&rsquo;t add it back.</span>
-                      </div>
-                      <div className="item-acts">
-                        <button className="chip chip-danger" onClick={() => { dispatch({ type: 'remove-item', itemId: it.id }, p.id); setRemoving(null); toast(`${it.name} removed from the run (still in Destiny 2)`) }}>Remove</button>
-                        <button className="chip" onClick={() => setRemoving(null)}>Keep</button>
-                      </div>
-                    </li>
-                  ) : (
-                    <li key={it.id} className={`item ${rarityClass(it.rarity)} ${it.equipped ? 'is-eq' : ''}`}>
-                      <div className="item-main">
-                        <span className="item-name">{it.name}</span>
-                        <span className="item-meta">{it.rarity} &middot; {it.source}</span>
-                      </div>
-                      {control ? (
-                        <div className="item-acts">
-                          <button className="chip" onClick={() => toggleEquip(it.id)} aria-pressed={it.equipped}>{it.equipped ? 'Equipped' : 'Equip'}</button>
-                          <button className="chip" onClick={() => { dispatch({ type: 'vault', itemIds: [it.id], why: 'player choice' }, p.id); toast(`${it.name} moved to the Vault`) }}>To Vault</button>
-                          <button className="chip chip-quiet" title="Remove from Ghost Directive only. Nothing changes in Destiny 2." onClick={() => setRemoving(it.id)}>Remove</button>
-                        </div>
-                      ) : it.equipped && <span className="chip static">Equipped</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {control && <div className="slot-foot">
-                {!p.bungie ? <button className="link" disabled={!active} onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>+ Add</button> : <span />}
-                {tu.enabled && <button className="link" disabled={!active || !eligibleForTrade(slot)} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>Trade up {tu.inputs}&rarr;1</button>}
-              </div>}
-            </div>
-          )
-        })}
-      </div>
-    </section>
   )
 }
 

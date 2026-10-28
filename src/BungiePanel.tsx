@@ -82,6 +82,14 @@ export function useAutoSync(run: Run | null, me: Player | undefined, dispatch: (
     // Re-run when the player, sign-in state or the clock changes; run/dispatch are read fresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.id, ready, stale, tick])
+  // "Sync all" from any device: sync again when the run's request changes (not for one already there on load).
+  const seenRequest = useRef(run?.syncRequest)
+  useEffect(() => {
+    if (!run?.syncRequest || run.syncRequest === seenRequest.current) return
+    seenRequest.current = run.syncRequest
+    if (ready) syncBungie(run, me!, dispatch, notify)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [run?.syncRequest, ready])
   const progress = (run?.claimed.length ?? 0) + (run?.chests.length ?? 0)
   const latest = useRef({ run, me })
   latest.current = { run, me }

@@ -1,11 +1,12 @@
 """Download the Destiny Data Compendium tabs and the Bungie manifest pieces that
 parse_compendium.py needs, into a working directory.
 
-    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json
+    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json
     python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 
 The second argument writes the compact weapon/armor lookup table the app uses to
 name items from a signed-in player's Vault (hash -> name, slot, tier, class, damage).
+The third writes icon paths by name: weapons and armor, and subclass and artifact plugs.
 
 Needs network access to docs.google.com and *.bungie.net. The full item
 definition file is about 200 MB.
@@ -14,6 +15,7 @@ import collections, json, os, sys, urllib.request
 
 out = sys.argv[1]
 item_table = sys.argv[2] if len(sys.argv) > 2 else None
+icon_table = sys.argv[3] if len(sys.argv) > 3 else None
 os.makedirs(out, exist_ok=True)
 SHEET = 'https://docs.google.com/spreadsheets/d/1WaxvbLx7UoSZaBqdFr1u32F2uWVLo-CJunJB4nlGUE4/gviz/tq?tqx=out:csv&gid='
 TABS = {'Arc': 618967225, 'Solar': 1186062409, 'Void': 1907852650, 'Stasis': 1088259962,
@@ -79,3 +81,22 @@ if item_table:
             rows[h] = [name, BUCKET[inv['bucketTypeHash']], TIER[inv['tierType']], it.get('classType', 3), it.get('defaultDamageType', 0)]
     json.dump({'version': manifest['version'], 'items': rows}, open(item_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', item_table, len(rows), 'items')
+
+# Icons by name, as paths under /common/destiny2_content/icons/: gear in the item table, and the
+# subclass and artifact plugs the run screen shows.
+if item_table and icon_table:
+    PRE = '/common/destiny2_content/icons/'
+    gear, plugs = {}, {}
+    for h, row in rows.items():
+        ic = items[h].get('displayProperties', {}).get('icon', '')
+        if ic.startswith(PRE):
+            gear.setdefault(row[0], ic[len(PRE):])
+    KINDS = ('.supers', '.grenades', '.melee', '.aspects', '.fragments', '.class_abilities', '.movement')
+    for it in items.values():
+        pc = it.get('plug', {}).get('plugCategoryIdentifier', '')
+        name = it.get('displayProperties', {}).get('name', '').strip()
+        ic = it.get('displayProperties', {}).get('icon', '')
+        if pc and (any(k in pc for k in KINDS) or pc.startswith('artifact')) and name and not name.startswith('Empty') and ic.startswith(PRE):
+            plugs.setdefault(name, ic[len(PRE):])
+    json.dump({'gear': gear, 'plugs': plugs}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    print('wrote', icon_table, len(gear), 'gear', len(plugs), 'plugs')

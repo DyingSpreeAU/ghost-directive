@@ -68,6 +68,12 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   with Got it / Missed it, one chest at a time. Chests at the start of a dungeon are asked before
   its first encounter. A found chest gives every player a chest reward. **Record Wipe** asks for
   confirmation, and the run fails at 0 Integrity.
+- **Run screen layout**: below the encounter and warnings, one column per Guardian (`src/Fireteam.tsx`):
+  run inventory slot by slot as item tiles (Bungie icons from `public/bungie-icons.json`, a
+  rarity-coloured initial where there's no icon; select a tile to equip, send to the Vault or
+  remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
+  collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
+  Guardian's device to re-read Bungie (`run.syncRequest`).
 - **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
   move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options. Signed-in players get a
   **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code
