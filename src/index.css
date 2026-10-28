@@ -1038,3 +1038,8 @@ button.ab-chip:hover { border-color: var(--dim); }
   }
   .devtools-x { width: 36px; height: 36px; font-size: 1.1rem; }
 }
+
+/* ---------------------------------------------------------------- lobby: other players' seats, read-only */
+.seat-body { display: contents; }
+.seat-body.is-readonly button:disabled { opacity: 1; cursor: default; }
+.seat-body.is-readonly button:disabled:not(.is-on):not(.is-conf):not([aria-checked="true"]) { opacity: 0.55; }

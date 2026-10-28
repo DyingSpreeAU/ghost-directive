@@ -54,6 +54,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## What's implemented (manual "No Login" mode)
 
+- **Every seat looks the same**: other players' seats show the full picker (class, all subclasses,
+  every ability option, all artifacts) with their picks highlighted and the controls disabled.
 - **Lobby layout** matches the run screen: each seat is a Guardian column with the player's emblem
   nameplate (shared by their signed-in device), class and subclass, starting Super/class ability/melee/grenade as icon
   chips, and the seven artifacts as icon tiles. The player's own seat also shows **Equipped now**: gear

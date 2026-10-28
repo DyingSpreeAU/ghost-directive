@@ -221,14 +221,14 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   const art = artifactByName(seat.artifact)
   const icons = useIcons()
   const always = baseKit(seat.cls, seat.element)
+  // Someone else's seat shows the same full layout, read-only.
+  const ro = !editable
   const status = seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected'
-  const chip = (id: string, on: boolean, onClick?: () => void) => {
+  const chip = (id: string, on: boolean, onClick: () => void) => {
     const a = abil.find((x) => x.id === id)
     if (!a) return null
     const body = <>{icons.plug(a.name) && <img src={icons.plug(a.name)} alt="" loading="lazy" />}<span>{a.name}</span></>
-    return onClick
-      ? <button key={id} role="radio" aria-checked={on} className={`ab-chip is-unlocked ${on ? 'is-conf' : ''}`} onClick={onClick}>{body}</button>
-      : <span key={id} className="ab-chip is-unlocked is-conf">{body}</span>
+    return <button key={id} role="radio" aria-checked={on} className={`ab-chip is-unlocked ${on ? 'is-conf' : ''}`} disabled={ro} onClick={onClick}>{body}</button>
   }
   return (
     <article className={`panel guardian seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }} aria-label={seat.name}>
@@ -249,8 +249,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
         <span className={`seat-status st-${status.replace(/\s/g, '').toLowerCase()}`}>{status}</span>
       </header>
 
-      {editable ? (
-        <>
+      <div className={`seat-body ${ro ? 'is-readonly' : ''}`}>
           <section className="g-sec" aria-label="Class and subclass">
             <header className="g-sec-head">
               <span className="eyebrow">Class and subclass</span>
@@ -266,11 +265,11 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
               )}
             </header>
             <div className="seg" role="radiogroup" aria-label="Class">
-              {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} onClick={() => onPatch({ cls: c })}>{c}</button>)}
+              {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} disabled={ro} onClick={() => onPatch({ cls: c })}>{c}</button>)}
             </div>
             <div className="el-pick" role="radiogroup" aria-label="Committed subclass">
               {ELEMENTS.map((el) => (
-                <button key={el} role="radio" aria-checked={seat.element === el} className={seat.element === el ? 'is-on' : ''} style={{ ['--el' as string]: ELEMENT_COLOR[el] }} onClick={() => onPatch({ element: el })}>
+                <button key={el} role="radio" aria-checked={seat.element === el} className={seat.element === el ? 'is-on' : ''} style={{ ['--el' as string]: ELEMENT_COLOR[el] }} disabled={ro} onClick={() => onPatch({ element: el })}>
                   <ElementMark element={el} size={24} /><span>{el}</span>
                 </button>
               ))}
@@ -278,7 +277,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           </section>
 
           <section className="g-sec" aria-label="Starting abilities">
-            <header className="g-sec-head"><span className="eyebrow">Starting abilities</span><span className="muted small">pick one of each</span></header>
+            <header className="g-sec-head"><span className="eyebrow">Starting abilities</span>{!ro && <span className="muted small">pick one of each</span>}</header>
             <div className="ab-kinds">
               {STARTER_KINDS.map((k) => (
                 <div key={k} className="ab-kind" data-kind={k} role="radiogroup" aria-label={`Starting ${KIND_LABEL[k].toLowerCase()}`}>
@@ -298,37 +297,24 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
             <header className="g-sec-head"><span className="eyebrow">Artifact</span><span className="muted small">locked for the run</span></header>
             <div className="art-pick" role="radiogroup" aria-label="Artifact" id={`art-${seat.id}`}>
               {ARTIFACTS.map((a) => (
-                <button key={a.name} role="radio" aria-checked={seat.artifact === a.name} className={`art-opt ${seat.artifact === a.name ? 'is-on' : ''}`} title={`${a.name} (${a.season})${a.focus ? `: ${a.focus}` : ''}`} onClick={() => onPatch({ artifact: a.name })}>
+                <button key={a.name} role="radio" aria-checked={seat.artifact === a.name} className={`art-opt ${seat.artifact === a.name ? 'is-on' : ''}`} title={`${a.name} (${a.season})${a.focus ? `: ${a.focus}` : ''}`} disabled={ro} onClick={() => onPatch({ artifact: a.name })}>
                   {icons.artifact(a.name) ? <img src={icons.artifact(a.name)} alt="" loading="lazy" /> : <span className="art-opt-blank" aria-hidden="true">{a.name.slice(0, 2)}</span>}
                   <span className="art-opt-name">{a.name}</span>
                 </button>
               ))}
             </div>
             {art ? <small className="muted">{art.name} &middot; {art.season}. {art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</small>
-              : <small className="tone-warn">Pick one before the run starts. All Artifact research comes from it.</small>}
+              : <small className="tone-warn">{ro ? 'Not chosen yet.' : 'Pick one before the run starts. All Artifact research comes from it.'}</small>}
           </section>
 
           {equipped}
           {notice}
-          {!seat.isHost && seat.clientId !== null && (
+          {!ro && !seat.isHost && seat.clientId !== null && (
             <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
               {seat.ready ? 'Not ready yet' : art ? 'I\u2019m ready' : 'Choose an artifact first'}
             </button>
           )}
-        </>
-      ) : (
-        <>
-          <section className="g-sec" aria-label="Starting abilities">
-            <header className="g-sec-head"><span className="eyebrow">Starting abilities</span></header>
-            <div className="ab-chips">{STARTER_KINDS.map((k) => chip(starterOf(seat)[k], true))}</div>
-          </section>
-          <section className="g-sec" aria-label="Artifact">
-            <header className="g-sec-head"><span className="eyebrow">Artifact</span></header>
-            {art ? <p className="art-name">{icons.artifact(art.name) && <img className="art-icon" src={icons.artifact(art.name)} alt="" loading="lazy" />}<strong>{art.name}</strong><span className="muted small"> &middot; {art.season}</span></p>
-              : <p className="tone-warn small">Not chosen yet</p>}
-          </section>
-        </>
-      )}
+      </div>
 
       {you && <SeatBungie />}
 
