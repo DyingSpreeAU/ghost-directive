@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, endSavedRuns, useGD } from './store'
-import { ElementMark, EncounterArt, Modal, SwipeCols, rarityClass } from './ui'
+import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
@@ -585,7 +585,10 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
           <li><strong>A Guardian dies:</strong> <span className="tone-danger">&minus;{i.death ?? 0}</span> Integrity. Record it on that Guardian&rsquo;s column.</li>
           <li><strong>The fireteam wipes:</strong> <span className="tone-danger">&minus;{i.wipe}</span> Integrity.</li>
           <li className="rules-key"><strong>What counts as a wipe:</strong> every Guardian in the fireteam dead at the same time, at any point in the run. That includes traversal sections and anywhere the game would let you revive or respawn: no wipe mechanic or Darkness zone is needed. Record it as one wipe, not as separate deaths.</li>
-          <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> items from one slot{tu.sameRarity ? ' (same rarity)' : ''} for a Legendary from your Vault.</> : null}</li>
+          {r.progression && (
+            <li><strong>Gear progression:</strong> every slot starts at <TierWord tier="Common" /> (your heavy weapon at <TierWord tier="Uncommon" />) and climbs <TierWord tier="Uncommon" /> &rarr; <TierWord tier="Rare" /> &rarr; <TierWord tier="Legendary" />. Each non-Exotic drop in a slot below Legendary moves it up one tier: dismantle the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). Exotics can be used at any time. After any reward there&rsquo;s a 1 in 10 BONUS: move any slot up a tier.</li>
+          )}
+          <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> Legendary or Exotic items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression ? ' that\u2019s reached Legendary' : ''} for a Legendary from your Vault.</> : null}</li>
           <li><strong>Abilities and artifact perks</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>
           <li><strong>Honour system:</strong> the app tracks the run; it doesn&rsquo;t police it. Play it straight.</li>
         </ul>

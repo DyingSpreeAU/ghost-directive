@@ -1,7 +1,7 @@
 import type { RestorePoint } from './bungie'
 import {
   ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, STARTER_KINDS, WEAPON_SLOTS,
-  abilityById, baseKit, dungeonById, subclassAbilities,
+  abilityById, baseKit, dungeonById, nextTier, subclassAbilities, tierArmor,
   type ClassType, type Element, type StarterKind, type Rarity, type Slot, type VaultEntry,
 } from './data'
 
@@ -27,6 +27,8 @@ export type Ruleset = {
     allowLater?: boolean
   }
   tradeUp: { enabled: boolean; inputs: number; options: number; sameRarity: boolean }
+  /** Gear progression: each slot climbs Common > Uncommon > Rare > Legendary. Off for rulesets from before it existed. */
+  progression?: boolean
   overflow: 'guided' | 'warn'
   loadouts: { baseSlots: number }
 }
@@ -40,6 +42,7 @@ export const PRESETS: Ruleset[] = [
     inventory: { capacity: 5, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
+    progression: true,
     overflow: 'guided',
     loadouts: { baseSlots: 2 },
   },
@@ -50,6 +53,7 @@ export const PRESETS: Ruleset[] = [
     inventory: { capacity: 4, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
+    progression: true,
     overflow: 'guided',
     loadouts: { baseSlots: 1 },
   },
@@ -60,6 +64,7 @@ export const PRESETS: Ruleset[] = [
     inventory: { capacity: 3, slots: [...ALL_SLOTS] },
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
+    progression: true,
     overflow: 'warn',
     loadouts: { baseSlots: 0 },
   },
@@ -117,6 +122,19 @@ export const CHECKLIST: { key: ChecklistKey; label: string; hint: string }[] = [
   { key: 'noFragments', label: 'No fragments', hint: 'Unequip all fragments. They unlock during the run.' },
 ]
 
+/** A slot going up a tier. Below Legendary the player dismantles the drop and uses `item`, the tier's piece. */
+export type Upgrade = {
+  id: string
+  slot: Slot
+  from: Rarity
+  to: Rarity
+  /** What did it: a drop (dismantle it, or keep it on reaching Legendary), a reward, or a bonus. */
+  reason: 'drop' | 'reward' | 'bonus'
+  drop?: { name: string; instanceId?: string }
+  /** The piece to use at the new tier; chosen once (weapons are any of the rarity, armor is a fixed set). */
+  item?: string
+}
+
 export type Player = {
   id: string
   /** The device that controls this Guardian; null when no device is linked. */
@@ -142,6 +160,10 @@ export type Player = {
   bungie?: BungieLink
   /** Individual deaths recorded this run. */
   deaths?: number
+  /** Gear progression: each slot's tier (missing on runs from before progression: no limits). */
+  tiers?: Partial<Record<Slot, Rarity>>
+  /** Slots that just went up a tier, waiting for the player to swap their gear in game. */
+  upgrades?: Upgrade[]
   /** A trade-up in progress: inputs already given up, options rolled once by the host. Cleared when one is picked. */
   trade?: { slot: Slot; inputs: string[]; options: VaultEntry[] }
   /** Bungie instances the player removed from the run (app only), so they aren't detected again. */
@@ -249,7 +271,10 @@ export function createRun(opts: {
     startedAt: Date.now(),
     code: opts.code,
   }
-  for (const p of run.players) p.configured = [...p.unlocked]
+  for (const p of run.players) {
+    p.configured = [...p.unlocked]
+    if (run.ruleset.progression) p.tiers = startingTiers()
+  }
   log(run, 'run', `Run started under ${run.ruleset.name}. Route: ${run.route.map((d) => dungeonById(d).name).join(' → ')}.`)
   return run
 }
@@ -307,8 +332,8 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
   }
 }
 
-/** Items that can go into a trade-up: not Exotic, and not the gear the Guardian started the run with. */
-export const tradeable = (i: Item) => i.rarity !== 'Exotic' && i.source !== 'starting gear'
+/** Items that can go into a trade-up: Legendary or Exotic, in any mix. */
+export const tradeable = (i: Item) => (i.rarity === 'Legendary' || i.rarity === 'Exotic') && i.source !== 'starting gear'
 
 /**
  * A Guardian left the fireteam: the host takes them out of the run so the rest can carry on.
@@ -355,6 +380,42 @@ export function addItem(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>
   p.inventory.push(it)
   log(run, 'gear', `${p.name} registered ${it.name} (${it.rarity} ${it.slot}) from ${it.source}.`)
   return it
+}
+
+/** Gear progression start: Common everywhere, except the heavy weapon at Uncommon. */
+export function startingTiers(): Partial<Record<Slot, Rarity>> {
+  return Object.fromEntries(ALL_SLOTS.map((s) => [s, s === 'Power' ? 'Uncommon' : 'Common']))
+}
+
+/** A slot's tier; Legendary when progression is off (or the run predates it), which means no limit. */
+export function slotTier(run: Run, p: Player, slot: Slot): Rarity {
+  return run.ruleset.progression && p.tiers ? p.tiers[slot] ?? 'Legendary' : 'Legendary'
+}
+
+/** Raises a slot one tier and queues the in-game swap for the player. */
+export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reason'], drop?: Upgrade['drop']): Upgrade | null {
+  const from = slotTier(run, p, slot)
+  if (from === 'Legendary' || !p.tiers) return null
+  const to = nextTier(from)
+  p.tiers[slot] = to
+  const up: Upgrade = { id: uid(), slot, from, to, reason, drop }
+  const armor = tierArmor(p.cls, slot, to)
+  if (armor) up.item = armor
+  p.upgrades = [...(p.upgrades ?? []), up]
+  const why = reason === 'bonus' ? 'BONUS' : reason === 'reward' ? 'a final-boss reward' : `a drop (${drop?.name ?? 'unknown'})`
+  log(run, 'upgrade', `${p.name}'s ${slot} went up a tier: ${from} \u2192 ${to}, from ${why}.`)
+  return up
+}
+
+/**
+ * Gear arriving in the run. With progression, a non-Exotic item in a slot below Legendary raises
+ * the slot one tier instead of joining the inventory; reaching Legendary keeps a dropped item.
+ */
+export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>, reason: 'drop' | 'reward' = 'drop'): Item | null {
+  if (item.rarity === 'Exotic' || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
+  const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })
+  if (up?.to === 'Legendary' && item.rarity === 'Legendary') return addItem(run, p, item)
+  return null
 }
 
 /** Items leaving the run; detected ones are remembered so a Bungie sync doesn't add them back. */
@@ -504,6 +565,8 @@ export type Pending = {
   legendary: VaultEntry[]
   artifact: string[]
   chest: ChestReward[]
+  /** BONUS: after the rewards, raise any slot one tier (gear progression, 1 in 10). */
+  bonus?: boolean
 }
 
 /**
@@ -522,6 +585,9 @@ export function pendingChest(run: Run): { number: number; remaining: number } | 
   return { number: before + done + 1, remaining: gap - done }
 }
 
+/** 1 in 10: a BONUS tier-up after the rewards (gear progression, while a slot is below Legendary). */
+const rollBonus = (run: Run, p: Player) => !!run.ruleset.progression && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') && Math.random() < 0.1
+
 /** Records whether the fireteam got the next secret chest; a found chest gives everyone a chest reward. */
 export function recordChest(run: Run, found: boolean) {
   const next = pendingChest(run)
@@ -535,6 +601,7 @@ export function recordChest(run: Run, found: boolean) {
     run.pending.push({
       id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false,
       unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
+      bonus: rollBonus(run, p),
     })
   }
 }
@@ -555,6 +622,7 @@ export function recordClear(run: Run) {
       legendary: final && rw.finalBossGear ? legendaryWeaponChoices(p) : [],
       artifact: final && rw.finalBossArtifact ? artifactChoices(p) : [],
       chest: [],
+      bonus: rollBonus(run, p),
     })
   }
   if (run.status === 'active') advance(run)
@@ -582,7 +650,9 @@ export type Intent =
   | { type: 'artifact-remove'; mod: string }
   | { type: 'sync-request' }
   | { type: 'death' }
-  | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
+  | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[]; bonusSlot?: Slot }
+  | { type: 'upgrade-pick'; upgradeId: string; item: string }
+  | { type: 'upgrade-done'; upgradeId: string }
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
@@ -620,7 +690,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (!active) return 'The run has ended.'
       const item = cleanItem(it.item)
       if (typeof item === 'string') return item
-      addItem(run, p, item)
+      receiveGear(run, p, item)
       return null
     }
     case 'equip': {
@@ -636,6 +706,21 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       sendToVault(run, p, it.itemIds.filter((x) => typeof x === 'string'), str(it.why, 30) || 'player choice')
       return null
     }
+    case 'upgrade-pick': {
+      // A weapon tier piece is picked on the player's device (preferring one they own), then fixed here.
+      const up = p.upgrades?.find((x) => x.id === it.upgradeId)
+      if (!up) return 'That upgrade is already done.'
+      if (!up.item) up.item = str(it.item, 60) || undefined
+      return null
+    }
+    case 'upgrade-done': {
+      const up = p.upgrades?.find((x) => x.id === it.upgradeId)
+      if (!up) return null
+      p.upgrades = p.upgrades!.filter((x) => x !== up)
+      // The tier's piece joins the run; the previous tier's item stays as a spare.
+      if (up.to !== 'Legendary' && up.item) addItem(run, p, { name: up.item, slot: up.slot, rarity: up.to, source: `${up.to} tier` })
+      return null
+    }
     case 'tradeup-start': {
       // The inputs are given up and the options rolled here, once: backing out can't re-roll them.
       if (!active) return 'The run has ended.'
@@ -646,7 +731,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const inputs = p.inventory.filter((i) => ids.includes(i.id))
       if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
       const slot = inputs[0].slot
-      if (inputs.some((i) => i.slot !== slot || !tradeable(i))) return 'Inputs must share a slot, and can\u2019t be Exotic or starting gear.'
+      if (inputs.some((i) => i.slot !== slot || !tradeable(i))) return 'Inputs must share a slot and be Legendary or Exotic.'
+      if (slotTier(run, p, slot) !== 'Legendary') return `Trade-ups need your ${slot} at Legendary.`
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
@@ -769,9 +855,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         if (twin) { twin.instanceId = instanceId; continue }
         const item = cleanItem({ name: d.name, slot: d.slot, rarity: d.rarity, source: d.starting ? 'starting gear' : 'detected drop' })
         if (typeof item === 'string') continue
-        const added = addItem(run, p, item)
-        added.instanceId = instanceId
-        added.equipped = !!d.starting
+        const added = d.starting ? addItem(run, p, item) : receiveGear(run, p, { ...item, instanceId })
+        if (added) { added.instanceId = instanceId; added.equipped = !!d.starting }
       }
       // What the character has equipped in game right now, so every device sees it on the run items.
       if (Array.isArray(it.equipped)) {
@@ -829,15 +914,17 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         log(run, 'unlock', `${p.name} unlocked ${a.name} (${KIND_LABEL[a.kind]}).`)
       }
       if (gear) {
-        const added = addItem(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' })
+        // Below Legendary, a Vault weapon raises the slot a tier instead (gear progression).
+        const added = receiveGear(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' }, 'reward')
         // A specific copy (an Exotic class item's roll) is tracked as that exact item.
-        if (gear.instanceId) added.instanceId = gear.instanceId
+        if (added && gear.instanceId) added.instanceId = gear.instanceId
       }
+      if (pend.bonus && it.bonusSlot && ALL_SLOTS.includes(it.bonusSlot) && slotTier(run, p, it.bonusSlot) !== 'Legendary') raiseTier(run, p, it.bonusSlot, 'bonus')
       if (it.mod) { p.artifact.push(it.mod); log(run, 'artifact', `${p.name} researched ${it.mod}.`) }
       if (chest?.kind === 'artifact') { p.artifact.push(chest.mod); log(run, 'artifact', `${p.name} researched ${chest.mod}.`) }
       if (chest?.kind === 'expansion') { p.capacityBonus++; log(run, 'upgrade', `${p.name} earned Arsenal Expansion: +1 capacity per slot.`) }
       if (chest?.kind === 'archive') { p.loadoutBonus++; log(run, 'upgrade', `${p.name} earned Loadout Archive: +1 loadout slot.`) }
-      drops.forEach((d) => addItem(run, p, d))
+      drops.forEach((d) => receiveGear(run, p, d))
       return null
     }
   }

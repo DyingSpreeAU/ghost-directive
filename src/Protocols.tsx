@@ -61,6 +61,7 @@ export function Protocols() {
                 <div><dt>Guardian death</dt><dd>{p.integrity.death ? <>&minus;{p.integrity.death}</> : '0'}</dd></div>
                 <div><dt>Starting Item Slots</dt><dd>{p.inventory.capacity}</dd></div>
                 <div><dt>Trade-up</dt><dd>{p.tradeUp.enabled ? `${p.tradeUp.inputs}→${p.tradeUp.options}` : 'Off'}</dd></div>
+                <div><dt>Progression</dt><dd>{p.progression ? 'On' : 'Off'}</dd></div>
                 <div><dt>Overflow</dt><dd>{p.overflow === 'guided' ? 'Swap' : 'Warn'}</dd></div>
               </dl>
               <div className="row-acts">
@@ -155,6 +156,7 @@ function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Rules
           </div>
         </div>
         <div className="toggles">
+          <Toggle id="pr-prog" label="Gear progression (each slot climbs Common > Uncommon > Rare > Legendary)" checked={!!r.progression} onChange={(b) => set((d) => { d.progression = b })} />
           <Toggle id="pr-tu" label="Trade-ups enabled" checked={r.tradeUp.enabled} onChange={(b) => set((d) => { d.tradeUp.enabled = b })} />
           <Toggle id="pr-tur" label="Trade-up inputs must share a rarity" checked={r.tradeUp.sameRarity} onChange={(b) => set((d) => { d.tradeUp.sameRarity = b })} />
         </div>

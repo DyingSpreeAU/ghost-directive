@@ -1,0 +1,173 @@
+/* "How it works" briefing (src/Explainer.tsx). Destiny-style: deep space, gold Traveler light,
+   hairline geometry. Sections animate once they're in view (`.is-in`). */
+
+.xp {
+  position: fixed; inset: 0; z-index: 70; overflow-y: auto; overflow-x: hidden; scroll-snap-type: y proximity;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, #1b2233 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 80% 100%, #1a1424 0%, transparent 60%),
+    var(--ink);
+  color: var(--text);
+}
+.xp::before { /* starfield */
+  content: ''; position: fixed; inset: 0; pointer-events: none; opacity: 0.5;
+  background-image:
+    radial-gradient(1px 1px at 12% 22%, #fff8 50%, transparent 51%), radial-gradient(1px 1px at 72% 12%, #fff6 50%, transparent 51%),
+    radial-gradient(1px 1px at 38% 68%, #fff5 50%, transparent 51%), radial-gradient(1.5px 1.5px at 88% 54%, #fff7 50%, transparent 51%),
+    radial-gradient(1px 1px at 56% 36%, #fff4 50%, transparent 51%), radial-gradient(1px 1px at 22% 86%, #fff6 50%, transparent 51%),
+    radial-gradient(1px 1px at 92% 82%, #fff5 50%, transparent 51%), radial-gradient(1.5px 1.5px at 6% 52%, #fff6 50%, transparent 51%);
+  animation: xp-twinkle 6s ease-in-out infinite alternate;
+}
+@keyframes xp-twinkle { to { opacity: 0.25; } }
+
+.xp-skip { position: fixed; top: 14px; right: 16px; z-index: 2; background: #0009; border: 1px solid var(--seam); color: var(--dim); padding: 6px 12px; font-family: var(--f-display); letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.78rem; cursor: pointer; }
+.xp-skip:hover { color: var(--text); border-color: var(--light); }
+.xp-enter { position: fixed; bottom: 18px; right: 18px; z-index: 2; background: var(--light); color: var(--light-ink); border: 0; padding: 10px 18px; font-family: var(--f-display); font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; box-shadow: 0 0 24px color-mix(in srgb, var(--light) 45%, transparent); }
+
+/* ---- sections */
+.xp-sec {
+  position: relative; min-height: 100vh; scroll-snap-align: start; box-sizing: border-box;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center;
+  padding: 72px max(24px, 8vw);
+}
+.xp-sec + .xp-sec::before { /* hairline divider with a glint */
+  content: ''; position: absolute; top: 0; left: 8vw; right: 8vw; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--seam) 20%, color-mix(in srgb, var(--light) 60%, var(--seam)) 50%, var(--seam) 80%, transparent);
+}
+.xp-sec:nth-of-type(even) .xp-copy { order: 2; }
+.xp-copy { display: grid; gap: 14px; max-width: 56ch; }
+.xp-copy h2, .xp-end h2 { margin: 0; font-family: var(--f-display); font-size: clamp(1.8rem, 3.6vw, 2.8rem); text-transform: uppercase; letter-spacing: 0.06em; line-height: 1.05; }
+.xp-copy p, .xp-end p { margin: 0; color: #c7ccd6; font-size: 1.02rem; line-height: 1.65; }
+.xp-copy b { color: var(--light); font-weight: 600; }
+.xp-kicker { display: flex; gap: 12px; align-items: center; color: var(--light); font-family: var(--f-display); letter-spacing: 0.22em; text-transform: uppercase; font-size: 0.82rem; }
+.xp-n { font-family: var(--f-mono); color: var(--dim); letter-spacing: 0.1em; padding-right: 12px; border-right: 1px solid var(--seam); }
+.xp-art { display: grid; place-items: center; min-height: 280px; }
+.xp-svg { width: min(100%, 480px); height: auto; overflow: visible; }
+.xp-label { fill: var(--dim); font: 600 12px var(--f-display); letter-spacing: 0.1em; text-transform: uppercase; }
+
+/* reveal */
+.xp-copy > * { opacity: 0; transform: translateY(18px); transition: opacity 0.7s ease, transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.xp-sec.is-in .xp-copy > * { opacity: 1; transform: none; }
+.xp-sec.is-in .xp-copy > :nth-child(2) { transition-delay: 0.12s; }
+.xp-sec.is-in .xp-copy > :nth-child(3) { transition-delay: 0.24s; }
+
+/* ---- hero */
+.xp-hero { grid-template-columns: minmax(0, 1fr); place-items: center; text-align: center; overflow: hidden; }
+.xp-rings { position: absolute; width: min(120vmin, 900px); height: auto; opacity: 0.55; }
+.xp-ring { fill: none; stroke: color-mix(in srgb, var(--light) 45%, transparent); stroke-width: 0.7; transform-origin: 0 0; }
+.xp-ring.r1 { animation: xp-spin 120s linear infinite; }
+.xp-ring.r2 { animation: xp-spin 80s linear infinite reverse; stroke: color-mix(in srgb, var(--light) 30%, transparent); }
+.xp-ring.r3 { animation: xp-spin 200s linear infinite; stroke: color-mix(in srgb, var(--light) 22%, transparent); }
+.xp-core { fill: color-mix(in srgb, var(--light) 18%, transparent); filter: blur(10px); animation: xp-breathe 5s ease-in-out infinite; }
+@keyframes xp-spin { to { transform: rotate(360deg); } }
+@keyframes xp-breathe { 50% { opacity: 0.4; } }
+.xp-hero-copy { position: relative; display: grid; gap: 16px; justify-items: center; max-width: 62ch; }
+.xp-hero h1 { margin: 0; font-family: var(--f-display); font-weight: 700; font-size: clamp(2.6rem, 8vw, 5.4rem); letter-spacing: 0.14em; text-transform: uppercase; line-height: 1;
+  background: linear-gradient(180deg, #fff 30%, var(--light)); -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: xp-rise 1.2s 0.6s both cubic-bezier(0.2, 0.8, 0.2, 1); }
+.xp-hero p { margin: 0; color: #c7ccd6; font-size: 1.1rem; line-height: 1.6; animation: xp-rise 1s 1s both; }
+.xp-hero .xp-kicker { animation: xp-rise 1s 0.3s both; }
+@keyframes xp-rise { from { opacity: 0; transform: translateY(20px); letter-spacing: 0.3em; } }
+.xp-ghost { width: 84px; height: 84px; overflow: visible; }
+.xp-ghost path { fill: none; stroke: var(--light); stroke-width: 0.9; stroke-dasharray: 40; stroke-dashoffset: 40; animation: xp-draw-in 1.4s ease forwards; filter: drop-shadow(0 0 4px color-mix(in srgb, var(--light) 70%, transparent)); }
+.xp-ghost path:nth-child(2) { animation-delay: 0.15s; } .xp-ghost path:nth-child(3) { animation-delay: 0.3s; } .xp-ghost path:nth-child(4) { animation-delay: 0.45s; }
+.xp-ghost .eye { fill: var(--light); animation: xp-blink 4s 1.6s ease-in-out infinite; transform-origin: 17px 17px; }
+@keyframes xp-draw-in { to { stroke-dashoffset: 0; } }
+@keyframes xp-blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+.xp-scroll { margin-top: 18px; color: var(--dim); font-size: 0.78rem; letter-spacing: 0.2em; text-transform: uppercase; animation: xp-rise 1s 1.6s both, xp-bob 2.4s 2.6s ease-in-out infinite; }
+@keyframes xp-bob { 50% { transform: translateY(6px); } }
+
+/* ---- 01 route */
+.xp-draw { fill: none; stroke: var(--light); stroke-width: 2; stroke-dasharray: 600; stroke-dashoffset: 600; }
+.xp-sec.is-in .xp-draw { animation: xp-draw-in 1.8s ease forwards; }
+.xp-node, .xp-boss { fill: var(--hull-2); stroke: var(--light); stroke-width: 1.5; }
+.xp-boss { fill: color-mix(in srgb, var(--light) 25%, var(--hull)); stroke-width: 2.5; filter: drop-shadow(0 0 8px color-mix(in srgb, var(--light) 70%, transparent)); }
+.xp-chest { fill: var(--r-exotic); }
+.xp-pop { opacity: 0; transform-box: fill-box; transform-origin: center; }
+.xp-sec.is-in .xp-pop { animation: xp-pop 0.5s var(--d) both cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes xp-pop { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: none; } }
+
+/* ---- 02 integrity */
+@property --xp-v { syntax: '<integer>'; inherits: true; initial-value: 50; }
+.xp-int { position: relative; display: grid; justify-items: center; gap: 8px; width: min(100%, 360px); --xp-v: 50; }
+.xp-sec.is-in .xp-int { animation: xp-integrity 6s 0.4s ease-in-out infinite; }
+@keyframes xp-integrity { 0%, 12% { --xp-v: 50; } 25%, 37% { --xp-v: 55; } 50%, 62% { --xp-v: 50; } 75%, 87% { --xp-v: 30; } 100% { --xp-v: 50; } }
+.xp-track { fill: none; stroke: var(--seam); stroke-width: 12; stroke-linecap: round; }
+.xp-gauge { fill: none; stroke: var(--light); stroke-width: 12; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--xp-v)); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--light) 60%, transparent)); }
+.xp-int-num { position: absolute; top: 46%; font: 600 3rem var(--f-mono); color: var(--text); }
+.xp-count::after { counter-reset: xpv var(--xp-v); content: counter(xpv); }
+.xp-int-steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 16px; font-family: var(--f-display); letter-spacing: 0.06em; text-transform: uppercase; font-size: 0.85rem; }
+.xp-int-steps .t-ok b { color: var(--ok); } .xp-int-steps .t-bad b { color: var(--danger); }
+
+/* ---- 03 kit */
+.xp-diamond { fill: color-mix(in srgb, var(--light) 8%, var(--hull)); stroke: var(--light); stroke-width: 1.5; }
+.xp-unlock polygon { fill: var(--hull-2); stroke: var(--seam); stroke-width: 1.5; transition: fill 0.4s, stroke 0.4s; }
+.xp-sec.is-in .xp-unlock polygon { animation: xp-unlock 0.6s var(--d) forwards; }
+@keyframes xp-unlock { 60% { fill: #fff; } to { fill: color-mix(in srgb, var(--light) 55%, var(--hull)); stroke: var(--light); } }
+.xp-core-sm { fill: var(--light); filter: drop-shadow(0 0 8px var(--light)); animation: xp-breathe 3s ease-in-out infinite; }
+
+/* ---- 04 gear ladder */
+.xp-ladder { position: relative; display: grid; gap: 10px; width: min(100%, 320px); }
+.xp-rung { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--seam); background: #0007; font-family: var(--f-display); font-size: 1.15rem; letter-spacing: 0.08em; text-transform: uppercase; opacity: 0.35; transition: opacity 0.4s, border-color 0.4s; }
+.xp-rung.t-common { color: var(--r-common); } .xp-rung.t-uncommon { color: #5fbf6e; } .xp-rung.t-rare { color: #6fa0e6; } .xp-rung.t-legendary { color: #b788e0; }
+.xp-sec.is-in .xp-rung { animation: xp-rung 0.5s var(--d) forwards; }
+@keyframes xp-rung { to { opacity: 1; border-color: currentColor; box-shadow: inset 4px 0 0 currentColor; } }
+.xp-chev { width: 12px; height: 12px; border-top: 2px solid currentColor; border-left: 2px solid currentColor; transform: rotate(45deg) translate(2px, 2px); }
+.xp-climber { position: absolute; right: -14px; bottom: 18px; width: 12px; height: 12px; background: var(--light); transform: rotate(45deg); box-shadow: 0 0 12px var(--light); }
+.xp-sec.is-in .xp-climber { animation: xp-climb 2.2s 0.3s ease-in-out forwards; }
+@keyframes xp-climb { 33% { bottom: 76px; } 66% { bottom: 134px; } to { bottom: 192px; background: #d6a8ff; box-shadow: 0 0 18px #b788e0; } }
+
+/* ---- 05 rewards */
+.xp-cards { position: relative; display: flex; gap: 14px; perspective: 800px; }
+.xp-card { width: 110px; height: 150px; border: 1px solid var(--light); background: repeating-linear-gradient(135deg, var(--hull) 0 8px, var(--hull-2) 8px 16px); display: grid; place-items: center; transform: rotateY(180deg); transform-style: preserve-3d; }
+.xp-card-face { font-family: var(--f-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.85rem; text-align: center; padding: 8px; opacity: 0; }
+.xp-sec.is-in .xp-card { animation: xp-flip 0.7s var(--d) forwards; }
+.xp-sec.is-in .xp-card-face { animation: xp-face 0.1s calc(var(--d) + 0.35s) forwards; }
+.xp-sec.is-in .xp-card:nth-child(2) { animation: xp-flip 0.7s var(--d) forwards, xp-glow 2.4s 1.5s ease-in-out infinite; }
+@keyframes xp-flip { to { transform: none; background: color-mix(in srgb, var(--light) 10%, var(--hull)); } }
+@keyframes xp-face { to { opacity: 1; } }
+@keyframes xp-glow { 50% { box-shadow: 0 0 22px color-mix(in srgb, var(--light) 60%, transparent); } }
+.xp-bonus { position: absolute; top: -18px; right: -24px; padding: 4px 10px; background: var(--light); color: var(--light-ink); font: 700 0.85rem var(--f-display); letter-spacing: 0.12em; opacity: 0; transform: scale(0.4) rotate(-8deg); }
+.xp-sec.is-in .xp-bonus { animation: xp-bonus 0.6s 1.6s forwards cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes xp-bonus { to { opacity: 1; transform: rotate(-8deg); } }
+
+/* ---- 06 arsenal */
+.xp-trade { position: relative; width: 300px; height: 200px; }
+.xp-in, .xp-out { position: absolute; width: 56px; height: 56px; border: 2px solid #b788e0; background: linear-gradient(135deg, #3b2a52, #20172e); }
+.xp-in { top: 72px; left: calc(var(--i) * 64px + 22px); }
+.xp-sec.is-in .xp-in { animation: xp-merge 2.4s 0.4s ease-in-out infinite; }
+@keyframes xp-merge { 0%, 20% { transform: none; opacity: 1; } 55%, 100% { transform: translateX(calc((1.5 - var(--i)) * 64px)) scale(0.6); opacity: 0; } }
+.xp-out { left: 122px; top: 72px; opacity: 0; border-color: var(--light); box-shadow: 0 0 20px color-mix(in srgb, #b788e0 70%, transparent); }
+.xp-sec.is-in .xp-out { animation: xp-emerge 2.4s 0.4s ease-in-out infinite; }
+@keyframes xp-emerge { 0%, 50% { opacity: 0; transform: scale(0.4); } 70%, 100% { opacity: 1; transform: scale(1.25); } }
+.xp-trade-label { position: absolute; left: 0; right: 0; bottom: 8px; text-align: center; font: 600 1.4rem var(--f-mono); color: var(--light); }
+
+/* ---- 07 fireteam */
+.xp-link { stroke: var(--light); stroke-width: 1.5; stroke-dasharray: 4 6; opacity: 0.5; }
+.xp-sec.is-in .xp-link { animation: xp-flow 1.2s var(--d) linear infinite; }
+@keyframes xp-flow { to { stroke-dashoffset: -20; } }
+.xp-host { fill: color-mix(in srgb, var(--light) 18%, var(--hull)); stroke: var(--light); stroke-width: 2; filter: drop-shadow(0 0 10px color-mix(in srgb, var(--light) 50%, transparent)); }
+.xp-dev { fill: var(--hull-2); stroke: var(--dim); stroke-width: 1.5; }
+
+/* ---- end */
+.xp-end { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: center; gap: 18px; min-height: 80vh; }
+.xp-end .xp-ghost { width: 64px; height: 64px; }
+.xp-go { padding: 14px 32px; font-size: 1rem; letter-spacing: 0.14em; }
+
+/* ---- phones */
+@media (max-width: 760px) {
+  .xp-sec { grid-template-columns: minmax(0, 1fr); gap: 28px; padding: 64px 20px; min-height: auto; }
+  .xp-sec:nth-of-type(even) .xp-copy { order: 0; }
+  .xp-hero { min-height: 100vh; }
+  .xp-art { min-height: 200px; }
+  .xp-cards { transform: scale(0.85); }
+  .xp-trade { transform: scale(0.9); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .xp *, .xp::before { animation: none !important; transition: none !important; }
+  .xp-copy > *, .xp-pop, .xp-card-face, .xp-out, .xp-bonus { opacity: 1; transform: none; }
+  .xp-draw, .xp-ghost path { stroke-dashoffset: 0; }
+  .xp-rung { opacity: 1; }
+  .xp-card { transform: none; }
+}

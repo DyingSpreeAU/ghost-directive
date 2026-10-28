@@ -1,4 +1,5 @@
 import { BugReport } from './BugReport'
+import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
@@ -53,7 +54,12 @@ function markHostingTab(on: boolean) { try { if (on) sessionStorage.setItem(ROLE
 
 // ====================================================================== landing
 
+const INTRO_KEY = 'ghost-directive:seen-intro'
+
 function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string) => void }) {
+  // The animated briefing plays once, the first time this browser opens the app; then it's a link.
+  const [briefing, setBriefing] = useState<'intro' | 'open' | null>(() => { try { return localStorage.getItem(INTRO_KEY) ? null : 'intro' } catch { return null } })
+  const closeBriefing = () => { try { localStorage.setItem(INTRO_KEY, '1') } catch { /* fine */ } setBriefing(null) }
   const [code, setCode] = useState(lastCode())
   const [err, setErr] = useState('')
   const [store, setStore] = useState(loadHostStore)
@@ -82,12 +88,14 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
     <div className="landing">
       <div className="landing-inner">
         <div className="brand big"><GhostGlyph /><div><div className="brand-name">Ghost Directive</div><div className="brand-sub">Destiny 2 roguelite companion</div></div></div>
+        {briefing && <Explainer intro={briefing === 'intro'} onDone={closeBriefing} />}
         <p className="landing-lede">A roguelite challenge mode for Destiny 2 dungeons. Your fireteam starts stripped back to basic gear and a bare subclass, then fights through a chain of dungeons, earning abilities, artifact perks and better gear one encounter at a time.</p>
         <ul className="landing-points">
           <li><strong>Shared Integrity.</strong> Clears restore it; deaths and wipes drain it. Hit zero and the run is over.</li>
           <li><strong>Earn your kit.</strong> Every clear offers a choice of rewards. Pick one, and only use what you&rsquo;ve unlocked.</li>
           <li><strong>One run, every device.</strong> The host tracks the run; each Guardian joins on their own phone or PC to choose rewards and manage their gear.</li>
         </ul>
+        <button className="btn btn-ghost landing-how" onClick={() => setBriefing('open')}>How it works &rarr;</button>
         <BungieStart />
         {bungieConfigured && <div className="eyebrow landing-step">Step 2 &middot; Host or join</div>}
         <SavedRuns
@@ -546,9 +554,12 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
     : undefined
   // A trade-up in progress reopens until a pick is made: its options are already fixed. The host
   // also finishes ones started for Guardians with no device.
+  // Slots that went up a tier: walk the player (or the host, for a Guardian with no device) through the swap.
+  const upgradeFor = run?.players.find((x) => x.upgrades?.length && (x.id === me?.id || (role === 'host' && x.clientId === null)))
   const tradeFor = run?.players.find((x) => x.trade && (x.id === me?.id || (role === 'host' && x.clientId === null)))
   const activeFlow: Flow | null = flow
     ?? (tradeFor && run?.status === 'active' ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } : null)
+    ?? (upgradeFor && run?.status === 'active' ? { type: 'upgrade', playerId: upgradeFor.id, upgradeId: upgradeFor.upgrades![0].id } : null)
     ?? (autoReward ? { type: 'reward', pendingId: autoReward.id } : null)
     ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null)
   const closeFlow = () => {

@@ -1,14 +1,14 @@
-import { useEffect, useState, type ReactNode } from 'react'
-import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeable,
+  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, slotTier, tradeable,
   type ChestReward, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
-import { ElementMark, Modal, rarityClass } from './ui'
+import { ElementMark, Modal, TierWord, rarityClass } from './ui'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
-import { bungieConfigured, isSignedIn } from './bungie'
+import { bungieConfigured, isSignedIn, ownedInSlot, tierWeapons } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
@@ -20,6 +20,7 @@ export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose
       return pend ? <RewardFlow run={run} pend={pend} onClose={onClose} /> : null
     }
     case 'register': return <RegisterFlow run={run} onClose={onClose} playerId={flow.playerId} slot={flow.slot} />
+    case 'upgrade': return <UpgradeFlow run={run} onClose={onClose} playerId={flow.playerId} upgradeId={flow.upgradeId} />
     case 'tradeup': return <TradeUpFlow run={run} onClose={onClose} playerId={flow.playerId} slot={flow.slot} />
     case 'swap': return <SwapFlow run={run} onClose={onClose} playerId={flow.playerId} slot={flow.slot} />
     case 'abandon': return <AbandonFlow onClose={onClose} />
@@ -88,7 +89,7 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
 
 // ------------------------------------------------------------------ Player: resolve a reward
 
-type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'drops'
+type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'bonus' | 'drops'
 
 function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: () => void }) {
   const { dispatch, toast, me } = useGD()
@@ -99,6 +100,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     ...(gearAvail ? ['gear' as const] : []),
     ...(pend.artifact.length ? ['artifact' as const] : []),
     ...(pend.chest.length ? ['chest' as const] : []),
+    // BONUS: one slot up a tier, after the other rewards (gear progression).
+    ...(pend.bonus && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') ? ['bonus' as const] : []),
     // Signed-in players' drops are detected from Bungie, so they skip typing them in.
     ...(p.bungie ? [] : ['drops' as const]),
   ]
@@ -108,9 +111,10 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const [gear, setGear] = useState<VaultEntry | null>(null)
   const [mod, setMod] = useState<string | undefined>()
   const [chest, setChest] = useState<number | undefined>()
+  const [bonusSlot, setBonusSlot] = useState<Slot | undefined>()
   const [drops, setDrops] = useState<NewItem[]>([])
   const step = steps[i]
-  const canNext = step === 'unlock' ? !!unlock : step === 'gear' ? !!gear || (!!cat && pend[cat].length === 0) : step === 'artifact' ? !!mod : step === 'chest' ? chest !== undefined : true
+  const canNext = step === 'unlock' ? !!unlock : step === 'gear' ? !!gear || (!!cat && pend[cat].length === 0) : step === 'artifact' ? !!mod : step === 'chest' ? chest !== undefined : step === 'bonus' ? !!bonusSlot : true
   const forSomeoneElse = p.clientId !== me
   const icons = useIcons()
   // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
@@ -126,7 +130,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const canLater = !!run.ruleset.rewards.allowLater || forSomeoneElse
 
   const submit = () => {
-    dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops }, p.id)
+    dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops, bonusSlot }, p.id)
     toast('Rewards recorded')
     onClose()
     // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
@@ -147,6 +151,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     gear: cat ? `Choose 1 of ${n(pend[cat])} ${cat === 'exotic' ? 'Exotic armor pieces' : 'Vault weapons'}` : 'Final-boss reward: pick a category',
     artifact: `Research 1 of ${n(pend.artifact)} artifact perks`,
     chest: `Choose 1 of ${n(pend.chest)} chest rewards`,
+    bonus: 'BONUS! Move one slot up a tier',
     drops: 'Register your drops',
   }[step]
   return (
@@ -243,6 +248,20 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         </div>
       )}
 
+      {step === 'bonus' && (
+        <div className="stack">
+          <p className="bonus-banner">BONUS! Pick any slot to move up one tier.</p>
+          <ChoiceGrid>
+            {ALL_SLOTS.filter((s) => slotTier(run, p, s) !== 'Legendary').map((s) => (
+              <button key={s} className={`choice ${bonusSlot === s ? 'is-on' : ''}`} aria-pressed={bonusSlot === s} onClick={() => setBonusSlot(s)}>
+                <span className="choice-kind">{s}</span>
+                <strong className="tier-step small"><TierWord tier={slotTier(run, p, s)} /> &rarr; <TierWord tier={nextTier(slotTier(run, p, s))} /></strong>
+              </button>
+            ))}
+          </ChoiceGrid>
+        </div>
+      )}
+
       {step === 'drops' && <DropsEditor run={run} playerId={p.id} drops={drops} setDrops={setDrops} source={pend.kind === 'chest' ? 'secret chest' : 'encounter drop'} />}
 
     </Modal>
@@ -295,6 +314,9 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
                   <span className="small muted">This exact copy, from your Vault.</span>
                 </span>
               ) : g.note && <span className="choice-desc">{g.note}</span>}
+              {g.rarity === 'Legendary' && slotTier(run, p, g.slot) !== 'Legendary' && (
+                <span className="small">Your {g.slot} is <TierWord tier={slotTier(run, p, g.slot)} />: this moves it up to <TierWord tier={nextTier(slotTier(run, p, g.slot))} />{nextTier(slotTier(run, p, g.slot)) === 'Legendary' ? ' and you keep it.' : ' instead.'}</span>
+              )}
               {pull && <span className="choice-tag">In Collections · not on your account</span>}
               {!tradeUp && itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
             </button>
@@ -467,7 +489,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
   const excess = items.length - cap
   const tu = run.ruleset.tradeUp
   const inputs = items.filter(tradeable)
-  const canTrade = canControl(p.id) && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => inputs.filter((i) => i.rarity === r).length >= tu.inputs) : inputs.length >= tu.inputs)
+  const canTrade = canControl(p.id) && !p.trade && slotTier(run, p, slot) === 'Legendary' && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => inputs.filter((i) => i.rarity === r).length >= tu.inputs) : inputs.length >= tu.inputs)
   const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
   const toVault = async (it: (typeof items)[number]) => {
@@ -492,7 +514,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
             <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
               <span className="choice-kind">Trade up</span>
               <strong>Trade {tu.inputs} for 1 Legendary</strong>
-              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} that aren\u2019t Exotic or starting gear.`}</span>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : slotTier(run, p, slot) !== 'Legendary' ? `Trade-ups need your ${slot} at Legendary.` : `Needs ${tu.inputs} Legendary or Exotic ${slot} items${tu.sameRarity ? ' of one rarity' : ''}.`}</span>
             </button>
             <button className="choice" onClick={() => setStage('remove')}>
               <span className="choice-kind">Remove items</span>
@@ -559,20 +581,12 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
   }, [starting, trade])
   // A player trades up for themselves; the host does it for Guardians with no device.
   if (!canControl(p.id)) return null
-  const picked = items.filter((i) => sel.includes(i.id))
-  // Grey inputs are sent to the Vault for the player; anything better is theirs to dismantle or vault.
-  const autoVault = inGame ? picked.filter((i) => i.rarity === 'Common') : []
-  const yours = picked.filter((i) => !autoVault.includes(i))
-  const start = async () => {
-    if (autoVault.length) {
-      setMoving(true)
-      const r = await moveInGame(p, autoVault.map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
-      setMoving(false)
-      if (!r) return
-    }
+  const start = () => {
+    // The inputs are the player's to dismantle or vault in game.
+    const picked = items.filter((i) => sel.includes(i.id))
     setStarting(true)
     dispatch({ type: 'tradeup-start', inputIds: sel }, playerId)
-    if (yours.length) toast(`Dismantle or vault ${yours.map((i) => i.name).join(', ')} in Destiny 2 yourself.`)
+    toast(`Dismantle or vault ${picked.map((i) => i.name).join(', ')} in Destiny 2.`)
   }
   const commit = async () => {
     if (!choice) return
@@ -599,8 +613,8 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
     >
       {!trade ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}; starting gear and Exotics can&rsquo;t be traded. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
-          <p className="small muted">{inGame ? 'Grey items go to your Vault in Destiny 2 for you. Anything better is yours to dismantle, or vault if you want to keep it for normal play.' : 'In Destiny 2, dismantle the items you trade in, or vault them if you want to keep them for normal play.'}</p>
+          <p>Pick {tu.inputs} {slot} items: Legendary or Exotic, in any mix{tu.sameRarity ? ' (all of one rarity)' : ''}. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p className="small muted">In Destiny 2, dismantle the items you trade in, or vault them if you want to keep them for normal play.</p>
           <p className="callout"><strong>No take-backs.</strong> Once you trade these in, they leave the run and the options are fixed: you can&rsquo;t go back, re-roll or cancel, only pick one.</p>
           <ul className="pick-list">
             {items.map((it) => (
@@ -622,6 +636,87 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
           <GearPicker run={run} p={p} options={options} chosen={choice} onChoose={setChoice} previews={previews} previewable={previewable} compare={compare} setCompare={setCompare} five={options.length > 3} tradeUp />
         </div>
       )}
+    </Modal>
+  )
+}
+
+// ------------------------------------------------------------------ Player: gear progression
+
+/**
+ * A slot went up a tier. Below Legendary: dismantle the drop, then use the tier's piece (pulled from
+ * the Vault when the player owns it, otherwise from Collections). At Legendary: keep the drop.
+ */
+function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose: () => void; playerId: string; upgradeId: string }) {
+  const { dispatch, toast, me, canControl } = useGD()
+  const p = run.players.find((x) => x.id === playerId)!
+  const up = p.upgrades?.find((x) => x.id === upgradeId)
+  const inGame = canMoveInGame(p, me)
+  const [held, setHeld] = useState<boolean | null>(null)
+  const [moving, setMoving] = useState(false)
+  const picking = useRef(false)
+  const weapon = !!up && WEAPON_SLOTS.includes(up.slot)
+  // A weapon piece is any of the tier's rarity for the slot: one the player owns if possible, fixed once picked.
+  useEffect(() => {
+    if (!up || up.item || up.to === 'Legendary' || !weapon || picking.current) return
+    picking.current = true
+    ;(async () => {
+      const pool = (await tierWeapons())[up.slot]?.[up.to] ?? []
+      if (!pool.length) return
+      const owned = inGame ? [...await ownedInSlot(pool, up.slot, p.cls).catch(() => new Set<string>())] : []
+      const from = owned.length ? owned : pool
+      dispatch({ type: 'upgrade-pick', upgradeId: up.id, item: from[Math.floor(Math.random() * from.length)] }, p.id)
+    })()
+  }, [up?.id, up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!up?.item || !inGame) return
+    let live = true
+    ownedInSlot([up.item], up.slot, p.cls).then((s) => live && setHeld(s.has(up.item!)), () => live && setHeld(false))
+    return () => { live = false }
+  }, [up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (!up || !canControl(p.id)) return null
+
+  const legendary = up.to === 'Legendary'
+  const finish = async () => {
+    if (!legendary && up.item && inGame && held) {
+      setMoving(true)
+      const r = await moveInGame(p, [{ name: up.item, slot: up.slot, to: 'character' }], toast)
+      setMoving(false)
+      if (!r) return
+    }
+    dispatch({ type: 'upgrade-done', upgradeId: up.id }, p.id)
+    onClose()
+  }
+  const where = up.slot === 'Class Item' || !weapon ? 'Armor' : 'Weapons'
+  return (
+    <Modal kicker={`${p.name} \u00b7 Gear progression`} title={`${up.slot}: ${up.from} \u2192 ${up.to}`}
+      footer={<button className="btn btn-light" disabled={moving || (!legendary && !up.item && weapon)} onClick={finish}>
+        {moving ? 'Moving in Destiny 2\u2026' : legendary ? 'Got it' : inGame && held ? `Pull ${up.item} and finish` : 'Done'}
+      </button>}
+    >
+      <div className="stack upgrade-flow">
+        {up.reason === 'bonus' && <p className="bonus-banner">BONUS! Any slot up one tier: you picked {up.slot}.</p>}
+        <p className="tier-step"><TierWord tier={up.from} /> <span aria-hidden="true">&rarr;</span> <TierWord tier={up.to} /></p>
+        {legendary ? (
+          up.reason === 'drop' && up.drop
+            ? <p>Your {up.slot} slot reached <TierWord tier="Legendary" />. <strong>Keep {up.drop.name}</strong>: it&rsquo;s in your run inventory. From now on, Legendary drops in this slot are yours to keep.</p>
+            : <p>Your {up.slot} slot reached <TierWord tier="Legendary" />. From now on, Legendary drops in this slot are yours to keep.</p>
+        ) : (
+          <ol className="upgrade-steps">
+            {up.reason === 'drop' && up.drop && <li><strong>Dismantle {up.drop.name}</strong> in Destiny 2. It moved your {up.slot} up a tier, but you don&rsquo;t keep it until the slot is Legendary.</li>}
+            <li>
+              {up.item
+                ? <><strong>Use {up.item}</strong>, {up.to === 'Uncommon' ? 'an' : 'a'} <TierWord tier={up.to} /> {weapon ? `${up.slot.toLowerCase()} weapon` : up.slot === 'Class Item' ? 'class item' : `${up.slot.toLowerCase()} piece`}. </>
+                : <>Picking your <TierWord tier={up.to} /> {up.slot.toLowerCase()} weapon&hellip; </>}
+              {up.item && (inGame
+                ? held === null ? <span className="muted">Checking your account&hellip;</span>
+                  : held ? <span>It&rsquo;s on your account: finishing pulls it to your {p.cls}.</span>
+                  : <span>It&rsquo;s not on your account: pull it from <strong>Collections</strong> ({where}) in Destiny 2, then press Done.</span>
+                : <span>Pull it from your Vault, or from <strong>Collections</strong> ({where}) if you don&rsquo;t have one.</span>)}
+            </li>
+            <li>Your previous {up.slot} item stays in your run inventory as a spare.</li>
+          </ol>
+        )}
+      </div>
     </Modal>
   )
 }

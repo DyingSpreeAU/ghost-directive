@@ -147,6 +147,11 @@ export function SwipeCols({ id, className, tabs, children }: { id?: string; clas
   )
 }
 
+/** A gear tier's name in its colour: grey, green, blue, purple (gold for Exotic). */
+export function TierWord({ tier }: { tier: Rarity }) {
+  return <span className={`tier-word t-${tier.toLowerCase()}`}>{tier}</span>
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="empty">{children}</p>
 }

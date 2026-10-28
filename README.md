@@ -115,7 +115,36 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Protocol Rulesets** marks the protocol the current run or lobby uses; in a lobby, **Use in lobby**
   switches to another one.
 - **Exotic class items**: on Prismatic, a final-boss Exotic reward sometimes includes the class's Exotic
-  class item (Stoicism, Relativism, Solipsism), only when a copy is in the player's Vault.
+  class item (Stoicism, Relativism, Solipsism), only when a copy is in the player's Vault. The offer is one
+  specific copy: sync reads each copy's two rolled perks (socket category 2518356196, `classItems` on the
+  Bungie link), the card shows them with their in-game text, the preview is pinned to that copy, and
+  claiming pulls that exact instance.
+- **Gear progression** (protocol option `progression`, on in the presets): each Guardian's slots have a
+  tier (`player.tiers`), starting Common, the heavy weapon Uncommon, climbing Uncommon > Rare > Legendary.
+  Any non-Exotic gear arriving in a slot below Legendary (detected or registered drops, the final-boss
+  Vault weapon) raises the slot a tier instead of joining the inventory (`receiveGear` / `raiseTier`);
+  reaching Legendary keeps a Legendary drop. Each raise queues an `Upgrade` that opens an Upgrade screen
+  for the player (the host for device-less Guardians): dismantle the drop, then use the tier's piece,
+  pulled from the Vault when owned, else from Collections. Weapons are any Uncommon/Rare of the slot
+  with a Collections entry (`public/bungie-tiers.json`), picked once on the player's device (preferring
+  one they own) and fixed with `upgrade-pick`; armor is a fixed set per class (`TIER_ARMOR` in
+  `src/data.ts`: Warlock Cry Defiance/Rite of Refusal, Chiron's Cure/Bond of Chiron; Titan Fieldplate
+  Type 10/Mark of the Longest Line, RPC Valiant/Mark of Inquisition; Hunter Makeshift Suit/At Least
+  It's a Cape, Shadow Specter). The previous tier's item stays as a spare. Every encounter, final-boss
+  and chest reward has a 1 in 10 BONUS step: raise any slot below Legendary one tier. Tier names are
+  coloured grey, green, blue, purple. Moves match same-named set pieces by slot and class (`MoveOp.slot`).
+- **Ability text** (`src/abilityText.ts`) is the exact in-game description of every Super, class ability,
+  melee, grenade, aspect and fragment, from each subclass's plugs in Bungie's manifest (aspects and
+  fragments from their perk definitions). It shows on reward cards and as hover text on ability chips.
+- **Equipped state syncs**: each Bungie sync sends what the character has equipped, and the host marks
+  the matching run items (by instance id, else slot and name), so every device sees other Guardians'
+  equipped gear.
+- **Artifact perk icons** come from each artifact's own sockets (`artifactPerks` in
+  `public/bungie-icons.json`): perk names repeat across seasons with different art.
+- **Report a bug** (sidebar, the foot of the page on phones, and the start screen) posts to Netlify Forms
+  (form `bug-report`, declared in `index.html`) with optional run data; reports show in the Netlify
+  dashboard under Forms. Form detection has to be enabled for the site. Where Netlify isn't serving the
+  page, the report is copied to the clipboard instead.
 - **Weapon cards** show the ammo type in the banner (white primary, green special, purple heavy with a
   white outline), from the definition's `equippingBlock.ammoType`.
 - **Item choices** (final-boss reward and trade-up, `GearPicker` in `src/Flows.tsx`): real icons, with
@@ -142,7 +171,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   capacity opens a prompt with two ways out, **Trade up** (the normal trade-up screen) or **Remove items**,
   which tells the player to dismantle the item in game, or vault it to keep it for normal play, and gives
   each item a Vaulted/Send to Vault and a Dismantled button. A selected inventory tile offers To Vault and
-  **Dismantled** (logged as dismantled). 4→1 trade-up with 5 Vault options. A trade-up is the player's own; the host does it only for Guardians
+  **Dismantled** (logged as dismantled). 4→1 trade-up with 5 Vault options: inputs are Legendary or
+  Exotic in any mix (never starting gear), and with progression only in a slot that has reached
+  Legendary; the player dismantles or vaults the inputs themselves. A trade-up is the player's own; the host does it only for Guardians
   with no device (as with every per-Guardian action). Trading the inputs in (`tradeup-start`) takes them out of the run and rolls the options once,
   stored on `player.trade`; from then on the screen has no Back, Cancel or close, reopens by itself
   (also after a reload), and only ends with a pick (`tradeup`), so options can't be re-rolled. Signed-in players get a
@@ -154,9 +185,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   Guardian and **Undo last** (restores the Integrity); each player has **Record my death** on their own.
   The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
-- **Saved runs**: every unfinished run is kept in the host's browser (`saved` in the host store,
-  localStorage; the app asks the browser for persistent storage). Starting a new lobby or switching
-  runs puts the current one aside instead of ending it. The start screen lists them with route
+- **Saved runs**: one unfinished run is kept in the host's browser (`saved` in the host store,
+  localStorage; the app asks the browser for persistent storage). Starting a new lobby puts the current
+  run aside; beginning the new run ends it (`endSavedRuns`: it moves to Run History as abandoned), and
+  the lobby's begin bar warns first. The start screen lists them with route
   progress, Integrity, Guardians and last played, and offers Resume or Delete (deleting is permanent).
   Ending a run from the Briefing still archives it to Run History.
 - **Players are matched by Bungie account.** Each device sends its Bungie.net account id with its
@@ -249,7 +281,7 @@ as 0001-01-01 when it doesn't apply; that value is ignored in favour of `respons
 
 **Inventory actions move items in game** (signed-in player's own device, `moveItems` in `src/bungie.ts`):
 To Vault on a run item sends it to the Vault first and only takes it out of the run if that worked;
-trade-ups send the four inputs to the Vault and pull the pick to the run character; overflow swaps send
+trade-ups pull the pick to the run character; overflow swaps send
 the chosen items to the Vault; claiming a final-boss Vault weapon or owned Exotic pulls it to the
 character (Exotics only in Collections must be claimed in game). Equipped items are reported, not moved.
 Equipping is not offered during a run; it stays with Send to and Restore my Guardian.

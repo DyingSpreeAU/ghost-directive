@@ -121,6 +121,7 @@ export type Flow =
   | { type: 'tradeup'; playerId: string; slot: Slot }
   | { type: 'swap'; playerId: string; slot: Slot }
   | { type: 'reward'; pendingId: string }
+  | { type: 'upgrade'; playerId: string; upgradeId: string }
   | { type: 'abandon' }
 
 export type View = 'briefing' | 'protocols' | 'history'

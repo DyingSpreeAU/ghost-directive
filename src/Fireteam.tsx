@@ -5,12 +5,12 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, equippedNotUnlocked, itemsIn, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
 import { useGD } from './store'
-import { ElementMark, Empty, SwipeCols, rarityClass } from './ui'
+import { ElementMark, Empty, SwipeCols, TierWord, rarityClass } from './ui'
 
 const GUIDE_KEY = 'ghost-directive:fireteam-guide'
 
@@ -127,6 +127,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   const select = (id: string) => { setSelected(selected === id ? null : id); setRemoving(false) }
 
   const eligibleForTrade = (slot: Slot) => {
+    if (slotTier(run, p, slot) !== 'Legendary') return false
     const items = itemsIn(p, slot).filter(tradeable)
     if (!tu.sameRarity) return items.length >= tu.inputs
     return RARITIES.some((rr) => items.filter((i) => i.rarity === rr).length >= tu.inputs)
@@ -155,6 +156,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
             <div key={slot} className={`g-slot ${over ? 'is-over' : ''}`}>
               <div className="g-slot-head">
                 <span className="g-slot-name">{slot}</span>
+                {run.ruleset.progression && p.tiers && <span title={`Gear progression: your ${slot} is at ${slotTier(run, p, slot)}.${slotTier(run, p, slot) === 'Legendary' ? '' : ' A non-Exotic drop here moves it up a tier.'}`}><TierWord tier={slotTier(run, p, slot)} /></span>}
                 <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
                 {control && tu.enabled && (p.trade?.slot === slot || (!p.trade && eligibleForTrade(slot))) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>{p.trade ? 'Finish trade-up' : <>Trade up {tu.inputs}&rarr;1</>}</button>}
               </div>

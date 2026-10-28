@@ -1005,6 +1005,28 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned
   return out
 }
 
+// ------------------------------------------------------------------ gear progression
+
+/** Which of these items (in this slot, usable by this class) are anywhere on the account. */
+export async function ownedInSlot(names: string[], slot: Slot, cls: ClassType): Promise<Set<string>> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205`)
+  const want = new Set(names)
+  const out = new Set<string>()
+  for (const h of holdings(p, items)) {
+    const row = items[h.itemHash]
+    if (row && want.has(row[0]) && ALL_SLOTS[row[1]] === slot && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) out.add(row[0])
+  }
+  return out
+}
+
+let tierPool: Promise<{ weapons: Record<string, Record<string, string[]>> }> | null = null
+/** Uncommon and Rare weapons per slot that can be pulled from Collections (public/bungie-tiers.json). */
+export function tierWeapons() {
+  tierPool ??= fetch('/bungie-tiers.json').then((r) => (r.ok ? r.json() : { weapons: {} }), () => ({ weapons: {} }))
+  return tierPool.then((t) => t.weapons ?? {})
+}
+
 // ------------------------------------------------------------------ run inventory moves (Vault ⇄ run character)
 
 /** `slot` tells same-named pieces apart (an armor set's pieces share one name). */

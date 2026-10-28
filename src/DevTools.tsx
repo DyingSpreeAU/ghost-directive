@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react'
 import { ALL_SLOTS, RARITIES, artifactByName, dungeonById, subclassAbilities, type Rarity, type Slot } from './data'
 import {
-  addItem, artifactChoices, chestChoices, current, exoticChoices, legendaryWeaponChoices, log, uid, unlockChoices,
+  receiveGear, artifactChoices, chestChoices, current, exoticChoices, legendaryWeaponChoices, log, uid, unlockChoices,
   type Pending, type Player, type Run,
 } from './model'
 import { CHANNEL } from './channel'
@@ -19,7 +19,7 @@ const SAMPLE_DROPS: Record<Slot, string[]> = {
 }
 const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)]
 
-type Kind = 'encounter' | 'final' | 'chest' | 'expansion'
+type Kind = 'encounter' | 'final' | 'chest' | 'expansion' | 'bonus'
 
 /**
  * The collapsed test tools. On a wide screen a striped tab; on a phone a round floating button that
@@ -69,14 +69,15 @@ function grant(run: Run, kind: Kind, who: Player[]) {
   const { dungeon, encounter } = current(run)
   for (const p of who) {
     const pend: Pending = {
-      id: uid(), playerId: p.id, kind: kind === 'chest' || kind === 'expansion' ? 'chest' : 'clear',
+      id: uid(), playerId: p.id, kind: kind === 'chest' || kind === 'expansion' || kind === 'bonus' ? 'chest' : 'clear',
       where: `Test · ${dungeon.name} · ${kind === 'final' ? 'Final boss' : kind === 'encounter' ? encounter.name : 'Secret chest'}`,
       final: kind === 'final',
       unlock: kind === 'encounter' || kind === 'final' ? unlockChoices(run, p).map((a) => a.id) : [],
       exotic: kind === 'final' ? exoticChoices(p) : [],
       legendary: kind === 'final' ? legendaryWeaponChoices(p) : [],
       artifact: kind === 'final' ? artifactChoices(p) : [],
-      chest: kind === 'chest' ? chestChoices(run, p) : [],
+      chest: kind === 'chest' || kind === 'bonus' ? chestChoices(run, p) : [],
+      bonus: kind === 'bonus' || undefined,
     }
     if (kind === 'expansion') pend.chest = [...artifactChoices(p, 2).map((mod) => ({ kind: 'artifact' as const, mod })), { kind: 'expansion' as const }]
     run.pending.push(pend)
@@ -135,6 +136,7 @@ export default function DevTools() {
               <button onClick={() => act('final-boss reward', (r) => grant(r, 'final', players(r)))}>Final boss</button>
               <button onClick={() => act('chest reward', (r) => grant(r, 'chest', players(r)))}>Chest</button>
               <button onClick={() => act('chest with Arsenal Expansion', (r) => grant(r, 'expansion', players(r)))}>Chest + Expansion</button>
+              <button onClick={() => act('chest with BONUS tier-up', (r) => grant(r, 'bonus', players(r)))}>Chest + BONUS</button>
             </div>
             <button className="devtools-wide" onClick={() => act('pending rewards cleared', (r) => { r.pending = r.pending.filter((x) => !players(r).some((p) => p.id === x.playerId)) })}>Clear waiting rewards</button>
           </section>
@@ -159,12 +161,13 @@ export default function DevTools() {
               <select value={slot} onChange={(e) => setSlot(e.target.value as Slot)} aria-label="Slot">{ALL_SLOTS.map((s) => <option key={s}>{s}</option>)}</select>
               <select value={rarity} onChange={(e) => setRarity(e.target.value as Rarity)} aria-label="Rarity">{RARITIES.map((x) => <option key={x}>{x}</option>)}</select>
             </div>
-            <button className="devtools-wide" onClick={() => act(`${rarity} ${slot} added`, (r) => { addItem(r, one(r), { name: pick(SAMPLE_DROPS[slot]), slot, rarity, source: 'test tools' }) })}>Add a drop</button>
+            <button className="devtools-wide" onClick={() => act(`${rarity} ${slot} drop`, (r) => { receiveGear(r, one(r), { name: pick(SAMPLE_DROPS[slot]), slot, rarity, source: 'test tools' }) })}>Add a drop</button>
             <div className="devtools-grid">
               <button onClick={() => act('Arsenal Expansion +1', (r) => { const p = one(r); p.capacityBonus++; log(r, 'upgrade', `Test tools: ${p.name} +1 capacity.`) })}>Expansion +1</button>
               <button onClick={() => act('ability unlocked', (r) => { const p = one(r); const a = pick(subclassAbilities(p.cls, p.element).filter((x) => !p.unlocked.includes(x.id))); if (a) p.unlocked.push(a.id) })}>Unlock ability</button>
               <button onClick={() => act('perk researched', (r) => { const p = one(r); const m = pick((artifactByName(p.artifactName)?.perks ?? []).map((x) => x.name).filter((x) => !p.artifact.includes(x))); if (m) p.artifact.push(m) })}>Research perk</button>
               <button onClick={() => act('inventory emptied', (r) => { one(r).inventory = [] })}>Empty inventory</button>
+              <button onClick={() => act('every slot Legendary', (r) => { const p = one(r); if (p.tiers) for (const k of Object.keys(p.tiers)) p.tiers[k as Slot] = 'Legendary'; p.upgrades = [] })}>All slots Legendary</button>
             </div>
           </section>
 

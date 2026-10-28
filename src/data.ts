@@ -131,6 +131,25 @@ export const EXAMPLE_VAULT: VaultEntry[] = [
 
 export type ArtifactPerk = { name: string; tier: 1 | 2 | 3; desc: string }
 export type ArtifactDef = { name: string; season: string; focus: string; perks: ArtifactPerk[] }
+/** Gear progression tiers, lowest first. Exotics sit outside the system. */
+export const TIER_ORDER: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary']
+export const nextTier = (r: Rarity): Rarity => TIER_ORDER[Math.min(TIER_ORDER.indexOf(r) + 1, TIER_ORDER.length - 1)]
+/**
+ * The fixed armor used at Uncommon and Rare, per class (every piece of a set shares its name in game;
+ * the class items are named differently). Weapons at those tiers are any of that rarity for the slot.
+ */
+export const TIER_ARMOR: Record<ClassType, Record<'Uncommon' | 'Rare', { armor: string; classItem: string }>> = {
+  Warlock: { Uncommon: { armor: 'Cry Defiance', classItem: 'Rite of Refusal' }, Rare: { armor: "Chiron's Cure", classItem: 'Bond of Chiron' } },
+  Titan: { Uncommon: { armor: 'Fieldplate Type 10', classItem: 'Mark of the Longest Line' }, Rare: { armor: 'RPC Valiant', classItem: 'Mark of Inquisition' } },
+  Hunter: { Uncommon: { armor: 'Makeshift Suit', classItem: "At Least It's a Cape" }, Rare: { armor: 'Shadow Specter', classItem: 'Shadow Specter' } },
+}
+/** The fixed armor piece for a slot at a tier, or null for weapons (any of that rarity). */
+export function tierArmor(cls: ClassType, slot: Slot, tier: Rarity): string | null {
+  if (WEAPON_SLOTS.includes(slot) || (tier !== 'Uncommon' && tier !== 'Rare')) return null
+  const set = TIER_ARMOR[cls][tier]
+  return slot === 'Class Item' ? set.classItem : set.armor
+}
+
 export const ARTIFACTS: ArtifactDef[] = (COMPENDIUM as unknown as { artifacts: ArtifactDef[] }).artifacts
 export const artifactByName = (name: string | undefined) => ARTIFACTS.find((a) => a.name === name)
 export const artifactPerk = (artifact: string | undefined, perk: string) => artifactByName(artifact)?.perks.find((p) => p.name === perk)

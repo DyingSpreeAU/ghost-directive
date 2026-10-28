@@ -1,7 +1,7 @@
 """Download the Destiny Data Compendium tabs and the Bungie manifest pieces that
 parse_compendium.py needs, into a working directory.
 
-    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json
+    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json public/bungie-tiers.json
     python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 
 The second argument writes the compact weapon/armor lookup table the app uses to
@@ -17,6 +17,7 @@ out = sys.argv[1]
 item_table = sys.argv[2] if len(sys.argv) > 2 else None
 icon_table = sys.argv[3] if len(sys.argv) > 3 else None
 exotic_table = sys.argv[4] if len(sys.argv) > 4 else None
+tier_table = sys.argv[5] if len(sys.argv) > 5 else None
 os.makedirs(out, exist_ok=True)
 SHEET = 'https://docs.google.com/spreadsheets/d/1WaxvbLx7UoSZaBqdFr1u32F2uWVLo-CJunJB4nlGUE4/gviz/tq?tqx=out:csv&gid='
 TABS = {'Arc': 618967225, 'Solar': 1186062409, 'Void': 1907852650, 'Stasis': 1088259962,
@@ -135,3 +136,21 @@ if exotic_table:
                 ex[str(it['collectibleHash'])] = [name, it['classType']]
     json.dump({'collectibles': ex}, open(exotic_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', exotic_table, len(ex), 'Exotic armor collectibles')
+
+# Gear progression: Uncommon and Rare weapons per slot that can be pulled from Collections.
+if tier_table:
+    WB = {1498876634: 'Kinetic', 2465295065: 'Energy', 953998645: 'Power'}
+    weapons = {}
+    for it in items.values():
+        inv = it.get('inventory', {})
+        slot, tier = WB.get(inv.get('bucketTypeHash')), inv.get('tierTypeName')
+        name = it.get('displayProperties', {}).get('name', '').strip()
+        if slot and tier in ('Uncommon', 'Rare') and it.get('itemType') == 3 and it.get('collectibleHash') and name:
+            lst = weapons.setdefault(slot, {}).setdefault(tier, [])
+            if name not in lst:
+                lst.append(name)
+    for tiers in weapons.values():
+        for lst in tiers.values():
+            lst.sort()
+    json.dump({'weapons': weapons}, open(tier_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    print('wrote', tier_table)

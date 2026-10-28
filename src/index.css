@@ -1065,3 +1065,17 @@ button.ab-chip:hover { border-color: var(--dim); }
 .show-narrow { display: none; }
 @media (max-width: 900px) { .show-narrow { display: block; } }
 .landing-inner > .bug-link { margin-top: -8px; }
+
+/* ---------------------------------------------------------------- gear progression tiers */
+.tier-word { font-family: var(--f-display); font-weight: 600; letter-spacing: 0.04em; }
+.tier-word.t-common { color: var(--r-common); }
+.tier-word.t-uncommon { color: #5fbf6e; }
+.tier-word.t-rare { color: #6fa0e6; }
+.tier-word.t-legendary { color: #b788e0; }
+.tier-word.t-exotic { color: var(--r-exotic); }
+.g-slot-head .tier-word { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.tier-step { font-size: 1.4rem; margin: 0; display: flex; gap: 10px; align-items: center; }
+.upgrade-steps { margin: 0; padding-left: 20px; display: grid; gap: 10px; line-height: 1.5; }
+.bonus-banner { margin: 0; padding: 10px 14px; font-family: var(--f-display); letter-spacing: 0.06em; color: var(--light-ink); background: var(--light); }
+.choice .tier-step { font-size: 1rem; flex-wrap: wrap; gap: 4px 6px; }
+.landing-how { justify-self: start; }
