@@ -186,7 +186,8 @@ const SEEN_MS = 15000
 function HostApp({ onLeave }: { onLeave: () => void }) {
   const [store, setStore] = useState<HostStore>(loadHostStore)
   const ref = useRef(store)
-  const [online, setOnline] = useState<string[]>([])
+  // The host's own browser is always online; others appear as their devices check in.
+  const [online, setOnline] = useState<string[]>(() => [store.hostCid])
   const [net, setNet] = useState<{ status: TransportStatus; detail?: string }>({ status: 'connecting' })
   const seen = useRef(new Map<string, { peer: string; at: number }>())
   const tRef = useRef<Transport | null>(null)

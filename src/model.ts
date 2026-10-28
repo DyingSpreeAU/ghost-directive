@@ -649,7 +649,6 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         p.bungie.artifact = { name: str(art.name, 60), matched: artifactByName(str(art.matched, 60))?.name, activePerks: strs(art.activePerks, 30) }
       }
       const em = (it.emblem ?? {}) as { icon?: unknown; background?: unknown }
-      const iconPath = (x: unknown) => (typeof x === 'string' && /^\/common\/destiny2_content\/icons\/[\w./-]{1,120}$/.test(x) ? x : '')
       if (iconPath(em.icon) && iconPath(em.background)) p.bungie.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
       p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
@@ -742,6 +741,8 @@ export type Seat = {
   custom?: boolean
   /** The Bungie.net account of the seat's device (see bindBungieId). */
   bungieId?: string
+  /** The player's in-game emblem (bungie.net paths), shared by their signed-in device. */
+  emblem?: { icon: string; background: string }
   ready: boolean
   isHost: boolean
 }
@@ -782,6 +783,9 @@ export function createLobby(code: string, hostCid: string, ruleset: Ruleset): Lo
     seats: [newSeat(1, hostCid, true)],
   }
 }
+
+/** A bungie.net icon path (emblems), or '' when it isn't one. */
+const iconPath = (x: unknown) => (typeof x === 'string' && /^\/common\/destiny2_content\/icons\/[\w./-]{1,120}$/.test(x) ? x : '')
 
 function cleanRestore(raw: unknown): BungieLink['restore'] | undefined {
   const r = (raw ?? {}) as Partial<RestorePoint>
@@ -826,7 +830,7 @@ export function runFromLobby(l: Lobby): Run {
 
 export type LobbyIntent =
   | { type: 'seat-claim'; seatId: string | null }
-  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact'>> & { auto?: boolean } }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean } }
   | { type: 'seat-leave' }
 
 /** Seat changes from a player's device (or the host for their own seat). */
@@ -866,6 +870,8 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
         for (const [k, v] of Object.entries(pt.checklist as Record<string, unknown>)) if (k in mine.checklist) mine.checklist[k as ChecklistKey] = !!v
       }
       if (typeof pt.artifact === 'string' && artifactByName(pt.artifact)) mine.artifact = pt.artifact
+      const em = (pt.emblem ?? {}) as { icon?: unknown; background?: unknown }
+      if (iconPath(em.icon) && iconPath(em.background)) mine.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
       if (typeof pt.ready === 'boolean') mine.ready = pt.ready && !!mine.artifact
       return null
     }

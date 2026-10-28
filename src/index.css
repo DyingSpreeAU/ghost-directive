@@ -876,3 +876,30 @@ button.ab-chip:hover { border-color: var(--dim); }
 .choice.is-on::after { content: 'Your pick'; position: absolute; top: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--light); color: var(--light-ink); }
 .choice.choice-artifact.is-on::after { background: var(--artifact); color: #04211d; }
 .choice { position: relative; }
+
+/* ---------------------------------------------------------------- lobby seats as Guardian columns */
+.seats.guardian-cols { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.seats.guardian-cols.players-1 { grid-template-columns: minmax(0, 560px); }
+.seats.guardian-cols.players-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.seat.guardian { gap: 14px; }
+.seat .player-head.has-emblem .seat-name { color: #fff; text-shadow: 0 1px 3px #000c; }
+.seat .player-head.has-emblem .seat-status { background: #090b10b3; }
+.seat .ab-chip[role='radio'] { cursor: pointer; }
+.seat .ab-chip[role='radio']:not(.is-conf) { color: var(--dim); border-color: var(--seam); }
+.seat .ab-chip[role='radio']:not(.is-conf) img { opacity: 0.7; }
+.art-pick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.art-opt { display: grid; justify-items: center; gap: 4px; padding: 6px 4px; font: inherit; font-size: 0.68rem; line-height: 1.15; text-align: center; color: var(--dim); background: var(--ink); border: 1px solid var(--seam); cursor: pointer; }
+.art-opt img, .art-opt-blank { width: 40px; height: 40px; display: grid; place-items: center; font-family: var(--f-display); color: var(--artifact); }
+.art-opt:hover { border-color: color-mix(in srgb, var(--artifact) 60%, var(--seam)); color: var(--text); }
+.art-opt.is-on { color: var(--text); border-color: var(--artifact); background: color-mix(in srgb, var(--artifact) 14%, var(--ink)); box-shadow: 0 0 12px color-mix(in srgb, var(--artifact) 35%, transparent); }
+.art-opt-name { overflow-wrap: anywhere; }
+.seat .equipped-now { padding: 14px 0 0; border: 0; border-top: 1px solid var(--seam); gap: 8px; }
+.seat .equipped-now .g-sec-head .freshness { font-size: 0.74rem; }
+.equipped-title { margin: 0; font-family: var(--f-display); font-size: 1.05rem; font-weight: 600; }
+.g-sec .equipped-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
+.g-sec .equipped-subclass, .g-sec .equipped-artifact { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.g-sec .equipped-artifact .art-name { margin: 0; }
+.tiles .tile.is-off { border-color: var(--danger); box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 70%, transparent); }
+.tiles .tile.tile-empty.is-off { border-style: dashed; box-shadow: none; }
+@media (max-width: 1000px) { .seats.guardian-cols, .seats.guardian-cols.players-2 { grid-template-columns: minmax(0, 1fr); } }
+.g-sec .equipped-subclass > div { padding: 0; background: none; border: 0; box-shadow: none; }

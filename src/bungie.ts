@@ -354,6 +354,8 @@ export type EquippedPreview = {
   /** The equipped subclass and what's slotted in it. */
   subclass: EquippedSubclass | null
   artifact: EquippedArtifact | null
+  /** The character's equipped emblem (bungie.net paths). */
+  emblem: { icon: string; background: string } | null
   items: { slot: Slot; name: string; rarity: Rarity }[]
   /** When Bungie produced the inventory data (it can lag the game by a minute or more). */
   mintedAt: number | null
@@ -374,7 +376,8 @@ export async function fetchEquipped(): Promise<EquippedPreview> {
     .sort((a, b) => ALL_SLOTS.indexOf(a.slot) - ALL_SLOTS.indexOf(b.slot))
   const minted = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp
   const cls = CLASS_NAME[c.classType] ?? 'Hunter'
-  return { name, cls, light: c.light, online, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), artifact: await readArtifact(p, id).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
+  const emblem = c.emblemPath && c.emblemBackgroundPath ? { icon: c.emblemPath, background: c.emblemBackgroundPath } : null
+  return { name, cls, light: c.light, online, emblem, items: equipped, subclass: await readSubclass(p, id, cls).catch(() => null), artifact: await readArtifact(p, id).catch(() => null), mintedAt: minted ? Date.parse(minted) : null, fetchedAt: Date.now() }
 }
 
 // ------------------------------------------------------------------ equipped subclass

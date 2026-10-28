@@ -8,7 +8,7 @@ import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 
-type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>> & { auto?: boolean }
+type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean }
 
 export function LobbyView({ lobby }: { lobby: Lobby }) {
   const { role, me, online, host, lobbyAct, toast, net } = useGD()
@@ -37,7 +37,8 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     if (mine && bungieName && isDefaultName(mine.name)) patchSeat(mine, { name: bungieName })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bungieName, mine?.id, mine?.name])
-  const notice = mine && eq.active && eq.data ? <SyncNotice eq={eq} compact /> : undefined
+  // The full explanation sits in the player's seat; the bars get a one-line version.
+  const notice = mine && eq.active && eq.data ? <SyncNotice eq={eq} compact short /> : undefined
   // Fetch the active character fresh and fill the player's seat from it.
   const syncSeat = () => eq.refresh().then((d) => {
     if (!d || !mine) return
@@ -62,6 +63,12 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     eq.refresh()
   }
   const others = lobby.seats.filter((s) => s.clientId && s.clientId !== me && isOnline(s.clientId))
+  // Share the player's in-game emblem with the lobby, for their seat's nameplate.
+  const emblem = eq.data?.emblem
+  useEffect(() => {
+    if (mine && emblem && mine.emblem?.background !== emblem.background) patchSeat(mine, { emblem, auto: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emblem?.background, mine?.id, mine?.emblem?.background])
 
   return (
     <div className="lobby">
@@ -102,7 +109,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       {role === 'guest' && !mine && <SeatPicker lobby={lobby} />}
 
-      <section className="seats">
+      <section className={`seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}>
         {lobby.seats.map((s) => {
           const editable = s.clientId === me || (role === 'host' && s.clientId === null)
           return (
@@ -113,8 +120,9 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               connected={s.clientId === null ? null : isOnline(s.clientId)}
               editable={editable}
               onPatch={(p) => patchSeat(s, p)}
-              notice={s.clientId === me ? notice : undefined}
+              notice={undefined}
               sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
+              equipped={s.clientId === me ? <EquippedNow eq={eq} seat={s} onApply={(patch) => patchSeat(s, patch)} /> : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -135,8 +143,6 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
       <SetupGuide />
 
       <RouteAndProtocol lobby={lobby} />
-
-      <EquippedNow eq={eq} seat={mine} onApply={(patch) => mine && patchSeat(mine, patch)} />
 
       {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={() => {
         host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
@@ -191,12 +197,14 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync }: {
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
   /** Re-reads the active character from Bungie and fills this seat (signed-in player's own seat). */
   sync?: { busy: boolean; run: () => void; sending: boolean; send: () => void }
   /** Bungie sync status for the player's own seat, shown by the Ready button. */
   notice?: React.ReactNode
+  /** The player's own seat: what their character has equipped right now. */
+  equipped?: React.ReactNode
   onPatch: (p: Patch) => void
   hostTools?: { remove: () => void; unlink?: () => void }
 }) {
@@ -205,10 +213,19 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   const abil = subclassAbilities(seat.cls, seat.element)
   const art = artifactByName(seat.artifact)
   const icons = useIcons()
+  const always = baseKit(seat.cls, seat.element)
   const status = seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected'
+  const chip = (id: string, on: boolean, onClick?: () => void) => {
+    const a = abil.find((x) => x.id === id)
+    if (!a) return null
+    const body = <>{icons.plug(a.name) && <img src={icons.plug(a.name)} alt="" loading="lazy" />}<span>{a.name}</span></>
+    return onClick
+      ? <button key={id} role="radio" aria-checked={on} className={`ab-chip is-unlocked ${on ? 'is-conf' : ''}`} onClick={onClick}>{body}</button>
+      : <span key={id} className="ab-chip is-unlocked is-conf">{body}</span>
+  }
   return (
-    <article className={`panel seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }}>
-      <header className="seat-head">
+    <article className={`panel guardian seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }} aria-label={seat.name}>
+      <header className={`player-head seat-head ${seat.emblem ? 'has-emblem' : ''}`} style={seat.emblem ? { ['--emblem' as string]: `url("https://www.bungie.net${seat.emblem.background}")` } : undefined}>
         <ElementMark element={seat.element} size={22} />
         <div className="seat-title">
           {editable ? (
@@ -227,49 +244,64 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
 
       {editable ? (
         <>
-          {sync && (
-            <div className="seat-sync">
-              <span className="small muted">Class, subclass and abilities</span>
-              <span className="row-acts">
-                <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.run} title="Read your in-game character from Bungie and set this seat's class, subclass, Super, melee and grenade to match.">
-                  {sync.busy ? 'Syncing\u2026' : 'Sync from'}
-                </button>
-                <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.send} title="Apply this seat to your character in game: its subclass, Super, melee and grenade, with aspects, fragments and artifact perks cleared. Works in orbit, a social space, or offline.">
-                  {sync.sending ? 'Sending\u2026' : 'Send to'}
-                </button>
-              </span>
-            </div>
-          )}
-          <div className="seg" role="radiogroup" aria-label="Class">
-            {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} onClick={() => onPatch({ cls: c })}>{c}</button>)}
-          </div>
-          <div className="el-pick" role="radiogroup" aria-label="Committed subclass">
-            {ELEMENTS.map((el) => (
-              <button key={el} role="radio" aria-checked={seat.element === el} className={seat.element === el ? 'is-on' : ''} style={{ ['--el' as string]: ELEMENT_COLOR[el] }} onClick={() => onPatch({ element: el })}>
-                <ElementMark element={el} size={18} /><span>{el}</span>
-              </button>
-            ))}
-          </div>
-          {(['super', 'melee', 'grenade'] as const).map((k) => (
-            <div key={k} className="field">
-              <label htmlFor={`${k}-${seat.id}`}>Starting {KIND_LABEL[k].toLowerCase()}</label>
-              <select id={`${k}-${seat.id}`} value={seat.starter[k]} onChange={(e) => onPatch({ starter: { ...seat.starter, [k]: e.target.value } })}>
-                {abil.filter((a) => a.kind === k && !baseKit(seat.cls, seat.element).includes(a.id)).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-              </select>
-              {k === 'grenade' && baseKit(seat.cls, seat.element).length > 0 && (
-                <small className="muted">{baseKit(seat.cls, seat.element).map((id) => id.split('|')[2]).join(', ')} is always available on Prismatic, on top of this.</small>
+          <section className="g-sec" aria-label="Class and subclass">
+            <header className="g-sec-head">
+              <span className="eyebrow">Class and subclass</span>
+              {sync && (
+                <span className="row-acts seat-sync">
+                  <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.run} title="Read your in-game character from Bungie and set this seat's class, subclass, Super, melee and grenade to match.">
+                    {sync.busy ? 'Syncing\u2026' : 'Sync from'}
+                  </button>
+                  <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.send} title="Apply this seat to your character in game: its subclass, Super, melee and grenade, with aspects, fragments and artifact perks cleared. Works in orbit, a social space, or offline.">
+                    {sync.sending ? 'Sending\u2026' : 'Send to'}
+                  </button>
+                </span>
               )}
+            </header>
+            <div className="seg" role="radiogroup" aria-label="Class">
+              {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} onClick={() => onPatch({ cls: c })}>{c}</button>)}
             </div>
-          ))}
-          <div className="field">
-            <label htmlFor={`art-${seat.id}`}>Artifact <span className="muted">(locked for the run)</span></label>
-            <select id={`art-${seat.id}`} value={seat.artifact} onChange={(e) => onPatch({ artifact: e.target.value })} className={seat.artifact ? '' : 'needs-pick'}>
-              <option value="" disabled>Choose an artifact</option>
-              {ARTIFACTS.map((a) => <option key={a.name} value={a.name}>{a.name} ({a.season})</option>)}
-            </select>
-            {art ? <small className="muted seat-art-note">{icons.artifact(art.name) && <img className="art-icon sm" src={icons.artifact(art.name)} alt="" loading="lazy" />}<span>{art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</span></small>
+            <div className="el-pick" role="radiogroup" aria-label="Committed subclass">
+              {ELEMENTS.map((el) => (
+                <button key={el} role="radio" aria-checked={seat.element === el} className={seat.element === el ? 'is-on' : ''} style={{ ['--el' as string]: ELEMENT_COLOR[el] }} onClick={() => onPatch({ element: el })}>
+                  <ElementMark element={el} size={18} /><span>{el}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="g-sec" aria-label="Starting abilities">
+            <header className="g-sec-head"><span className="eyebrow">Starting abilities</span><span className="muted small">pick one of each</span></header>
+            <div className="ab-kinds">
+              {(['super', 'melee', 'grenade'] as const).map((k) => (
+                <div key={k} className="ab-kind" data-kind={k} role="radiogroup" aria-label={`Starting ${KIND_LABEL[k].toLowerCase()}`}>
+                  <span className="ab-kind-name">{KIND_LABEL[k]}</span>
+                  <div className="ab-chips">
+                    {abil.filter((a) => a.kind === k && !always.includes(a.id)).map((a) => chip(a.id, seat.starter[k] === a.id, () => onPatch({ starter: { ...seat.starter, [k]: a.id } })))}
+                  </div>
+                  {k === 'grenade' && always.length > 0 && (
+                    <small className="muted">{always.map((id) => id.split('|')[2]).join(', ')} is always available on Prismatic, on top of this.</small>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="g-sec" aria-label="Artifact">
+            <header className="g-sec-head"><span className="eyebrow">Artifact</span><span className="muted small">locked for the run</span></header>
+            <div className="art-pick" role="radiogroup" aria-label="Artifact" id={`art-${seat.id}`}>
+              {ARTIFACTS.map((a) => (
+                <button key={a.name} role="radio" aria-checked={seat.artifact === a.name} className={`art-opt ${seat.artifact === a.name ? 'is-on' : ''}`} title={`${a.name} (${a.season})${a.focus ? `: ${a.focus}` : ''}`} onClick={() => onPatch({ artifact: a.name })}>
+                  {icons.artifact(a.name) ? <img src={icons.artifact(a.name)} alt="" loading="lazy" /> : <span className="art-opt-blank" aria-hidden="true">{a.name.slice(0, 2)}</span>}
+                  <span className="art-opt-name">{a.name}</span>
+                </button>
+              ))}
+            </div>
+            {art ? <small className="muted">{art.name} &middot; {art.season}. {art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</small>
               : <small className="tone-warn">Pick one before the run starts. All Artifact research comes from it.</small>}
-          </div>
+          </section>
+
+          {equipped}
           {notice}
           {!seat.isHost && seat.clientId !== null && (
             <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
@@ -278,10 +310,17 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           )}
         </>
       ) : (
-        <dl className="seat-summary">
-          {(['super', 'melee', 'grenade'] as const).map((k) => <div key={k}><dt>{KIND_LABEL[k]}</dt><dd>{abil.find((a) => a.id === seat.starter[k])?.name}</dd></div>)}
-          <div><dt>Artifact</dt><dd>{art ? art.name : <span className="tone-warn">Not chosen</span>}</dd></div>
-        </dl>
+        <>
+          <section className="g-sec" aria-label="Starting abilities">
+            <header className="g-sec-head"><span className="eyebrow">Starting abilities</span></header>
+            <div className="ab-chips">{(['super', 'melee', 'grenade'] as const).map((k) => chip(seat.starter[k], true))}</div>
+          </section>
+          <section className="g-sec" aria-label="Artifact">
+            <header className="g-sec-head"><span className="eyebrow">Artifact</span></header>
+            {art ? <p className="art-name">{icons.artifact(art.name) && <img className="art-icon" src={icons.artifact(art.name)} alt="" loading="lazy" />}<strong>{art.name}</strong><span className="muted small"> &middot; {art.season}</span></p>
+              : <p className="tone-warn small">Not chosen yet</p>}
+          </section>
+        </>
       )}
 
       {you && <SeatBungie />}
@@ -344,7 +383,6 @@ function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
           <label htmlFor="run-name">Run name (optional)</label>
           <input id="run-name" defaultValue={lobby.name} onBlur={(e) => set((l) => { l.name = e.target.value.slice(0, 40) })} placeholder="e.g. Tuesday night Directive" />
         </div>
-        <p className="small muted">Mode A, No Login. Bungie integration (Mode B) is planned.</p>
       </div>
       <div className="host-setup-col">
         <h2>Expedition</h2>
@@ -537,77 +575,80 @@ function useAutofill(eq: Equipped, seat: Seat | undefined, apply: (p: Patch) => 
   }, [eq.data, seat?.id])
 }
 
-/** Live preview of the signed-in player's equipped gear, checked against the starting rules. */
+/** Inside the player's own seat: what their character has equipped right now, checked against the starting rules. */
 function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply: (p: Patch) => void }) {
-  if (!bungieConfigured) return null
-  if (!eq.active) {
-    return (
-      <section className="panel equipped-now">
-        <div className="equipped-head">
-          <div><div className="eyebrow">Equipped now</div><h2>Check your starting gear</h2></div>
-        </div>
-        <p className="section-note"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> to see what your character has equipped right now, fill your seat from it, and track drops.</p>
-      </section>
-    )
-  }
+  const icons = useIcons()
+  if (!bungieConfigured || !eq.active) return null
   const { data, now } = eq
   const minted = data?.mintedAt ?? null
   const tip = data
     ? `${minted ? `Bungie generated this data at ${new Date(minted).toLocaleTimeString()} (${since(minted, now)}).` : 'Bungie did not say when this data was generated.'} Fetched at ${new Date(data.fetchedAt).toLocaleTimeString()}. Bungie\u2019s data can lag the game by a minute or more.`
     : ''
+  const slotOf = (slot: Slot) => data?.items.find((i) => i.slot === slot)
+  const gearRow = (slots: Slot[]) => (
+    <div className="tiles" style={{ ['--n' as string]: slots.length }}>
+      {slots.map((slot) => {
+        const i = slotOf(slot)
+        if (!i) return <span key={slot} className="tile tile-empty item is-off" title={`${slot}: nothing equipped`} aria-label={`${slot}: nothing equipped`} />
+        const ok = EXPECTED[slot].includes(i.rarity)
+        const why = ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${EXPECTED[slot].map((r) => COLOR_WORD[r]).join(' or ')}`
+        return (
+          <span key={slot} className={`tile item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`} title={`${slot}: ${i.name} \u00b7 ${why}`} aria-label={`${slot}: ${i.name}, ${why}`}>
+            {icons.gear(i.name) ? <img src={icons.gear(i.name)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+          </span>
+        )
+      })}
+    </div>
+  )
+  const plugChip = (n: string, bad?: boolean) => <span key={n} className={`ab-chip is-unlocked ${bad ? 'is-bad' : ''}`}>{icons.plug(n) && <img src={icons.plug(n)} alt="" loading="lazy" />}<span>{n}</span></span>
   return (
-    <section className={`panel equipped-now ${data ? (eq.ready ? 'is-ready' : 'is-waiting') : ''}`} aria-labelledby="equipped-now-title">
-      <div className="equipped-head">
-        <div>
-          <div className="eyebrow">Equipped now</div>
-          <h2 id="equipped-now-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h2>
-          {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : 'Not in game: showing your most recently played character'}</p>}
-          {data && seat && data.cls !== seat.cls && <p className="small tone-warn">Your seat is set to {seat.cls}. Use my character&rsquo;s setup to match, or switch characters in game.</p>}
-        </div>
-        <div className="equipped-acts">
-          {data && (
-            <span className="freshness" tabIndex={0} title={tip} aria-label={tip}>
-              <span className={`dot ${eq.stale ? 'is-stale' : ''}`} aria-hidden="true" />
-              Updated {since(minted ?? data.fetchedAt, now)}
-            </span>
-          )}
-          {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}
-          <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
-        </div>
+    <section className={`g-sec equipped-now ${data ? (eq.ready ? 'is-ready' : 'is-waiting') : ''}`} aria-labelledby="equipped-now-title">
+      <header className="g-sec-head">
+        <span className="eyebrow">Equipped now</span>
+        {data && (
+          <span className="freshness" tabIndex={0} title={tip} aria-label={tip}>
+            <span className={`dot ${eq.stale ? 'is-stale' : ''}`} aria-hidden="true" />
+            Updated {since(minted ?? data.fetchedAt, now)}
+          </span>
+        )}
+      </header>
+      <h4 id="equipped-now-title" className="equipped-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h4>
+      {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : 'Not in game: showing your most recently played character'}</p>}
+      {data && seat && data.cls !== seat.cls && <p className="small tone-warn">Your seat is set to {seat.cls}. Use my character&rsquo;s setup to match, or switch characters in game.</p>}
+      <div className="row-acts">
+        {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}
+        <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
       </div>
       {eq.error && <p className="small tone-danger">{eq.error}</p>}
       {!data && !eq.error && <p className="muted small">Reading your character from Bungie\u2026</p>}
-      {data && <SyncNotice eq={eq} />}
+      {data && <SyncNotice eq={eq} compact />}
       {data && (
         <>
-          <ul className="equipped-grid">
-            {data.items.map((i) => {
-              const ok = EXPECTED[i.slot].includes(i.rarity)
-              return (
-                <li key={i.slot} className={`item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`}>
-                  <div className="item-main">
-                    <span className="item-meta">{i.slot}</span>
-                    <span className="item-name">{i.name}</span>
-                    <span className={`item-meta ${ok ? 'tone-ok' : 'tone-warn'}`}>{ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${EXPECTED[i.slot].map((r) => COLOR_WORD[r]).join(' or ')}`}</span>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
+          <div className="equipped-grid" aria-label="Equipped gear">
+            <span className="ab-kind-name">Weapons <span className="muted">grey or green</span></span>
+            {gearRow(['Kinetic', 'Energy', 'Power'])}
+            <span className="ab-kind-name">Armor <span className="muted">grey</span></span>
+            {gearRow(['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item'])}
+          </div>
           {data.subclass ? (
-            <dl className="equipped-subclass">
-              <div><dt>Super</dt><dd>{data.subclass.super ?? '\u2014'}</dd></div>
-              <div><dt>Melee</dt><dd>{data.subclass.melee ?? '\u2014'}</dd></div>
-              <div><dt>Grenade</dt><dd>{data.subclass.grenade ?? '\u2014'}</dd></div>
-              <div className={data.subclass.aspects.length ? 'is-off' : ''}><dt>Aspects</dt><dd>{data.subclass.aspects.length ? <span className="tone-warn">{data.subclass.aspects.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
-              <div className={data.subclass.fragments.length ? 'is-off' : ''}><dt>Fragments</dt><dd>{data.subclass.fragments.length ? <span className="tone-warn">{data.subclass.fragments.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
-            </dl>
+            <div className="equipped-subclass ab-kinds">
+              <div className="ab-kind"><span className="ab-kind-name">Abilities</span><div className="ab-chips">{[data.subclass.super, data.subclass.melee, data.subclass.grenade].filter((x): x is string => !!x).map((n) => plugChip(n))}</div></div>
+              <div className="ab-kind"><span className="ab-kind-name">Aspects and fragments</span>
+                {data.subclass.aspects.length + data.subclass.fragments.length
+                  ? <div className="ab-chips">{[...data.subclass.aspects, ...data.subclass.fragments].map((n) => plugChip(n, true))}<span className="small tone-warn">setup calls for none</span></div>
+                  : <span className="small tone-ok">None, fits setup</span>}
+              </div>
+            </div>
           ) : <p className="small muted">Couldn&rsquo;t read your subclass, so aspects and fragments aren&rsquo;t checked.</p>}
           {data.artifact ? (
-            <dl className="equipped-subclass equipped-artifact">
-              <div><dt>Artifact</dt><dd>{data.artifact.name}{seat?.artifact && data.artifact.matched && data.artifact.matched !== seat.artifact && <span className="tone-warn"> (your seat has {seat.artifact})</span>}</dd></div>
-              <div className={data.artifact.activePerks.length ? 'is-off' : ''}><dt>Active perks</dt><dd>{data.artifact.activePerks.length ? <span className="tone-warn">{data.artifact.activePerks.join(', ')}; setup calls for none</span> : <span className="tone-ok">None, fits setup</span>}</dd></div>
-            </dl>
+            <div className="equipped-artifact ab-kind">
+              <span className="ab-kind-name">Artifact</span>
+              <p className="art-name">{icons.artifact(data.artifact.name) && <img className="art-icon sm" src={icons.artifact(data.artifact.name)} alt="" loading="lazy" />}<strong>{data.artifact.name}</strong>
+                {seat?.artifact && data.artifact.matched && data.artifact.matched !== seat.artifact && <span className="tone-warn small"> (your seat has {seat.artifact})</span>}</p>
+              {data.artifact.activePerks.length
+                ? <div className="ab-chips">{data.artifact.activePerks.map((n) => plugChip(n, true))}<span className="small tone-warn">setup calls for none</span></div>
+                : <span className="small tone-ok">No perks on, fits setup</span>}
+            </div>
           ) : <p className="small muted">Couldn&rsquo;t read your artifact.</p>}
           <p className="small muted">Refreshes every minute.</p>
         </>
@@ -617,8 +658,14 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
 }
 
 /** Why to wait: the run records equipped gear at the start, and anything new after that counts as a drop. */
-function SyncNotice({ eq, compact }: { eq: Equipped; compact?: boolean }) {
+function SyncNotice({ eq, compact, short }: { eq: Equipped; compact?: boolean; short?: boolean }) {
   if (!eq.data) return null
+  const issues = [eq.off.length && `${eq.off.length} gear slot${eq.off.length > 1 ? 's' : ''} not at starting rarity`, eq.empty.length && `${eq.empty.length} gear slot${eq.empty.length > 1 ? 's' : ''} empty`, eq.extras.length && `${eq.extras.length} aspect, fragment or artifact perk${eq.extras.length > 1 ? 's' : ''} still on`].filter(Boolean).join(' and ')
+  if (short) {
+    return eq.ready
+      ? <p className="sync-notice is-ok small"><span aria-hidden="true">&#10003;</span> Your starting gear checks out.</p>
+      : <p className="sync-notice is-wait small"><strong>Wait before readying up:</strong> {issues}. Details in your seat.</p>
+  }
   if (eq.ready) {
     return <p className={`sync-notice is-ok ${compact ? 'small' : ''}`}><span aria-hidden="true">&#10003;</span> {eq.vouched ? 'Send to set your subclass and artifact, and your gear is starting gear. Safe to ready up or start. Bungie’s data here can show your old setup for a minute or two.' : 'Bungie shows your starting gear. Safe to ready up or start.'}</p>
   }

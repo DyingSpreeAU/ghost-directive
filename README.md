@@ -54,6 +54,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 
 ## What's implemented (manual "No Login" mode)
 
+- **Lobby layout** matches the run screen: each seat is a Guardian column with the player's emblem
+  nameplate (shared by their signed-in device), class and subclass, starting Super/melee/grenade as icon
+  chips, and the seven artifacts as icon tiles. The player's own seat also shows **Equipped now**: gear
+  as icon tiles (red when not starting rarity), equipped abilities, any aspects, fragments or artifact
+  perks still on, and the ready check. The bottom bar shows a one-line version.
 - **Lobby**: Protocol Ruleset (snapshot locked per run), up to 3 seats with host. Each player picks
   their committed subclass, starting Super/melee/grenade and **artifact** on their own device; no one
   can ready up or start without an artifact. Starting-gear rules are shown as instructions (nothing

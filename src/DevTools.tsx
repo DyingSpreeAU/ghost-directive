@@ -48,6 +48,8 @@ export default function DevTools() {
   const [rarity, setRarity] = useState<Rarity>('Legendary')
   const toggle = () => { setOpen(!open); try { localStorage.setItem(OPEN_KEY, open ? 'closed' : 'open') } catch { /* fine */ } }
 
+  // Nothing to test outside a run, and in the lobby it would cover the Begin button.
+  if (!run) return null
   if (!open) return <button className="devtools-tab" onClick={toggle} aria-label="Open test tools">Test tools</button>
 
   const act = (label: string, fn: (r: Run) => void) => {
