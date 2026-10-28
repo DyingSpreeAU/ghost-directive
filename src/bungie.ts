@@ -3,7 +3,7 @@
 // Netlify Function at /api/bungie-token. Only restoreGuardian moves or equips items,
 // and only when the player asks for it.
 
-import { ALL_SLOTS, ARTIFACTS, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, ARTIFACTS, PRISMATIC_BASE_GRENADES, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
 import { inClaudeViewer } from './net'
 
@@ -400,6 +400,7 @@ type ItemDef = {
   screenshot?: string
   defaultDamageType?: number
   inventory?: { tierType?: number }
+  plug?: { plugCategoryIdentifier?: string }
   sockets?: {
     socketEntries?: { singleInitialItemHash?: number; reusablePlugSetHash?: number }[]
     socketCategories?: { socketCategoryHash: number; socketIndexes: number[] }[]
@@ -716,16 +717,21 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   }
 
   // 2. Sockets: work out what each one holds from its current plug.
-  const byName = new Map(subclassAbilities(cls, seat.element).map((a) => [normName(a.name), a]))
-  const wanted = new Map(seat.abilities.map((n) => [byName.get(normName(n))?.kind, n] as const))
+  // Prismatic's own grenade sits in a separate socket that never changes, so it isn't a grenade choice here.
+  const byName = new Map(subclassAbilities(cls, seat.element).filter((a) => !PRISMATIC_BASE_GRENADES.includes(a.name)).map((a) => [normName(a.name), a]))
+  const wanted = new Map(seat.abilities.flatMap((n) => { const a = byName.get(normName(n)); return a ? [[a.kind, n] as const] : [] }))
   const current = p.itemComponents?.sockets?.data?.[subId]?.sockets ?? []
   const optionNamed = (idx: number) => socketOptions(p, sub.i, idx)
   type Job = { idx: number; kind: 'fragment' | 'aspect' | 'super' | 'melee' | 'grenade'; name: string }
   const jobs: Job[] = []
   await Promise.all(current.map(async (sock, idx) => {
-    const name = sock.plugHash ? (await defName(sock.plugHash)) ?? '' : ''
-    const kind = /^Empty Aspect/i.test(name) ? 'aspect' : /^Empty Fragment/i.test(name) ? 'fragment' : byName.get(normName(name))?.kind
-    if (kind && kind !== 'aspect' && kind !== 'fragment' && wanted.get(kind) && normName(wanted.get(kind)!) !== normName(name)) jobs.push({ idx, kind, name: wanted.get(kind)! })
+    const def = sock.plugHash ? await itemDef(sock.plugHash) : null
+    const name = def?.displayProperties?.name?.trim() ?? ''
+    // The plug's category says which socket this is (warlock.prism.grenades, shared.prism.fragments…);
+    // names alone can't, since a Prismatic grenade is also listed among that subclass's grenades.
+    const kind = socketKind(def?.plug?.plugCategoryIdentifier)
+      ?? (/^Empty Aspect/i.test(name) ? 'aspect' : /^Empty Fragment/i.test(name) ? 'fragment' : byName.get(normName(name))?.kind)
+    if (kind && kind !== 'other' && kind !== 'aspect' && kind !== 'fragment' && wanted.get(kind) && normName(wanted.get(kind)!) !== normName(name)) jobs.push({ idx, kind, name: wanted.get(kind)! })
     if ((kind === 'aspect' || kind === 'fragment') && !/^Empty/i.test(name)) jobs.push({ idx, kind, name })
   }))
   // Fragments first (aspects decide how many fragment sockets there are), then aspects, then abilities.
@@ -787,6 +793,13 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   }
   return report
 }
+/** A subclass socket's kind from its plugs' category, or 'other' for sockets left alone (class ability, jump, Transcendence, Prismatic grenade). */
+function socketKind(category?: string): AbilityKind | 'other' | undefined {
+  if (!category) return undefined
+  const m = /\.(supers|melee|grenades|aspects|fragments)$/.exec(category)
+  return m ? ({ supers: 'super', melee: 'melee', grenades: 'grenade', aspects: 'aspect', fragments: 'fragment' } as const)[m[1] as 'supers'] : 'other'
+}
+
 /**
  * What a socket can take: the item's own reusable plugs (component 310) when Bungie sends them,
  * otherwise the socket's plug set from the item definition. Subclass sockets only have the latter.

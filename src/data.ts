@@ -48,7 +48,7 @@ export function abilityId(element: Element, kind: AbilityKind, name: string) {
 
 /** Every ability a class can unlock on one committed subclass. */
 /** Each class's Prismatic grenade is part of the Prismatic base kit: always available, never a choice. */
-const PRISMATIC_BASE_GRENADES = ['Hailfire Spike', 'Electrified Snare', 'Freezing Singularity']
+export const PRISMATIC_BASE_GRENADES = ['Hailfire Spike', 'Electrified Snare', 'Freezing Singularity']
 
 /** Abilities a subclass always has, without unlocking them. */
 export function baseKit(cls: ClassType, element: Element): string[] {
