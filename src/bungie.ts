@@ -427,6 +427,8 @@ type ItemDef = {
   screenshot?: string
   defaultDamageType?: number
   inventory?: { tierType?: number }
+  /** ammoType: 1 primary, 2 special, 3 heavy. */
+  equippingBlock?: { ammoType?: number }
   plug?: { plugCategoryIdentifier?: string }
   sockets?: {
     socketEntries?: { singleInitialItemHash?: number; reusablePlugSetHash?: number }[]
@@ -874,6 +876,8 @@ export type ItemPreview = {
   type: string
   rarity: Rarity
   element?: DamageElement
+  /** Weapons only. */
+  ammo?: AmmoType
   power?: number
   icon?: string
   screenshot?: string
@@ -888,6 +892,9 @@ export type ItemPreview = {
   perks: PreviewPlug[]
   mods: PreviewPlug[]
 }
+
+export type AmmoType = 'Primary' | 'Special' | 'Heavy'
+const AMMO: Record<number, AmmoType | undefined> = { 1: 'Primary', 2: 'Special', 3: 'Heavy' }
 
 const IMG = (path?: string) => (path ? `https://www.bungie.net${path}` : undefined)
 async function plugInfo(hash?: number): Promise<PreviewPlug | null> {
@@ -947,6 +954,7 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType): Promi
     const dmg = (id ? p.itemComponents?.instances?.data?.[id]?.damageType : undefined) ?? def?.defaultDamageType ?? row[4]
     out[name] = {
       name, type: def?.itemTypeDisplayName ?? ALL_SLOTS[row[1]], rarity: TIERS[row[2]], element: armor ? undefined : DAMAGE[dmg],
+      ammo: armor ? undefined : AMMO[def?.equippingBlock?.ammoType ?? 0],
       power: (item && power(item)) || undefined, icon: IMG(def?.displayProperties?.icon), screenshot: IMG(def?.screenshot),
       flavor: def?.flavorText || undefined, owned: !!item, armor, stats, intrinsic, perks, mods,
     }

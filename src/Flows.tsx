@@ -389,6 +389,7 @@ function WipeFlow({ run, onClose }: { run: Run; onClose: () => void }) {
         {after === 0
           ? <p className="tone-danger">This wipe drops Integrity to zero and ends the run.</p>
           : <p>The fireteam stays on {encounter.name}. Clears restore {run.ruleset.integrity.clear} each.</p>}
+        <p className="small muted">A wipe is every Guardian dead at the same time, anywhere in the run, traversal included. Record it once; don&rsquo;t also record each death.</p>
       </div>
     </Modal>
   )

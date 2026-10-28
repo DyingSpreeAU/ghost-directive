@@ -612,13 +612,17 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
 .art-name { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; }
 .mod-list li > span:not(.mod-hex) { min-width: 0; overflow-wrap: anywhere; }
 select.needs-pick { border-color: var(--warn); }
-.setup-guide { padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 16px 28px; align-items: start; }
-.setup-guide > div { display: grid; gap: 6px; }
-.guide-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 20px; }
+.setup-guide { padding: 18px 20px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
+.guide-part { display: grid; gap: 8px; align-content: start; }
+.guide-part + .guide-part { border-left: 1px solid var(--seam); padding-left: 32px; }
+.guide-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.rules-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; font-size: 0.88rem; line-height: 1.5; }
+.rules-list b { font-family: var(--f-mono); font-weight: 600; }
+.rules-list .rules-key { padding: 8px 12px; border-left: 3px solid var(--danger); background: var(--hull-2); }
 .guide-list li { display: grid; gap: 2px; padding-left: 14px; position: relative; font-size: 0.88rem; }
 .guide-list li::before { content: ''; position: absolute; left: 0; top: 0.5em; width: 6px; height: 6px; background: var(--light); transform: rotate(45deg); }
 .guide-list .muted { font-size: 0.8rem; }
-@media (max-width: 900px) { .setup-guide, .guide-list { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) { .setup-guide { grid-template-columns: minmax(0, 1fr); } .guide-part + .guide-part { border-left: 0; padding-left: 0; border-top: 1px solid var(--seam); padding-top: 16px; } }
 
 /* ---------------------------------------------------------------- auto drops + remove */
 .auto-drops { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.86rem; color: var(--dim); }
@@ -918,3 +922,14 @@ button.ab-chip:hover { border-color: var(--dim); }
 .death-row .btn-sm small { margin-left: 4px; opacity: 0.8; }
 .death-row .link { font-size: 0.8rem; }
 .death-row .btn-sm { white-space: nowrap; }
+
+/* ---------------------------------------------------------------- begin: everyone ready, host override */
+.begin-acts { display: grid; justify-items: end; gap: 6px; }
+.begin-acts .override { display: grid; gap: 6px; justify-items: end; max-width: 340px; text-align: right; }
+.proto.is-in-use { border-color: var(--light); box-shadow: inset 3px 0 0 var(--light); }
+.in-use-tag { margin-left: 8px; padding: 1px 6px; border-radius: var(--radius); background: var(--light); color: var(--light-ink); font-size: 0.68rem; letter-spacing: 0.06em; }
+.ip-tags { display: flex; gap: 10px; align-items: center; justify-content: flex-end; }
+.ammo { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; font-family: var(--f-display); letter-spacing: 0.04em; color: #f2f2f2; }
+.ammo-special { color: #7ed957; }
+.ammo-heavy { color: #c9a2f2; }
+.ammo svg { filter: drop-shadow(0 0 1px #0008); }

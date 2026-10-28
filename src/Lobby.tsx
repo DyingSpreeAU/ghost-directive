@@ -107,6 +107,8 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
         <div className="warn warn-warn static"><span className="warn-sev">Solo only</span><span className="warn-title">Other players can&rsquo;t join from here.</span><span className="warn-rule">{net.detail} You can still add Guardians without a device and run them from this browser.</span></div>
       )}
 
+      <SetupGuide lobby={lobby} />
+
       {role === 'guest' && !mine && <SeatPicker lobby={lobby} />}
 
       <section className={`seats guardian-cols players-${Math.min(3, lobby.seats.length + (role === 'host' && lobby.seats.length < MAX_SEATS ? 1 : 0))}`}>
@@ -139,8 +141,6 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
           </div>
         )}
       </section>
-
-      <SetupGuide />
 
       <RouteAndProtocol lobby={lobby} />
 
@@ -455,9 +455,17 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
         {notice}
       </div>
-      {confirm && notReady.length > 0
-        ? <div className="row-acts"><button className="btn btn-ghost" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-light" disabled={noArtifact.length > 0} onClick={onBegin}>Begin anyway</button></div>
-        : <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0} onClick={() => (notReady.length ? setConfirm(true) : onBegin())}>Begin run and lock route</button>}
+      <div className="begin-acts">
+        <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || notReady.length > 0} onClick={onBegin}>
+          {notReady.length ? `Waiting on ${notReady.length} Guardian${notReady.length === 1 ? '' : 's'}` : 'Begin run and lock route'}
+        </button>
+        {notReady.length > 0 && !noRoute && noArtifact.length === 0 && (confirm ? (
+          <div className="override">
+            <p className="small tone-warn">{notReady.map((s) => s.name).join(', ')} {notReady.length === 1 ? 'isn’t' : 'aren’t'} ready. Their setup may not match the run&rsquo;s starting rules.</p>
+            <div className="row-acts"><button className="btn btn-ghost btn-sm" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-danger btn-sm" onClick={onBegin}>Begin anyway</button></div>
+          </div>
+        ) : <button className="link small" onClick={() => setConfirm(true)}>Host override</button>)}
+      </div>
     </div>
   )
 }
@@ -471,19 +479,36 @@ function SeatBungie() {
     : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional).</span></p>
 }
 
-/** How to prepare in Destiny 2 before the first encounter. Information only; nothing to tick. */
-function SetupGuide() {
+/** How to prepare in Destiny 2, and the run's rules in plain words, using the chosen protocol's numbers. */
+function SetupGuide({ lobby }: { lobby: Lobby }) {
+  const r = lobby.ruleset
+  const i = r.integrity
+  const tu = r.tradeUp
   return (
     <section className="panel setup-guide" aria-labelledby="setup-guide-title">
-      <div>
+      <div className="guide-part">
         <div className="eyebrow">Before the first encounter</div>
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
         <p className="section-note">Every Guardian starts the run under-geared. Do this in game before the host records anything.</p>
+        <ul className="guide-list">
+          {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
+          <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
+        </ul>
       </div>
-      <ul className="guide-list">
-        {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
-        <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
-      </ul>
+      <div className="guide-part" aria-labelledby="rules-title">
+        <div className="eyebrow">{r.name}</div>
+        <h2 id="rules-title">How the run works</h2>
+        <ul className="rules-list">
+          <li><strong>Integrity is your fireteam&rsquo;s life.</strong> You start with <b>{i.start}</b> (it can go up to {i.max}). If it reaches <b>0</b>, the run is over.</li>
+          <li><strong>Clear an encounter:</strong> <span className="tone-ok">+{i.clear}</span> Integrity, and each Guardian picks a reward.</li>
+          <li><strong>A Guardian dies:</strong> <span className="tone-danger">&minus;{i.death ?? 0}</span> Integrity. Record it on that Guardian&rsquo;s column.</li>
+          <li><strong>The fireteam wipes:</strong> <span className="tone-danger">&minus;{i.wipe}</span> Integrity.</li>
+          <li className="rules-key"><strong>What counts as a wipe:</strong> every Guardian in the fireteam dead at the same time, at any point in the run. That includes traversal sections and anywhere the game would let you revive or respawn: no wipe mechanic or Darkness zone is needed. Record it as one wipe, not as separate deaths.</li>
+          <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> items from one slot{tu.sameRarity ? ' (same rarity)' : ''} for a Legendary from your Vault.</> : null}</li>
+          <li><strong>Abilities and artifact perks</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>
+          <li><strong>Honour system:</strong> the app tracks the run; it doesn&rsquo;t police it. Play it straight.</li>
+        </ul>
+      </div>
     </section>
   )
 }

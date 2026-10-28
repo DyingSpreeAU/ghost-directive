@@ -2,7 +2,7 @@
 // intrinsic frame, selected perks and mods. Used when picking a Vault weapon as a reward.
 
 import { useEffect, useState } from 'react'
-import { bungieConfigured, fetchItemPreviews, isSignedIn, type ItemPreview, type PreviewPlug } from './bungie'
+import { bungieConfigured, fetchItemPreviews, isSignedIn, type AmmoType, type ItemPreview, type PreviewPlug } from './bungie'
 import { ELEMENT_COLOR, type ClassType } from './data'
 import { rarityClass } from './ui'
 
@@ -30,6 +30,20 @@ function Plug({ plug, round }: { plug: PreviewPlug; round?: boolean }) {
   )
 }
 
+/** The in-game ammo mark: a round, white for primary, green for special, purple with a white outline for heavy. */
+export function AmmoMark({ ammo }: { ammo: AmmoType }) {
+  const fill = ammo === 'Primary' ? '#f2f2f2' : ammo === 'Special' ? '#7ed957' : '#9b5fd6'
+  return (
+    <span className={`ammo ammo-${ammo.toLowerCase()}`} title={`${ammo} ammo`}>
+      <svg viewBox="0 0 12 20" width="10" height="17" aria-hidden="true">
+        <path d="M6 1.2C3.6 3 2.6 5.6 2.6 8.4V17.4h6.8V8.4C9.4 5.6 8.4 3 6 1.2Z" fill={fill} stroke={ammo === 'Heavy' ? '#fff' : 'none'} strokeWidth="1.3" strokeLinejoin="round" />
+        <rect x="2" y="17.6" width="8" height="1.6" rx="0.4" fill={fill} stroke={ammo === 'Heavy' ? '#fff' : 'none'} strokeWidth="0.8" />
+      </svg>
+      <span>{ammo}</span>
+    </span>
+  )
+}
+
 /** Short stat names for side-by-side cards. */
 const SHORT: Record<string, string> = { 'Rounds Per Minute': 'RPM', 'Reload Speed': 'Reload', 'Aim Assistance': 'Aim Assist', 'Ammo Generation': 'Ammo Gen', 'Recoil Direction': 'Recoil', 'Guard Resistance': 'Guard Res.', 'Ammo Capacity': 'Ammo Cap.' }
 
@@ -50,7 +64,12 @@ export function ItemCard({ item, compact, best }: { item: ItemPreview; compact?:
           <span>{item.type}</span>
         </div>
         <div className="ip-power">
-          {item.element && <span className="ip-el" style={{ color: ELEMENT_COLOR[item.element] }}>{item.element}</span>}
+          {(item.ammo || item.element) && (
+            <span className="ip-tags">
+              {item.ammo && <AmmoMark ammo={item.ammo} />}
+              {item.element && <span className="ip-el" style={{ color: ELEMENT_COLOR[item.element] }}>{item.element}</span>}
+            </span>
+          )}
           {item.power && <span className="mono">{item.power}</span>}
         </div>
       </header>

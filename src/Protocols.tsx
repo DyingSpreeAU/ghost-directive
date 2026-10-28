@@ -3,8 +3,10 @@ import { STANDARD, uid, validateRuleset, type Ruleset } from './model'
 import { allProtocols, useGD, type HostStore } from './store'
 
 export function Protocols() {
-  const { host, toast } = useGD()
+  const { host, toast, run, lobby } = useGD()
   const { store, mutate } = host!
+  // The protocol the current run started with, or the one picked in the lobby.
+  const inUse = run?.ruleset.id ?? lobby?.protocolId
   const setStore = (fn: (s: HostStore) => HostStore) => mutate(fn)
   const list = allProtocols(store)
   const [editing, setEditing] = useState<Ruleset | null>(null)
@@ -48,14 +50,15 @@ export function Protocols() {
       ) : (
         <div className="proto-grid">
           {list.map((p) => (
-            <article key={p.id} className="proto static">
-              <span className="choice-kind">{p.preset ? 'Preset' : 'Custom protocol'}</span>
+            <article key={p.id} className={`proto static ${p.id === inUse ? 'is-in-use' : ''}`} aria-current={p.id === inUse ? 'true' : undefined}>
+              <span className="choice-kind">{p.preset ? 'Preset' : 'Custom protocol'}{p.id === inUse && <span className="in-use-tag">{run ? 'This run' : 'This lobby'}</span>}</span>
               <strong>{p.name}</strong>
               <span className="muted">{p.description}</span>
               <dl className="proto-stats">
                 <div><dt>Start</dt><dd>{p.integrity.start}/{p.integrity.max}</dd></div>
                 <div><dt>Clear</dt><dd>+{p.integrity.clear}</dd></div>
                 <div><dt>Wipe</dt><dd>&minus;{p.integrity.wipe}</dd></div>
+                <div><dt>Guardian death</dt><dd>{p.integrity.death ? <>&minus;{p.integrity.death}</> : '0'}</dd></div>
                 <div><dt>Starting Item Slots</dt><dd>{p.inventory.capacity}</dd></div>
                 <div><dt>Trade-up</dt><dd>{p.tradeUp.enabled ? `${p.tradeUp.inputs}→${p.tradeUp.options}` : 'Off'}</dd></div>
                 <div><dt>Overflow</dt><dd>{p.overflow === 'guided' ? 'Swap' : 'Warn'}</dd></div>
@@ -64,6 +67,7 @@ export function Protocols() {
                 {p.preset
                   ? <button className="chip" onClick={() => setEditing(derive(p, '(custom)'))}>Customize</button>
                   : <button className="chip" onClick={() => setEditing(structuredClone(p))}>Edit</button>}
+                {lobby && !run && p.id !== inUse && <button className="chip" onClick={() => { host!.updateLobby((l) => { l.protocolId = p.id; l.ruleset = structuredClone(p) }); toast(`${p.name} set for this lobby`) }}>Use in lobby</button>}
                 <button className="chip" onClick={() => { saveCustom(derive(p, 'copy')); toast('Duplicated') }}>Duplicate</button>
                 <button className="chip" onClick={() => { const { id: _id, preset: _p, ...rest } = p; setIo({ mode: 'export', text: JSON.stringify(rest, null, 2) }) }}>Export</button>
                 {!p.preset && <button className="chip" onClick={() => setStore((s) => ({ ...s, protocols: s.protocols.filter((x) => x.id !== p.id) }))}>Delete</button>}
