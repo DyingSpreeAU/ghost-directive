@@ -144,7 +144,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               <div className="g-slot-head">
                 <span className="g-slot-name">{slot}</span>
                 <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
-                {control && tu.enabled && eligibleForTrade(slot) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>Trade up {tu.inputs}&rarr;1</button>}
+                {p.clientId === me && tu.enabled && (p.trade?.slot === slot || (!p.trade && eligibleForTrade(slot))) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>{p.trade ? 'Finish trade-up' : <>Trade up {tu.inputs}&rarr;1</>}</button>}
               </div>
               <div className="tiles" style={{ ['--n' as string]: Math.max(cap, items.length, 4) }}>
                 {items.map((it, i) => (

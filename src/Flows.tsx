@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeUpChoices,
+  capacityOf, changeIntegrity, current, itemsIn, log, recordClear,
   type ChestReward, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -456,7 +456,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
   const excess = items.length - cap
   const tu = run.ruleset.tradeUp
   const tradeable = items.filter((i) => i.rarity !== 'Exotic')
-  const canTrade = tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
+  const canTrade = p.clientId === me && !p.trade && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => tradeable.filter((i) => i.rarity === r).length >= tu.inputs) : tradeable.length >= tu.inputs)
   const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
   const toVault = async (it: (typeof items)[number]) => {
@@ -481,7 +481,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
             <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
               <span className="choice-kind">Trade up</span>
               <strong>Trade {tu.inputs} for 1 Legendary</strong>
-              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : p.clientId !== me ? 'Only this Guardian\u2019s player can trade up.' : `Needs ${tu.inputs} non-Exotic ${slot} items${tu.sameRarity ? ' of the same rarity' : ''}.`}</span>
             </button>
             <button className="choice" onClick={() => setStage('remove')}>
               <span className="choice-kind">Remove items</span>
@@ -517,16 +517,19 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
 
 // ------------------------------------------------------------------ Player: trade-up
 
-function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
+function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClose: () => void; playerId: string; slot: Slot }) {
   const { dispatch, toast, me } = useGD()
   const [moving, setMoving] = useState(false)
   const tu = run.ruleset.tradeUp
   const p = run.players.find((x) => x.id === playerId)!
+  // Once the inputs are traded in, the options are fixed on the run until one is picked.
+  const trade = p.trade
+  const slot = trade?.slot ?? asked
   const items = itemsIn(p, slot).filter((i) => i.rarity !== 'Exotic')
   const [sel, setSel] = useState<string[]>([])
-  const [stage, setStage] = useState<'inputs' | 'pick'>('inputs')
-  const [options, setOptions] = useState<VaultEntry[]>([])
+  const [starting, setStarting] = useState(false)
   const [choice, setChoice] = useState<VaultEntry | null>(null)
+  const options = trade?.options ?? []
   const selRarity = sel.length ? items.find((i) => i.id === sel[0])?.rarity : null
   const canPick = (id: string) => {
     if (sel.includes(id)) return true
@@ -534,41 +537,60 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
     return !tu.sameRarity || !selRarity || items.find((i) => i.id === id)!.rarity === selRarity
   }
   const inGame = canMoveInGame(p, me)
-  const previews = useItemPreviews(stage === 'pick' ? options.map((o) => o.name) : [], stage === 'pick' && inGame, p.cls)
+  const previews = useItemPreviews(trade ? options.map((o) => o.name) : [], !!trade && inGame, p.cls)
   const previewable = inGame && bungieConfigured && isSignedIn()
   const [compare, setCompare] = useState(false)
-  const commit = async () => {
-    if (!choice) return
-    // Signed in on their own device: the inputs go to the Vault and the pick comes to the character in game.
+  // If the host refused the trade-in (shown as a toast), let the player try again.
+  useEffect(() => {
+    if (!starting || trade) return
+    const t = setTimeout(() => setStarting(false), 6000)
+    return () => clearTimeout(t)
+  }, [starting, trade])
+  // A player trades up for themselves only.
+  if (p.clientId !== me) return null
+  const start = async () => {
+    // Signed in on their own device: the inputs go to the Vault in game first.
     if (inGame) {
       setMoving(true)
-      const ops = [...items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), { name: choice.name, to: 'character' as const }]
-      const r = await moveInGame(p, ops, toast)
+      const r = await moveInGame(p, items.filter((i) => sel.includes(i.id)).map((i) => ({ name: i.name, instanceId: i.instanceId, to: 'vault' as const })), toast)
       setMoving(false)
       if (!r) return
-    } else toast(`Traded up for ${choice.name}`)
-    dispatch({ type: 'tradeup', inputIds: sel, choice }, playerId)
+    }
+    setStarting(true)
+    dispatch({ type: 'tradeup-start', inputIds: sel }, playerId)
+  }
+  const commit = async () => {
+    if (!choice) return
+    if (inGame) {
+      setMoving(true)
+      const r = await moveInGame(p, [{ name: choice.name, to: 'character' }], toast)
+      setMoving(false)
+      if (!r) return
+    } else toast(`Traded up for ${choice.name}. Move it to your character in Destiny 2.`)
+    dispatch({ type: 'tradeup', choice }, playerId)
     onClose()
   }
+  const kind = slot === 'Class Item' ? 'class items' : WEAPON_SLOTS.includes(slot) ? 'weapons' : `${slot.toLowerCase()} pieces`
   return (
-    <Modal kicker={`${p.name} · ${slot}`} title={stage === 'inputs' ? `Trade up: select ${tu.inputs} items` : `Choose 1 of ${options.length} Legendary ${slot === 'Class Item' ? 'class items' : WEAPON_SLOTS.includes(slot) ? 'weapons' : `${slot.toLowerCase()} pieces`}`} onClose={onClose} wide
+    <Modal kicker={`${p.name} · ${slot}`} title={trade ? `Choose 1 of ${options.length} Legendary ${kind}` : `Trade up: select ${tu.inputs} items`}
+      onClose={trade || starting ? undefined : onClose} wide
       xwide={compare && !WEAPON_SLOTS.includes(slot) && !!previews.data}
-      footer={stage === 'inputs' ? <>
-        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-light" disabled={sel.length !== tu.inputs} onClick={() => { setOptions(tradeUpChoices(run, p, slot)); setStage('pick') }}>{inGame ? 'Continue' : 'I moved these to the Vault'}</button>
-      </> : <>
-        <button className="btn btn-ghost" onClick={() => setStage('inputs')}>Back</button>
-        <button className="btn btn-light" disabled={!choice || moving} onClick={commit}>{moving ? 'Moving in Destiny 2\u2026' : inGame ? `Trade up for ${choice?.name ?? 'your choice'}` : `Register ${choice?.name ?? 'choice'}`}</button>
+      footer={trade ? (
+        <button className="btn btn-light" disabled={!choice || moving} onClick={commit}>{moving ? 'Moving in Destiny 2\u2026' : inGame ? `Take ${choice?.name ?? 'your choice'}` : `Register ${choice?.name ?? 'choice'}`}</button>
+      ) : <>
+        <button className="btn btn-ghost" disabled={starting || moving} onClick={onClose}>Cancel</button>
+        <button className="btn btn-light" disabled={sel.length !== tu.inputs || starting || moving} onClick={start}>{moving ? 'Moving in Destiny 2\u2026' : starting ? 'Trading in\u2026' : inGame ? 'Trade these in' : 'I moved these to the Vault'}</button>
       </>}
     >
-      {stage === 'inputs' ? (
+      {!trade ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. {inGame ? 'They go to your Vault in Destiny 2 when you confirm, and' : 'Move them to your Vault in Destiny 2, then'} choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault{inGame ? ', which comes to your character' : ''}.</p>
+          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. {inGame ? 'They go to your Vault in Destiny 2 when you confirm.' : 'Move them to your Vault in Destiny 2 first.'} Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p className="callout"><strong>No take-backs.</strong> Once you trade these in, they leave the run and the options are fixed: you can&rsquo;t go back, re-roll or cancel, only pick one.</p>
           <ul className="pick-list">
             {items.map((it) => (
               <li key={it.id}>
                 <label className={`item ${rarityClass(it.rarity)} ${sel.includes(it.id) ? 'is-picked' : ''} ${canPick(it.id) ? '' : 'is-disabled'}`}>
-                  <input type="checkbox" disabled={!canPick(it.id)} checked={sel.includes(it.id)} onChange={() => setSel(sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id])} />
+                  <input type="checkbox" disabled={!canPick(it.id) || starting} checked={sel.includes(it.id)} onChange={() => setSel(sel.includes(it.id) ? sel.filter((x) => x !== it.id) : [...sel, it.id])} />
                   <div className="item-main">
                     <span className="item-name">{it.name}</span>
                     <span className="item-meta">{it.rarity} &middot; {it.source}</span>
@@ -578,11 +600,9 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
             ))}
           </ul>
         </div>
-      ) : options.length === 0 ? (
-        <p>No eligible Legendary {slot} items in your Vault. Sign in with Bungie so your real Vault fills these options.</p>
       ) : (
         <div className="stack">
-          <p>{options.length === 1 ? 'This is the only eligible one in your Vault.' : <>You keep <strong>one</strong> of these {options.length}; the others stay in your Vault.</>}</p>
+          <p>You traded in {trade.inputs.join(', ')}. {options.length === 1 ? 'This is the only eligible one in your Vault; take it to finish.' : <>Keep <strong>one</strong> of these {options.length}; the others stay in your Vault. You have to pick one to finish.</>}</p>
           <GearPicker run={run} p={p} options={options} chosen={choice} onChoose={setChoice} previews={previews} previewable={previewable} compare={compare} setCompare={setCompare} five={options.length > 3} tradeUp />
         </div>
       )}

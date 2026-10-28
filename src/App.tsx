@@ -542,7 +542,9 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const swapSlot = run && me && run.ruleset.overflow === 'guided'
     ? run.ruleset.inventory.slots.find((s) => itemsIn(me, s).length > capacityOf(run, me) && !dismissedSwaps.includes(`${s}:${itemsIn(me, s).length}`))
     : undefined
+  // A trade-up in progress reopens until a pick is made: its options are already fixed.
   const activeFlow: Flow | null = flow
+    ?? (run && me?.trade && run.status === 'active' ? { type: 'tradeup', playerId: me.id, slot: me.trade.slot } : null)
     ?? (autoReward ? { type: 'reward', pendingId: autoReward.id } : null)
     ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null)
   const closeFlow = () => {

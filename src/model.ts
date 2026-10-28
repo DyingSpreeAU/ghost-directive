@@ -142,6 +142,8 @@ export type Player = {
   bungie?: BungieLink
   /** Individual deaths recorded this run. */
   deaths?: number
+  /** A trade-up in progress: inputs already given up, options rolled once by the host. Cleared when one is picked. */
+  trade?: { slot: Slot; inputs: string[]; options: VaultEntry[] }
   /** Bungie instances the player removed from the run (app only), so they aren't detected again. */
   dismissed?: string[]
   /** The Bungie.net account of the player's device, so a new device or session finds this Guardian again. */
@@ -546,7 +548,8 @@ export type Intent =
   | { type: 'register'; item: NewItem }
   | { type: 'equip'; itemId: string }
   | { type: 'vault'; itemIds: string[]; why: string }
-  | { type: 'tradeup'; inputIds: string[]; choice: VaultEntry }
+  | { type: 'tradeup-start'; inputIds: string[] }
+  | { type: 'tradeup'; choice: VaultEntry }
   | { type: 'loadout-save'; name: string }
   | { type: 'loadout-update'; id: string }
   | { type: 'loadout-delete'; id: string }
@@ -609,8 +612,10 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       sendToVault(run, p, it.itemIds.filter((x) => typeof x === 'string'), str(it.why, 30) || 'player choice')
       return null
     }
-    case 'tradeup': {
+    case 'tradeup-start': {
+      // The inputs are given up and the options rolled here, once: backing out can't re-roll them.
       if (!active) return 'The run has ended.'
+      if (p.trade) return 'Finish your current trade-up first.'
       const tu = run.ruleset.tradeUp
       if (!tu.enabled) return 'Trade-ups are off in this protocol.'
       const ids = Array.isArray(it.inputIds) ? [...new Set(it.inputIds)] : []
@@ -619,12 +624,22 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const slot = inputs[0].slot
       if (inputs.some((i) => i.slot !== slot || i.rarity === 'Exotic')) return 'Inputs must share a slot and cannot be Exotic.'
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
-      const choice = vaultPool(p).find((v) => v.name === str(it.choice?.name) && v.slot === slot && v.rarity === 'Legendary')
-      if (!choice) return 'That Legendary is not in your Vault pool for this slot.'
+      const options = tradeUpChoices(run, p, slot)
+      if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
       dismiss(p, inputs)
       p.inventory = p.inventory.filter((i) => !ids.includes(i.id))
-      log(run, 'trade', `${p.name} traded ${inputs.map((i) => i.name).join(', ')} (to Vault) for ${choice.name}.`)
-      addItem(run, p, { name: choice.name, slot, rarity: 'Legendary', source: 'trade-up' })
+      p.trade = { slot, inputs: inputs.map((i) => i.name), options }
+      log(run, 'trade', `${p.name} traded in ${inputs.map((i) => i.name).join(', ')} (to Vault).`)
+      return null
+    }
+    case 'tradeup': {
+      const t = p.trade
+      if (!t) return 'No trade-up in progress.'
+      const choice = t.options.find((v) => v.name === str(it.choice?.name))
+      if (!choice) return 'Pick one of the options you were offered.'
+      p.trade = undefined
+      log(run, 'trade', `${p.name} took ${choice.name} from a trade-up.`)
+      addItem(run, p, { name: choice.name, slot: t.slot, rarity: 'Legendary', source: 'trade-up' })
       return null
     }
     case 'loadout-save': {
