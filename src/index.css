@@ -813,6 +813,11 @@ button.ab-chip:hover { border-color: var(--dim); }
 .choice-glyph .mod-hex { width: 22px; height: 22px; }
 .choice-thumbs { display: flex; gap: 6px; margin-top: 6px; }
 .choice-thumbs img { width: 40px; height: 40px; border: 1px solid var(--seam); }
+.gear-preview { display: grid; justify-items: start; }
+.gear-preview .item-card { width: 100%; max-width: 460px; }
+.choice-tag { justify-self: start; font-size: 0.72rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--r-exotic); border: 1px solid color-mix(in srgb, var(--r-exotic) 45%, transparent); padding: 1px 6px; border-radius: var(--radius); }
+.callout { padding: 10px 14px; border-left: 3px solid var(--r-exotic); background: var(--hull-2); font-size: 0.88rem; line-height: 1.5; }
+.callout strong { color: var(--text); }
 .compare-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .compare-grid { display: grid; gap: 12px; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; }
 .compare-grid.n-1 { grid-template-columns: minmax(0, 380px); }

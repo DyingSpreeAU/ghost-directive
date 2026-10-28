@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ALL_SLOTS, KIND_LABEL, RARITIES, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
   capacityOf, changeIntegrity, current, itemsIn, log, recordClear, tradeUpChoices,
-  type ChestReward, type NewItem, type Pending, type Run,
+  type ChestReward, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, rarityClass } from './ui'
@@ -117,8 +117,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   // Reward items: the player's own copies (or Bungie's definition for Exotics not owned), with DIM-style cards.
   const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls)
   const [compare, setCompare] = useState(false)
-  const compared = cat && previews.data ? pend[cat].filter((g) => previews.data![g.name]) : []
-  const comparing = compare && step === 'gear' && compared.length > 0
+  const comparing = compare && step === 'gear' && cat === 'exotic' && !!previews.data
   // Expanded info needs the player's own Bungie account on this device.
   const previewable = !!cat && !forSomeoneElse && !!p.bungie && bungieConfigured && isSignedIn()
   // Players commit to their choice; "Later" is a protocol option (off by default). The host resolving
@@ -130,7 +129,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     toast('Rewards recorded')
     onClose()
     // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
-    if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, to: 'character' }], toast)
+    // An Exotic they don't hold yet has to be pulled from Collections in game; the next sync links that copy.
+    if (gear && notHeld(p, gear)) toast(`Pull ${gear.name} from Collections in Destiny 2. The app links that copy to this reward on its next sync.`)
+    else if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, to: 'character' }], toast)
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
 
@@ -200,40 +201,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         </div>
       ) : (
         <div className="stack">
-          <p>You keep <strong>one</strong> of these {pend[cat].length}{cat === 'exotic' ? ' Exotics' : ' weapons'}. Pick it, then move it from your Vault (or Collections) in Destiny 2.</p>
-          <ChoiceGrid>
-            {pend[cat].map((g) => {
-              const icon = icons.gear(g.name)
-              return (
-              <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${gear?.name === g.name ? 'is-on' : ''}`} onClick={() => setGear(g)}>
-                {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
-                <span className="choice-kind">{g.rarity} {g.slot}</span>
-                <strong>{g.name}</strong>
-                <span className="muted">{g.archetype}{g.element ? ` · ${g.element}` : ''}{g.element === p.element ? ' · synergy' : ''}</span>
-                {g.note && <span className="choice-desc">{g.note}</span>}
-                {itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
-              </button>
-              )
-            })}
-          </ChoiceGrid>
-          {previewable && (
-            <div className="compare-bar">
-              <button className="btn btn-ghost btn-sm" aria-expanded={compare} onClick={() => setCompare(!compare)}>{compare ? 'Hide expanded info' : 'Show expanded info'}</button>
-              <span className="small muted">{compare ? 'All three side by side; the best value for each stat is highlighted. Select a card to choose it.' : 'Stats, perks and mods for all three, side by side.'}</span>
-            </div>
-          )}
-          {compare && previews.loading && <p className="small muted">Reading these items from your account…</p>}
-          {compare && previews.error && <p className="small tone-warn">Couldn&rsquo;t read your account for details: {previews.error}</p>}
-          {comparing && (
-            <div className={`compare-grid n-${compared.length}`}>
-              {compared.map((g) => (
-                <button key={g.name} className={`compare-pick ${gear?.name === g.name ? 'is-on' : ''}`} aria-pressed={gear?.name === g.name} onClick={() => setGear(g)}>
-                  <ItemCard item={previews.data![g.name]} compact best={compared.length > 1 ? bestStats(compared.map((x) => previews.data![x.name])) : undefined} />
-                  <span className="compare-choose">{gear?.name === g.name ? 'Chosen' : `Choose ${g.name}`}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <p>{pend[cat].length === 1 ? <>This is the only eligible {cat === 'exotic' ? 'Exotic' : 'weapon'}.</> : <>You keep <strong>one</strong> of these {pend[cat].length}{cat === 'exotic' ? ' Exotics' : ' weapons'}.</>} {cat === 'exotic' && p.bungie?.exotics ? 'Each is unlocked in your Collections, so you can pull any of them in Destiny 2.' : 'Pick it, then move it from your Vault (or Collections) in Destiny 2.'}</p>
+          <GearPicker run={run} p={p} options={pend[cat]} chosen={gear} onChoose={setGear} previews={previews} previewable={previewable} compare={compare} setCompare={setCompare} />
           {pend[cat].length === 0 && <p>No eligible items in this pool.</p>}
         </div>
       ))}
@@ -276,6 +245,81 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       {step === 'drops' && <DropsEditor run={run} playerId={p.id} drops={drops} setDrops={setDrops} source={pend.kind === 'chest' ? 'secret chest' : 'encounter drop'} />}
 
     </Modal>
+  )
+}
+
+/** An Exotic that's unlocked in Collections but not on the account yet: it has to be pulled in game. */
+const notHeld = (p: Player, g: VaultEntry) => g.rarity === 'Exotic' && !!p.bungie?.exotics && !p.bungie.exotics.held.includes(g.name)
+
+/**
+ * Item choices with real icons, and details read from the player's own account. Weapons show the
+ * selected one's card underneath; armor offers every option side by side on request.
+ */
+function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, compare, setCompare, five, tradeUp }: {
+  run: Run; p: Player; options: VaultEntry[]; chosen: VaultEntry | null; onChoose: (g: VaultEntry) => void
+  previews: ReturnType<typeof useItemPreviews>; previewable: boolean; compare: boolean; setCompare: (on: boolean) => void
+  five?: boolean; tradeUp?: boolean
+}) {
+  const icons = useIcons()
+  const weapons = options.length > 0 && options.every((g) => WEAPON_SLOTS.includes(g.slot))
+  const data = previews.data
+  const compared = data ? options.filter((g) => data[g.name]) : []
+  const selected = chosen && data?.[chosen.name]
+  return (
+    <>
+      <ChoiceGrid five={five}>
+        {options.map((g) => {
+          const icon = icons.gear(g.name) ?? data?.[g.name]?.icon
+          const info = data?.[g.name]
+          const pull = notHeld(p, g)
+          return (
+            <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${chosen?.name === g.name ? 'is-on' : ''}`} aria-pressed={chosen?.name === g.name} onClick={() => onChoose(g)}>
+              {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
+              <span className="choice-kind">{g.rarity} {info?.type ?? g.slot}</span>
+              <strong>{g.name}</strong>
+              <span className="muted">
+                {g.element && <><ElementMark element={g.element} /> {g.element}</>}
+                {info?.power ? `${g.element ? ' · ' : ''}${info.power} Power` : ''}
+                {g.element === p.element ? ' · synergy' : ''}
+                {!g.element && !info?.power && g.archetype}
+              </span>
+              {g.note && <span className="choice-desc">{g.note}</span>}
+              {pull && <span className="choice-tag">In Collections · not on your account</span>}
+              {!tradeUp && itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
+            </button>
+          )
+        })}
+      </ChoiceGrid>
+      {chosen && notHeld(p, chosen) && (
+        <div className="callout">
+          <strong>Pull {chosen.name} from Collections.</strong> You don&rsquo;t have a copy on your account yet. After you claim this reward, open Collections in Destiny 2 (Armor &rarr; Exotic) and pull it to your {p.cls}. The app links that copy to this reward on its next sync.
+        </div>
+      )}
+      {previewable && previews.loading && <p className="small muted">Reading these items from your account&hellip;</p>}
+      {previewable && previews.error && <p className="small tone-warn">Couldn&rsquo;t read your account for details: {previews.error}</p>}
+      {weapons ? (
+        // Weapons: only the selected one, full size.
+        selected ? <div className="gear-preview"><ItemCard item={selected} /></div>
+          : previewable && data ? <p className="small muted">Select a weapon to see its stats, perks and mods.</p> : null
+      ) : previewable && (
+        <>
+          <div className="compare-bar">
+            <button className="btn btn-ghost btn-sm" aria-expanded={compare} onClick={() => setCompare(!compare)}>{compare ? 'Hide expanded info' : 'Show expanded info'}</button>
+            <span className="small muted">{compare ? 'All of them side by side; the best value for each stat is highlighted. Select a card to choose it.' : 'Stats, perks and mods for each, side by side.'}</span>
+          </div>
+          {compare && compared.length > 0 && (
+            <div className={`compare-grid n-${Math.min(compared.length, 3)}`}>
+              {compared.map((g) => (
+                <button key={g.name} className={`compare-pick ${chosen?.name === g.name ? 'is-on' : ''}`} aria-pressed={chosen?.name === g.name} onClick={() => onChoose(g)}>
+                  <ItemCard item={data![g.name]} compact best={compared.length > 1 ? bestStats(compared.map((x) => data![x.name])) : undefined} />
+                  <span className="compare-choose">{chosen?.name === g.name ? 'Chosen' : `Choose ${g.name}`}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </>
   )
 }
 
@@ -464,6 +508,9 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
     return !tu.sameRarity || !selRarity || items.find((i) => i.id === id)!.rarity === selRarity
   }
   const inGame = canMoveInGame(p, me)
+  const previews = useItemPreviews(stage === 'pick' ? options.map((o) => o.name) : [], stage === 'pick' && inGame, p.cls)
+  const previewable = inGame && bungieConfigured && isSignedIn()
+  const [compare, setCompare] = useState(false)
   const commit = async () => {
     if (!choice) return
     // Signed in on their own device: the inputs go to the Vault and the pick comes to the character in game.
@@ -478,7 +525,8 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
     onClose()
   }
   return (
-    <Modal kicker={`${p.name} · ${slot}`} title={stage === 'inputs' ? `Trade up: select ${tu.inputs} items` : 'Choose your Legendary'} onClose={onClose} wide
+    <Modal kicker={`${p.name} · ${slot}`} title={stage === 'inputs' ? `Trade up: select ${tu.inputs} items` : `Choose 1 of ${options.length} Legendary ${slot === 'Class Item' ? 'class items' : WEAPON_SLOTS.includes(slot) ? 'weapons' : `${slot.toLowerCase()} pieces`}`} onClose={onClose} wide
+      xwide={compare && !WEAPON_SLOTS.includes(slot) && !!previews.data}
       footer={stage === 'inputs' ? <>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-light" disabled={sel.length !== tu.inputs} onClick={() => { setOptions(tradeUpChoices(run, p, slot)); setStage('pick') }}>{inGame ? 'Continue' : 'I moved these to the Vault'}</button>
@@ -507,15 +555,10 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
       ) : options.length === 0 ? (
         <p>No eligible Legendary {slot} items in your Vault. Sign in with Bungie so your real Vault fills these options.</p>
       ) : (
-        <ChoiceGrid five>
-          {options.map((o) => (
-            <button key={o.name} className={`choice r-legendary ${choice?.name === o.name ? 'is-on' : ''}`} onClick={() => setChoice(o)}>
-              <span className="choice-kind">Legendary {o.slot}</span>
-              <strong>{o.name}</strong>
-              <span className="muted">{o.archetype}{o.element ? ` · ${o.element}` : ''}</span>
-            </button>
-          ))}
-        </ChoiceGrid>
+        <div className="stack">
+          <p>{options.length === 1 ? 'This is the only eligible one in your Vault.' : <>You keep <strong>one</strong> of these {options.length}; the others stay in your Vault.</>}</p>
+          <GearPicker run={run} p={p} options={options} chosen={choice} onChoose={setChoice} previews={previews} previewable={previewable} compare={compare} setCompare={setCompare} five={options.length > 3} tradeUp />
+        </div>
       )}
     </Modal>
   )

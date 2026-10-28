@@ -155,6 +155,8 @@ export type BungieLink = {
   artifact?: { name: string; matched?: string; activePerks: string[] }
   /** The synced character's emblem (bungie.net paths), shown on their Guardian's column. */
   emblem?: { icon: string; background: string }
+  /** Exotic armor for this class unlocked in Collections, and which of those are on the account. Exotic rewards come only from `unlocked`. */
+  exotics?: { unlocked: string[]; held: string[] }
   /** The last synced setup where everything equipped was part of the run, for "Restore my Guardian". */
   restore?: RestorePoint & { at: number }
 }
@@ -357,7 +359,9 @@ export function unlockChoices(run: Run, p: Player) {
 
 export function exoticChoices(p: Player): VaultEntry[] {
   const owned = new Set(p.inventory.map((i) => i.name))
-  const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name))
+  // Signed in with Bungie: only Exotics unlocked in their Collections, which they can pull in game.
+  const unlocked = p.bungie?.exotics ? new Set(p.bungie.exotics.unlocked) : null
+  const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name) && (!unlocked || unlocked.has(e.name)))
   // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
   return favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
     .slice(0, 3)
@@ -528,7 +532,7 @@ export type Intent =
   | { type: 'sync-request' }
   | { type: 'death' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null }
   | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
@@ -655,6 +659,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
       const prevRestore = p.bungie?.restore
+      const prevExotics = p.bungie?.exotics
       const shown = bungieDisplayName(str(it.name, 40))
       if (shown && isDefaultName(p.name)) { log(run, 'run', `${p.name} is now ${shown} (Bungie name).`); p.name = shown }
       p.vault = vault
@@ -670,6 +675,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       }
       const em = (it.emblem ?? {}) as { icon?: unknown; background?: unknown }
       if (iconPath(em.icon) && iconPath(em.background)) p.bungie.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
+      const ex = (it.exotics ?? null) as { unlocked?: unknown; held?: unknown } | null
+      p.bungie.exotics = ex && Array.isArray(ex.unlocked) ? { unlocked: strs(ex.unlocked, 80), held: strs(ex.held, 80) } : prevExotics
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
       p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
@@ -684,6 +691,9 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const d = (raw ?? {}) as Partial<DetectedDrop>
         const instanceId = str(d.instanceId, 30)
         if (!instanceId || dismissed.has(instanceId) || p.inventory.some((x) => x.instanceId === instanceId)) continue
+        // A reward pulled from Collections (or moved in by hand) is already tracked by name: link that copy instead.
+        const twin = !d.starting && p.inventory.find((x) => !x.instanceId && x.name === str(d.name) && x.slot === d.slot)
+        if (twin) { twin.instanceId = instanceId; continue }
         const item = cleanItem({ name: d.name, slot: d.slot, rarity: d.rarity, source: d.starting ? 'starting gear' : 'detected drop' })
         if (typeof item === 'string') continue
         const added = addItem(run, p, item)

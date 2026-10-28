@@ -85,11 +85,18 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
   collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
   Guardian's device to re-read Bungie (`run.syncRequest`).
-- **Final-boss item info**: the three choices show as plain cards (icon, name, slot). **Show expanded info**
-  opens DIM-style cards for all three side by side (`src/ItemPreview.tsx`): rolled stats with the best
-  value highlighted, intrinsic frame or Exotic perk, selected perks, mods and flavour text, read from the
-  player's own account on their device (`fetchItemPreviews` in `src/bungie.ts`, components 300/304/305;
-  Exotics not on the account are described from Bungie's definition). The category is locked once picked.
+- **Item choices** (final-boss reward and trade-up, `GearPicker` in `src/Flows.tsx`): real icons, with
+  each item's type, element and Power read from the player's own account. **Weapons** show a DIM-style card
+  (`src/ItemPreview.tsx`) for the selected one only, underneath the choices. **Armor** keeps plain cards;
+  **Show expanded info** opens cards for every option side by side with the best value per stat
+  highlighted. Cards show rolled stats, intrinsic frame or Exotic perk, perks, mods and flavour text
+  (`fetchItemPreviews` in `src/bungie.ts`, components 300/304/305; Exotics not on the account are
+  described from Bungie's definition). The final-boss category is locked once picked.
+- **Exotic rewards come from Collections**: for a signed-in player, Exotic armor choices are limited to
+  Exotics unlocked in their Collections (component 800, matched through `public/bungie-exotics.json`;
+  kept on `player.bungie.exotics`). Choices with no copy on the account are tagged, and choosing one shows
+  how to pull it from Collections. When the next sync detects that copy, it is linked to the reward
+  rather than counted as a new drop (a same-name run item without an instance id takes the id).
 - **Rewards must be chosen when they open**: no Later, close button or Escape. The protocol option
   `rewards.allowLater` brings Later back for custom runs; the example run allows it as a sandbox, and the
   host resolving for a Guardian with no device can always close.
@@ -193,7 +200,8 @@ an active perk that hasn't been researched in the run, is flagged.
 character. *Send to* does the reverse with the move/equip scope: it switches the active character to
 the seat's subclass, slots its Super, melee and grenade, empties every aspect and fragment socket,
 and empties the artifact's perk sockets (InsertSocketPlugFree, using component 310 to find each
-socket's options), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
+socket's options; each subclass socket is identified by its plugs' category, e.g. `warlock.prism.grenades`,
+so Prismatic's separate Transcendence grenade socket is left alone), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
 social space or while offline; in an activity it stops and explains why. When Send to finishes with no problems and
 its own read shows a grey/green weapon and grey armor piece (with an instance id) in all eight slots,
 the seat is marked ready straight away, and the lobby trusts the subclass and artifact until Bungie
@@ -236,8 +244,8 @@ Restore my Guardian; after adding it, players sign out and back in); Origin Head
 
 `netlify/functions/bungie-token.mjs` (served at `/api/bungie-token`) exchanges sign-in codes
 and refresh tokens. `netlify.toml` routes `/auth/callback` to the app. `public/bungie-items.json`
-maps item hashes to names, slots and rarities; regenerate it with `tools/fetch_sources.py` after
-game updates. Without the `VITE_BUNGIE_*` variables (including the claude.ai build) the sign-in
+maps item hashes to names, slots and rarities, and `public/bungie-exotics.json` maps Exotic armor
+Collections entries to names and classes; regenerate both with `tools/fetch_sources.py` after game updates. Without the `VITE_BUNGIE_*` variables (including the claude.ai build) the sign-in
 code is left out entirely.
 
 ## Game data
@@ -257,7 +265,7 @@ artifacts with their perks.
 To regenerate after a game update (needs docs.google.com and *.bungie.net access):
 
 ```sh
-python3 tools/fetch_sources.py /tmp/gd-sources
+python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json
 python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 ```
 

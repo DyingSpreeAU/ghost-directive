@@ -1,7 +1,7 @@
 """Download the Destiny Data Compendium tabs and the Bungie manifest pieces that
 parse_compendium.py needs, into a working directory.
 
-    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json
+    python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json
     python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 
 The second argument writes the compact weapon/armor lookup table the app uses to
@@ -16,6 +16,7 @@ import collections, json, os, sys, urllib.request
 out = sys.argv[1]
 item_table = sys.argv[2] if len(sys.argv) > 2 else None
 icon_table = sys.argv[3] if len(sys.argv) > 3 else None
+exotic_table = sys.argv[4] if len(sys.argv) > 4 else None
 os.makedirs(out, exist_ok=True)
 SHEET = 'https://docs.google.com/spreadsheets/d/1WaxvbLx7UoSZaBqdFr1u32F2uWVLo-CJunJB4nlGUE4/gviz/tq?tqx=out:csv&gid='
 TABS = {'Arc': 618967225, 'Solar': 1186062409, 'Void': 1907852650, 'Stasis': 1088259962,
@@ -105,3 +106,15 @@ if item_table and icon_table:
             artifacts.setdefault(it['displayProperties']['name'].strip(), ic[len(PRE):])
     json.dump({'gear': gear, 'plugs': plugs, 'artifacts': artifacts}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', icon_table, len(gear), 'gear', len(plugs), 'plugs')
+
+# Exotic armor Collections entries (collectible hash -> [name, classType]), so a signed-in player's
+# device can tell which Exotics are unlocked in their Collections.
+if exotic_table:
+    ex = {}
+    for it in items.values():
+        if it.get('itemType') == 2 and it.get('inventory', {}).get('tierType') == 6 and it.get('classType') in CLS and it.get('collectibleHash'):
+            name = it.get('displayProperties', {}).get('name', '').strip()
+            if name:
+                ex[str(it['collectibleHash'])] = [name, it['classType']]
+    json.dump({'collectibles': ex}, open(exotic_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    print('wrote', exotic_table, len(ex), 'Exotic armor collectibles')

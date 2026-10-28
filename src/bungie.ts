@@ -145,6 +145,14 @@ function itemTable() {
   return table
 }
 
+let exotics: Promise<Record<string, [name: string, classType: number]>> | null = null
+/** Exotic armor Collections entries: collectible hash → name and class. */
+function exoticTable() {
+  exotics ??= fetch('/bungie-exotics.json').then((r) => (r.ok ? r.json() : { collectibles: {} }))
+    .then((d: { collectibles: Record<string, [string, number]> }) => d.collectibles, () => ({}))
+  return exotics
+}
+
 const TIERS: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary', 'Exotic']
 const DAMAGE: Record<number, DamageElement | undefined> = { 2: 'Arc', 3: 'Solar', 4: 'Void', 6: 'Stasis', 7: 'Strand' }
 const CLASS_TYPE: Record<ClassType, number> = { Titan: 0, Hunter: 1, Warlock: 2 }
@@ -164,6 +172,9 @@ type ProfileResponse = {
   characterProgressions?: { data?: Record<string, { seasonalArtifact?: { artifactHash?: number; tiers?: { items?: { itemHash: number; isActive?: boolean }[] }[] } }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
+  /** Collections (component 800): state bit 1 means not acquired. */
+  profileCollectibles?: { data?: { collectibles?: Record<string, { state: number }> } }
+  characterCollectibles?: { data?: Record<string, { collectibles?: Record<string, { state: number }> }> }
   itemComponents?: {
     sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> }
     /** Instance stats (component 304), e.g. a weapon's rolled Range or Handling. */
@@ -197,6 +208,8 @@ export type BungieSnapshot = {
   restore: RestorePoint | null
   /** The character's equipped emblem: its square icon and the wide nameplate banner (bungie.net paths). */
   emblem: { icon: string; background: string } | null
+  /** This class's Exotic armor unlocked in Collections, and which of those are on the account; null if Bungie didn't say. */
+  exotics: { unlocked: string[]; held: string[] } | null
 }
 
 /** A character's equipped gear and subclass sockets, recorded so the run's setup can be re-equipped. */
@@ -230,9 +243,9 @@ export async function accountName(): Promise<string> {
 
 /** Reads the signed-in player's profile. Picks their most recently played character of this class. */
 export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
-  const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
+  const [{ mem, name }, items, exoticRows] = await Promise.all([membership(), itemTable(), exoticTable()])
 
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,202,204,205,305`)
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,202,204,205,305,800`)
   if (p.profileInventory?.data === undefined) throw new BungieError('Bungie did not return your Vault. Check your privacy settings at bungie.net (show my non-equipped inventory).')
   const picked = pickCharacter(p, cls)
   const [charId, char] = picked ? [picked.id, picked.char] : []
@@ -281,7 +294,21 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     mintedAt: (() => { const m = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp; return m ? Date.parse(m) : null })(),
     restore: charId ? restorePoint(p, charId, items) : null,
     emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
+    exotics: collectedExotics(p, exoticRows, cls, owned),
   }
+}
+
+/** This class's Exotic armor unlocked in Collections (on the profile or any character), or null without Collections data. */
+function collectedExotics(p: ProfileResponse, rows: Record<string, [string, number]>, cls: ClassType, owned: Set<string>) {
+  const scopes = [p.profileCollectibles?.data?.collectibles, ...Object.values(p.characterCollectibles?.data ?? {}).map((c) => c.collectibles)]
+    .filter((c): c is Record<string, { state: number }> => !!c)
+  if (!scopes.length) return null
+  const unlocked = new Set<string>()
+  for (const [hash, [name, classType]] of Object.entries(rows)) {
+    if (classType !== CLASS_TYPE[cls]) continue
+    if (scopes.some((c) => c[hash] && (c[hash].state & 1) === 0)) unlocked.add(name)
+  }
+  return { unlocked: [...unlocked], held: [...unlocked].filter((n) => owned.has(n)) }
 }
 
 function restorePoint(p: ProfileResponse, charId: string, items: Record<string, ItemRow>): RestorePoint {
