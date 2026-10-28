@@ -141,6 +141,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   equipped gear.
 - **Artifact perk icons** come from each artifact's own sockets (`artifactPerks` in
   `public/bungie-icons.json`): perk names repeat across seasons with different art.
+- **How it works** (`src/Explainer.tsx`, `src/explainer.css`): an animated, Destiny-styled briefing on
+  the mode's pillars (route, Integrity, earned kit, gear progression, rewards, Field Arsenal, fireteam),
+  using the Standard Directive's numbers. It plays once as an intro on a browser's first visit
+  (`ghost-directive:seen-intro`), skippable, and opens from **How it works** on the start screen.
+  Sections animate as they scroll into view; reduced-motion users get still frames.
 - **Report a bug** (sidebar, the foot of the page on phones, and the start screen) posts to Netlify Forms
   (form `bug-report`, declared in `index.html`) with optional run data; reports show in the Netlify
   dashboard under Forms. Form detection has to be enabled for the site. Where Netlify isn't serving the
