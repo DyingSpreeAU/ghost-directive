@@ -74,6 +74,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
   collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
   Guardian's device to re-read Bungie (`run.syncRequest`).
+- **Bungie art**: the encounter card and the lobby route list show each dungeon's Bungie banner
+  (`dungeonArt` in `src/data.ts`, from the activity's pgcrImage; encounters have no images of their own,
+  so they use their dungeon's). Artifacts show their icon. A signed-in player's column header shows their
+  character's emblem banner (synced as `BungieLink.emblem`). Anything that can't load falls back to the
+  drawn art or plain header.
 - **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
   move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options. Signed-in players get a
   **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code

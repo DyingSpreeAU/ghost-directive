@@ -121,6 +121,23 @@ export const ARTIFACTS: ArtifactDef[] = (COMPENDIUM as unknown as { artifacts: A
 export const artifactByName = (name: string | undefined) => ARTIFACTS.find((a) => a.name === name)
 export const artifactPerk = (artifact: string | undefined, perk: string) => artifactByName(artifact)?.perks.find((p) => p.name === perk)
 
+// ---- Dungeon art: each dungeon's activity banner (pgcrImage in Bungie's DestinyActivityDefinition).
+// Bungie has no separate images for encounters, so every encounter uses its dungeon's banner.
+const DUNGEON_ART: Record<string, string> = {
+  'shattered-throne': 'mission_labyrinth.jpg',
+  'pit-of-heresy': 'dungeon_pit_of_heresy.jpg',
+  'prophecy': 'dungeon_prophecy.jpg',
+  'grasp-of-avarice': '30th-anniversary-grasp-of-avarice.jpg',
+  'duality': 'dungeon_duality.jpg',
+  'spire-of-the-watcher': 'dungeon_spire_of_the_watcher.jpg',
+  'ghosts-of-the-deep': 'dungeon_ghosts_of_the_deep.jpg',
+  'warlords-ruin': 'dungeon_ridgeline.jpg',
+  'vespers-host': 'vespers_host.jpg',
+  'sundered-doctrine': 'dungeon_delver.jpg',
+  'equilibrium': 'dungeon_equilibrium.jpg',
+}
+export const dungeonArt = (id: string) => (DUNGEON_ART[id] ? `https://www.bungie.net/img/destiny_content/pgcr/${DUNGEON_ART[id]}` : undefined)
+
 // ---- Dungeons
 
 export type EncounterType = 'encounter' | 'final'

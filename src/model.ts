@@ -145,6 +145,8 @@ export type BungieLink = {
   subclass?: { name: string; element: Element }
   /** The artifact equipped in game at the last sync and the perks switched on in it. */
   artifact?: { name: string; matched?: string; activePerks: string[] }
+  /** The synced character's emblem (bungie.net paths), shown on their Guardian's column. */
+  emblem?: { icon: string; background: string }
   /** The last synced setup where everything equipped was part of the run, for "Restore my Guardian". */
   restore?: RestorePoint & { at: number }
 }
@@ -502,7 +504,7 @@ export type Intent =
   | { type: 'artifact-remove'; mod: string }
   | { type: 'sync-request' }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[] }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null }
   | { type: 'remove-item'; itemId: string }
   | { type: 'bungie-unlink' }
 
@@ -642,6 +644,9 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (art && str(art.name)) {
         p.bungie.artifact = { name: str(art.name, 60), matched: artifactByName(str(art.matched, 60))?.name, activePerks: strs(art.activePerks, 30) }
       }
+      const em = (it.emblem ?? {}) as { icon?: unknown; background?: unknown }
+      const iconPath = (x: unknown) => (typeof x === 'string' && /^\/common\/destiny2_content\/icons\/[\w./-]{1,120}$/.test(x) ? x : '')
+      if (iconPath(em.icon) && iconPath(em.background)) p.bungie.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
       p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.

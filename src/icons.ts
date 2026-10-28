@@ -4,7 +4,7 @@
 
 import { useEffect, useState } from 'react'
 
-type IconTable = { gear: Record<string, string>; plugs: Record<string, string> }
+type IconTable = { gear: Record<string, string>; plugs: Record<string, string>; artifacts?: Record<string, string> }
 
 const ROOT = 'https://www.bungie.net/common/destiny2_content/icons/'
 let table: Promise<IconTable | null> | null = null
@@ -18,12 +18,13 @@ function load() {
   return table
 }
 
-/** Icon URLs for gear and subclass/artifact plugs; both lookups return undefined until loaded. */
+/** Icon URLs for gear, subclass/artifact plugs and artifacts; each lookup returns undefined until loaded. */
 export function useIcons() {
   const [t, setT] = useState<IconTable | null>(loaded)
   useEffect(() => { if (!t) load().then(setT) }, [t])
   return {
     gear: (name: string) => (t?.gear[name] ? ROOT + t.gear[name] : undefined),
     plug: (name: string) => (t?.plugs[name] ? ROOT + t.plugs[name] : undefined),
+    artifact: (name: string) => (t?.artifacts?.[name] ? ROOT + t.artifacts[name] : undefined),
   }
 }

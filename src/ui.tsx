@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ELEMENT_COLOR, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
+import { ELEMENT_COLOR, dungeonArt, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
 
 export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode }) {
   const { onClose } = props
@@ -51,20 +51,27 @@ export function EncounterArt({ dungeon, encounter, compact }: { dungeon: Dungeon
   const [a, b, c] = dungeon.palette
   const final = encounter?.type === 'final'
   const seed = dungeon.id.length * 7
+  // Bungie's banner for the dungeon, over the drawn art; if it can't load, the drawn art shows.
+  const banner = dungeonArt(dungeon.id)
+  const [broken, setBroken] = useState(false)
+  const photo = !!banner && !broken
   return (
-    <div className={`art ${compact ? 'art-compact' : ''}`} style={{ background: `radial-gradient(120% 90% at 70% 10%, ${b} 0%, ${a} 60%)` }}>
-      <svg viewBox="0 0 400 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <div className={`art ${compact ? 'art-compact' : ''} ${photo ? 'has-photo' : ''}`} style={{ background: `radial-gradient(120% 90% at 70% 10%, ${b} 0%, ${a} 60%)` }}>
+      {photo && <img className="art-photo" src={banner} alt="" loading="lazy" onError={() => setBroken(true)} />}
+      {!photo && <svg viewBox="0 0 400 180" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
         <defs>
           <linearGradient id={`h-${dungeon.id}`} x1="0" x2="0" y1="0" y2="1">
             <stop offset="0" stopColor={c} stopOpacity="0.5" />
             <stop offset="1" stopColor={a} stopOpacity="0" />
           </linearGradient>
         </defs>
-        <circle cx={250 + (seed % 30)} cy="52" r="34" fill={c} fillOpacity="0.16" />
-        <circle cx={250 + (seed % 30)} cy="52" r="20" fill={c} fillOpacity="0.28" />
-        <path d={`M0 ${120 + (seed % 9)} L60 ${96} L120 ${118} L190 ${84} L250 ${116} L320 ${92} L400 ${112} L400 180 L0 180 Z`} fill={a} fillOpacity="0.85" />
-        <path d="M0 140 L80 124 L150 138 L230 120 L300 136 L400 126 L400 180 L0 180 Z" fill={a} />
-        <rect x="0" y="90" width="400" height="90" fill={`url(#h-${dungeon.id})`} opacity="0.35" />
+        <>
+          <circle cx={250 + (seed % 30)} cy="52" r="34" fill={c} fillOpacity="0.16" />
+          <circle cx={250 + (seed % 30)} cy="52" r="20" fill={c} fillOpacity="0.28" />
+          <path d={`M0 ${120 + (seed % 9)} L60 ${96} L120 ${118} L190 ${84} L250 ${116} L320 ${92} L400 ${112} L400 180 L0 180 Z`} fill={a} fillOpacity="0.85" />
+          <path d="M0 140 L80 124 L150 138 L230 120 L300 136 L400 126 L400 180 L0 180 Z" fill={a} />
+          <rect x="0" y="90" width="400" height="90" fill={`url(#h-${dungeon.id})`} opacity="0.35" />
+        </>
         <g transform="translate(160 70)" stroke={c} fill="none" strokeOpacity="0.85">
           {final ? (
             <>
@@ -80,7 +87,7 @@ export function EncounterArt({ dungeon, encounter, compact }: { dungeon: Dungeon
             </>
           )}
         </g>
-      </svg>
+      </svg>}
     </div>
   )
 }

@@ -59,7 +59,7 @@ function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player;
   const device = p.clientId === null ? 'No device' : p.clientId === me ? 'You' : online.includes(p.clientId) ? 'Online' : 'Offline'
   return (
     <article className={`panel guardian ${p.clientId === me ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[p.element] }} aria-label={p.name}>
-      <header className="player-head">
+      <header className={`player-head ${p.bungie?.emblem ? 'has-emblem' : ''}`} style={p.bungie?.emblem ? { ['--emblem' as string]: `url("https://www.bungie.net${p.bungie.emblem.background}")` } : undefined}>
         <ElementMark element={p.element} size={22} />
         <div>
           <h3>{p.name}</h3>
@@ -235,7 +235,7 @@ function ArtifactPerks({ p, control }: { p: Player; control: boolean }) {
         <span className="eyebrow">Artifact</span>
         <span className="muted small">{p.artifact.length}/21 researched</span>
       </header>
-      <p className="art-name">{p.artifactName ? <><strong>{p.artifactName}</strong>{art?.season && <span className="muted small"> &middot; {art.season}</span>}</> : <span className="tone-warn small">No artifact chosen</span>}</p>
+      <p className="art-name">{p.artifactName && icons.artifact(p.artifactName) && <img className="art-icon" src={icons.artifact(p.artifactName)} alt="" loading="lazy" />}{p.artifactName ? <><strong>{p.artifactName}</strong>{art?.season && <span className="muted small"> &middot; {art.season}</span>}</> : <span className="tone-warn small">No artifact chosen</span>}</p>
       {art?.focus && <p className="small muted">{art.focus}</p>}
       {p.artifact.length === 0 ? <Empty>No perks researched</Empty> : (
         <ul className="mod-list">

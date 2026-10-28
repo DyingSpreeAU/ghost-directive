@@ -98,5 +98,10 @@ if item_table and icon_table:
         ic = it.get('displayProperties', {}).get('icon', '')
         if pc and (any(k in pc for k in KINDS) or pc.startswith('artifact')) and name and not name.startswith('Empty') and ic.startswith(PRE):
             plugs.setdefault(name, ic[len(PRE):])
-    json.dump({'gear': gear, 'plugs': plugs}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    artifacts = {}
+    for it in items.values():
+        ic = it.get('displayProperties', {}).get('icon', '')
+        if it.get('itemTypeDisplayName') == 'Artifact' and ic.startswith(PRE):
+            artifacts.setdefault(it['displayProperties']['name'].strip(), ic[len(PRE):])
+    json.dump({'gear': gear, 'plugs': plugs, 'artifacts': artifacts}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', icon_table, len(gear), 'gear', len(plugs), 'plugs')

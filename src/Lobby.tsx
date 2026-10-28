@@ -6,6 +6,7 @@ import { ElementMark, EncounterArt, Modal, SortableList, rarityClass } from './u
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { reportLink, useBungie } from './BungiePanel'
+import { useIcons } from './icons'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact'>> & { auto?: boolean }
 
@@ -203,6 +204,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   useEffect(() => setName(seat.name), [seat.name])
   const abil = subclassAbilities(seat.cls, seat.element)
   const art = artifactByName(seat.artifact)
+  const icons = useIcons()
   const status = seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected'
   return (
     <article className={`panel seat ${you ? 'is-you' : ''}`} style={{ ['--el' as string]: ELEMENT_COLOR[seat.element] }}>
@@ -265,7 +267,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
               <option value="" disabled>Choose an artifact</option>
               {ARTIFACTS.map((a) => <option key={a.name} value={a.name}>{a.name} ({a.season})</option>)}
             </select>
-            {art ? <small className="muted">{art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</small>
+            {art ? <small className="muted seat-art-note">{icons.artifact(art.name) && <img className="art-icon sm" src={icons.artifact(art.name)} alt="" loading="lazy" />}<span>{art.focus || 'All-round perks'}. Artifact research only offers this artifact&rsquo;s perks.</span></small>
               : <small className="tone-warn">Pick one before the run starts. All Artifact research comes from it.</small>}
           </div>
           {notice}

@@ -192,6 +192,9 @@ input[type='range'] { accent-color: var(--light); }
 .art { position: relative; min-height: 190px; overflow: hidden; }
 .art svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .art-compact { min-height: 64px; height: 64px; }
+.art-photo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.art.has-photo::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 55%, #090b10b3); pointer-events: none; }
+.art.has-photo svg { z-index: 1; }
 .enc-body { padding: 16px 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
 .enc-name { font-size: 1.7rem; text-transform: uppercase; letter-spacing: 0.03em; }
 .enc-brief { color: var(--dim); font-size: 0.9rem; }
@@ -758,3 +761,19 @@ button.ab-chip:hover { border-color: var(--dim); }
 .ab-chip.is-bad { opacity: 1; border-color: var(--danger); color: var(--danger); }
 .mod-icon { width: 22px; height: 22px; flex: none; display: block; }
 @media (max-width: 1000px) { .guardian-cols, .guardian-cols.players-2 { grid-template-columns: minmax(0, 1fr); } .guide-cols { grid-template-columns: minmax(0, 1fr); } }
+
+/* In-game nameplate: the player's emblem banner behind their name (the emblem icon is part of it, on the left). */
+.guardian .player-head.has-emblem {
+  /* Emblem banners are 474×96 with the square icon on the left: keep that shape so the name starts past the icon. */
+  margin: -16px -16px 0; aspect-ratio: 474 / 96; padding: 8px 12px 8px calc(20.25% + 10px);
+  background: linear-gradient(90deg, transparent 20.25%, #090b1059 20.25%, #090b1014 100%), var(--emblem) left top / 100% 100% no-repeat, var(--ink);
+}
+.guardian .player-head.has-emblem { grid-template-columns: minmax(0, 1fr) auto; }
+.guardian .player-head.has-emblem > .el-mark { display: none; }
+.guardian .player-head.has-emblem h3, .guardian .player-head.has-emblem .player-sub { text-shadow: 0 1px 3px #000c; }
+.guardian .player-head.has-emblem .player-sub { color: var(--text); }
+.guardian .player-head.has-emblem .device { background: #090b10b3; }
+.art-icon { width: 36px; height: 36px; flex: none; align-self: center; border: 1px solid var(--seam); }
+.art-name:has(.art-icon) { align-items: center; }
+.seat-art-note { display: flex; gap: 8px; align-items: center; }
+.art-icon.sm { width: 28px; height: 28px; }

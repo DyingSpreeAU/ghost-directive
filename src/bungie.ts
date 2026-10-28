@@ -159,7 +159,7 @@ type ProfileResponse = {
   responseMintedTimestamp?: string
   secondaryComponentsMintedTimestamp?: string
   profileInventory?: { data?: { items: ItemComponent[] } }
-  characters?: { data?: Record<string, { classType: number; light: number; dateLastPlayed: string }> }
+  characters?: { data?: Record<string, { classType: number; light: number; dateLastPlayed: string; emblemPath?: string; emblemBackgroundPath?: string }> }
   characterActivities?: { data?: Record<string, { currentActivityHash?: number }> }
   characterProgressions?: { data?: Record<string, { seasonalArtifact?: { artifactHash?: number; tiers?: { items?: { itemHash: number; isActive?: boolean }[] }[] } }> }
   characterInventories?: { data?: Record<string, { items: ItemComponent[] }> }
@@ -191,6 +191,8 @@ export type BungieSnapshot = {
   mintedAt: number | null
   /** The synced character's gear and subclass setup, for putting it back later. */
   restore: RestorePoint | null
+  /** The character's equipped emblem: its square icon and the wide nameplate banner (bungie.net paths). */
+  emblem: { icon: string; background: string } | null
 }
 
 /** A character's equipped gear and subclass sockets, recorded so the run's setup can be re-equipped. */
@@ -274,6 +276,7 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     artifact: charId ? await readArtifact(p, charId).catch(() => null) : null,
     mintedAt: (() => { const m = p.secondaryComponentsMintedTimestamp ?? p.responseMintedTimestamp; return m ? Date.parse(m) : null })(),
     restore: charId ? restorePoint(p, charId, items) : null,
+    emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
   }
 }
 

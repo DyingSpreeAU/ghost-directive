@@ -50,6 +50,7 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
       configured: sub && sub.element === p.element ? sub.abilityIds : [],
       artifact: snap.artifact,
       restore: snap.restore,
+      emblem: snap.emblem,
     }, p.id)
     const found = drops.filter((d) => !d.starting)
     if (found.length) notify?.(`New drop${found.length > 1 ? 's' : ''} detected: ${found.map((d) => d.name).join(', ')}`)
