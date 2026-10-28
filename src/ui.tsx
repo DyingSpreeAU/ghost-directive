@@ -39,15 +39,11 @@ const ELEMENT_ICON: Partial<Record<Element, string>> = { Solar: solarIcon, Arc: 
 export function ElementMark({ element, size = 14 }: { element: Element; size?: number }) {
   const src = ELEMENT_ICON[element]
   if (src) return <img src={src} width={size} height={size} alt="" aria-hidden="true" className="el-mark" />
+  // Prismatic's mark: a dome of four blades meeting at its base, as on the in-game Prismatic screen.
+  // Plain fills (no gradient ids), so copies hidden elsewhere on the page can't blank it out.
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" className="el-mark">
-      <defs>
-        <linearGradient id="prism-g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#ffb3e6" /><stop offset="0.5" stopColor="#e07ad6" /><stop offset="1" stopColor="#8f6cf0" />
-        </linearGradient>
-      </defs>
-      <path d="M16 2 L28 11 L23 29 L9 29 L4 11 Z" fill="url(#prism-g)" />
-      <path d="M16 2 L16 18 M4 11 L16 18 L28 11 M16 18 L9 29 M16 18 L23 29" stroke="#2a1530" strokeOpacity="0.55" strokeWidth="1.4" fill="none" />
+      <path d="M16 23 L1.00 23.00 A15 15 0 0 1 4.47 13.41 Z M16 23 L5.72 12.07 A15 15 0 0 1 15.08 8.03 Z M16 23 L16.92 8.03 A15 15 0 0 1 26.28 12.07 Z M16 23 L27.53 13.41 A15 15 0 0 1 31.00 23.00 Z" fill="#f6b6e6" />
     </svg>
   )
 }
