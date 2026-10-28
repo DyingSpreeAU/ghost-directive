@@ -74,6 +74,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
   collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
   Guardian's device to re-read Bungie (`run.syncRequest`).
+- **Vault weapon preview**: on a final-boss reward, the Vault Legendary choices show as real items (icon,
+  weapon type, element, power, perk icons), read from the player's own Vault on their device. Selecting
+  one opens a DIM-style card (`src/ItemPreview.tsx`): rolled stats with bars, intrinsic frame, selected
+  perks, mods and flavour text (`fetchItemPreviews` in `src/bungie.ts`, components 300/304/305).
 - **Bungie art**: the encounter card and the lobby route list show each dungeon's Bungie banner
   (`dungeonArt` in `src/data.ts`, from the activity's pgcrImage; encounters have no images of their own,
   so they use their dungeon's). Artifacts show their icon. A signed-in player's column header shows their

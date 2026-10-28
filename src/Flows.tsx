@@ -6,6 +6,8 @@ import {
 } from './model'
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, rarityClass } from './ui'
+import { useIcons } from './icons'
+import { ItemCard, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
   switch (flow.type) {
@@ -95,6 +97,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const step = steps[i]
   const canNext = step === 'unlock' ? !!unlock : step === 'gear' ? !!gear || (!!cat && pend[cat].length === 0) : step === 'artifact' ? !!mod : step === 'chest' ? chest !== undefined : true
   const forSomeoneElse = p.clientId !== me
+  const icons = useIcons()
+  // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
+  const previews = useItemPreviews(pend.legendary.map((g) => g.name), cat === 'legendary' && !forSomeoneElse && !!p.bungie)
 
   const submit = () => {
     dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops }, p.id)
@@ -160,16 +165,26 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         <div className="stack">
           <p>{cat === 'exotic' ? 'Exotic armor' : 'Vault Legendary weapon'}: pick one, then move it from your Vault in Destiny 2.</p>
           <ChoiceGrid>
-            {pend[cat].map((g) => (
-              <button key={g.name} className={`choice ${rarityClass(g.rarity)} ${gear?.name === g.name ? 'is-on' : ''}`} onClick={() => setGear(g)}>
-                <span className="choice-kind">{g.rarity} {g.slot}</span>
+            {pend[cat].map((g) => {
+              const pv = cat === 'legendary' ? previews.data?.[g.name] : undefined
+              const icon = pv?.icon ?? icons.gear(g.name)
+              return (
+              <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${gear?.name === g.name ? 'is-on' : ''}`} onClick={() => setGear(g)}>
+                {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
+                <span className="choice-kind">{g.rarity} {pv?.type ?? g.slot}</span>
                 <strong>{g.name}</strong>
-                <span className="muted">{g.archetype}{g.element ? ` · ${g.element}` : ''}{g.element === p.element ? ' · synergy' : ''}</span>
+                <span className="muted">{pv ? [pv.element, pv.power && `${pv.power} Power`].filter(Boolean).join(' · ') : <>{g.archetype}{g.element ? ` · ${g.element}` : ''}</>}{(pv?.element ?? g.element) === p.element ? ' · synergy' : ''}</span>
+                {pv && pv.perks.length > 0 && <span className="choice-perks">{pv.perks.slice(0, 5).map((pk) => pk.icon ? <img key={pk.name} src={pk.icon} alt={pk.name} title={pk.name} /> : null)}</span>}
                 {g.note && <span className="choice-desc">{g.note}</span>}
                 {itemsIn(p, g.slot).length >= capacityOf(run, p) && <span className="tone-warn small">{g.slot} is full; a swap will follow</span>}
               </button>
-            ))}
+              )
+            })}
           </ChoiceGrid>
+          {cat === 'legendary' && previews.loading && <p className="small muted">Reading these weapons from your Vault…</p>}
+          {cat === 'legendary' && previews.error && <p className="small tone-warn">Couldn&rsquo;t read your Vault for details: {previews.error}</p>}
+          {cat === 'legendary' && gear && previews.data?.[gear.name] && <ItemCard item={previews.data[gear.name]} />}
+          {cat === 'legendary' && previews.data && !gear && <p className="small muted">Select a weapon to see its roll.</p>}
           {pend[cat].length === 0 && <p>No eligible items in this pool.</p>}
         </div>
       ))}

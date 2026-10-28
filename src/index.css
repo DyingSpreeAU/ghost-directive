@@ -777,3 +777,31 @@ button.ab-chip:hover { border-color: var(--dim); }
 .art-name:has(.art-icon) { align-items: center; }
 .seat-art-note { display: flex; gap: 8px; align-items: center; }
 .art-icon.sm { width: 28px; height: 28px; }
+
+/* ---------------------------------------------------------------- reward item choices + preview card */
+.choice.choice-item { position: relative; padding-left: 74px; min-height: 84px; }
+.choice-icon { position: absolute; left: 12px; top: 12px; width: 50px; height: 50px; border: 1px solid color-mix(in srgb, var(--rc, var(--seam)) 70%, var(--seam)); }
+.choice-perks { display: flex; gap: 4px; margin-top: 4px; }
+.choice-perks img { width: 22px; height: 22px; border-radius: 50%; background: #1d2a3f; }
+.item-card { --rc: var(--r-legendary); max-width: 380px; border: 1px solid var(--seam); background: var(--hull); display: grid; }
+.ip-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 12px; background: color-mix(in srgb, var(--rc) 55%, var(--ink)); color: #fff; }
+.ip-icon { width: 46px; height: 46px; border: 1px solid #ffffff55; }
+.ip-title h3 { margin: 0; font-family: var(--f-display); font-size: 1.35rem; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.1; }
+.ip-title span { font-size: 0.86rem; opacity: 0.85; }
+.ip-power { display: grid; justify-items: end; gap: 2px; font-size: 0.9rem; }
+.ip-el { font-weight: 600; font-size: 0.8rem; text-shadow: 0 1px 2px #0009; }
+.ip-stats { margin: 0; padding: 10px 12px; display: grid; gap: 3px; background: var(--ink); }
+.ip-stat { display: grid; grid-template-columns: 9.5em 2.6em minmax(0, 1fr); gap: 8px; align-items: center; font-size: 0.82rem; }
+.ip-stat dt { text-align: right; color: var(--dim); }
+.ip-stat dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.ip-bar { height: 10px; background: #ffffff1a; }
+.ip-bar > span { display: block; height: 100%; background: var(--text); }
+.ip-intrinsic { padding: 10px 12px; display: grid; gap: 4px; border-top: 1px solid var(--seam); }
+.ip-intrinsic p { margin: 0; }
+.ip-section { padding: 10px 12px; display: grid; gap: 6px; border-top: 1px solid var(--seam); }
+.ip-perks { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+.ip-plug { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; max-width: 100%; }
+.ip-plug img, .ip-plug-blank { width: 32px; height: 32px; flex: none; background: #1d2a3f; }
+.ip-plug.is-round img, .ip-plug.is-round .ip-plug-blank { border-radius: 50%; border: 1px solid #5d7aa3; background: #2a4568; }
+.ip-plug-name { overflow-wrap: anywhere; }
+.ip-flavor { margin: 0; padding: 10px 12px; border-top: 1px solid var(--seam); font-style: italic; color: var(--dim); font-size: 0.82rem; }

@@ -166,6 +166,10 @@ type ProfileResponse = {
   characterEquipment?: { data?: Record<string, { items: ItemComponent[] }> }
   itemComponents?: {
     sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> }
+    /** Instance stats (component 304), e.g. a weapon's rolled Range or Handling. */
+    stats?: { data?: Record<string, { stats: Record<string, { statHash: number; value: number }> }> }
+    /** Instance details (component 300): power level, element. */
+    instances?: { data?: Record<string, { primaryStat?: { value: number }; damageType?: number }> }
     /** What each socket can take (component 310), by socket index. */
     reusablePlugs?: { data?: Record<string, { plugs: Record<string, { plugItemHash: number; canInsert?: boolean }[]> }> }
   }
@@ -386,7 +390,18 @@ const SUBCLASS_ELEMENT: Record<string, Element> = {
 }
 
 /** Names of single item definitions (subclasses, ability plugs), cached for this page. */
-type ItemDef = { displayProperties?: { name?: string }; sockets?: { socketEntries?: { singleInitialItemHash?: number; reusablePlugSetHash?: number }[] } }
+type ItemDef = {
+  displayProperties?: { name?: string; icon?: string; description?: string }
+  itemTypeDisplayName?: string
+  flavorText?: string
+  screenshot?: string
+  defaultDamageType?: number
+  inventory?: { tierType?: number }
+  sockets?: {
+    socketEntries?: { singleInitialItemHash?: number; reusablePlugSetHash?: number }[]
+    socketCategories?: { socketCategoryHash: number; socketIndexes: number[] }[]
+  }
+}
 const itemDefs = new Map<number, Promise<ItemDef | null>>()
 function itemDef(hash: number) {
   if (!itemDefs.has(hash)) itemDefs.set(hash, api<ItemDef>(`/Destiny2/Manifest/DestinyInventoryItemDefinition/${hash >>> 0}/`).catch(() => null))
@@ -785,3 +800,85 @@ async function socketOptions(p: ProfileResponse, item: ItemComponent, idx: numbe
 
 /** "Empty Artifact Mod", the plug an unused artifact perk socket holds. */
 const EMPTY_ARTIFACT_MOD = 1235188590
+
+// ------------------------------------------------------------------ item preview (DIM-style, basic)
+
+/** Weapon stats in the order DIM and the game list them; bars for 0-100 stats, plain numbers for the rest. */
+const WEAPON_STATS: [hash: number, name: string, bar: boolean][] = [
+  [4284893193, 'Rounds Per Minute', false], [2961396640, 'Charge Time', false], [447667954, 'Draw Time', false],
+  [3614673599, 'Blast Radius', true], [2523465841, 'Velocity', true], [2837207746, 'Swing Speed', true],
+  [4043523819, 'Impact', true], [1240592695, 'Range', true], [209426660, 'Guard Resistance', true],
+  [155624089, 'Stability', true], [943549884, 'Handling', true], [4188031367, 'Reload Speed', true],
+  [1345609583, 'Aim Assistance', true], [2714457168, 'Airborne', true], [3555269338, 'Zoom', true],
+  [1931675084, 'Ammo Generation', true], [2715839340, 'Recoil Direction', false], [3871231066, 'Magazine', false],
+  [925767036, 'Ammo Capacity', false],
+]
+const INTRINSIC = 3956125808
+const WEAPON_PERKS = 4241085061
+const WEAPON_MODS = 2685412949
+/** Plugs not worth showing in a basic preview. */
+const NOISE = /^(Empty|Default |Kill Tracker|Crucible Tracker|Weapon Mod|Upgrade Masterwork|Tracker Disabled)/i
+
+export type PreviewPlug = { name: string; icon?: string; description?: string }
+export type ItemPreview = {
+  name: string
+  type: string
+  rarity: Rarity
+  element?: DamageElement
+  power?: number
+  icon?: string
+  screenshot?: string
+  flavor?: string
+  stats: { name: string; value: number; bar: boolean }[]
+  intrinsic?: PreviewPlug
+  /** Selected perk in each perk column (barrel, magazine, traits, origin). */
+  perks: PreviewPlug[]
+  mods: PreviewPlug[]
+}
+
+const IMG = (path?: string) => (path ? `https://www.bungie.net${path}` : undefined)
+async function plugInfo(hash?: number): Promise<PreviewPlug | null> {
+  if (!hash) return null
+  const d = await itemDef(hash)
+  const name = d?.displayProperties?.name?.trim()
+  if (!name || NOISE.test(name)) return null
+  return { name, icon: IMG(d?.displayProperties?.icon), description: d?.displayProperties?.description || undefined }
+}
+
+/**
+ * Details of the player's own copies of these items (Vault first, then characters): the rolled
+ * stats, intrinsic frame, selected perks and mods. Items not found are left out.
+ */
+export async function fetchItemPreviews(names: string[]): Promise<Record<string, ItemPreview>> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,300,304,305`)
+  const all: ItemComponent[] = [
+    ...(p.profileInventory?.data?.items ?? []).filter((i) => i.bucketHash === VAULT_BUCKET),
+    ...Object.values(p.characterInventories?.data ?? {}).flatMap((c) => c.items),
+    ...Object.values(p.characterEquipment?.data ?? {}).flatMap((c) => c.items),
+  ]
+  const out: Record<string, ItemPreview> = {}
+  await Promise.all(names.map(async (name) => {
+    // The highest-power copy, as that's the one a player would pick.
+    const copies = all.filter((i) => i.itemInstanceId && items[i.itemHash]?.[0] === name)
+    const power = (i: ItemComponent) => p.itemComponents?.instances?.data?.[i.itemInstanceId!]?.primaryStat?.value ?? 0
+    const item = copies.sort((a, b) => power(b) - power(a))[0]
+    if (!item) return
+    const id = item.itemInstanceId!
+    const def = await itemDef(item.itemHash)
+    const row = items[item.itemHash]
+    const rolled = p.itemComponents?.stats?.data?.[id]?.stats ?? {}
+    const stats = WEAPON_STATS.filter(([h]) => rolled[h] !== undefined).map(([h, n, bar]) => ({ name: n, value: rolled[h].value, bar }))
+    const sockets = p.itemComponents?.sockets?.data?.[id]?.sockets ?? []
+    const cat = (hash: number) => def?.sockets?.socketCategories?.find((c) => c.socketCategoryHash === hash)?.socketIndexes ?? []
+    const at = (idxs: number[]) => Promise.all(idxs.map((i) => plugInfo(sockets[i]?.plugHash))).then((x) => x.filter((v): v is PreviewPlug => !!v))
+    const [intrinsic, perks, mods] = await Promise.all([at(cat(INTRINSIC)), at(cat(WEAPON_PERKS)), at(cat(WEAPON_MODS))])
+    const dmg = p.itemComponents?.instances?.data?.[id]?.damageType ?? def?.defaultDamageType ?? row[4]
+    out[name] = {
+      name, type: def?.itemTypeDisplayName ?? ALL_SLOTS[row[1]], rarity: TIERS[row[2]], element: DAMAGE[dmg],
+      power: power(item) || undefined, icon: IMG(def?.displayProperties?.icon), screenshot: IMG(def?.screenshot),
+      flavor: def?.flavorText || undefined, stats, intrinsic: intrinsic[0], perks, mods,
+    }
+  }))
+  return out
+}
