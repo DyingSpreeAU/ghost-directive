@@ -20,6 +20,8 @@ export type Ruleset = {
     finalBossArtifact: boolean
     chestArtifact: boolean
     chestUpgrades: boolean
+    /** Show the three items inside each final-boss category before a player picks one (an easier-mode option). */
+    revealCategories?: boolean
   }
   tradeUp: { enabled: boolean; inputs: number; options: number; sameRarity: boolean }
   overflow: 'guided' | 'warn'

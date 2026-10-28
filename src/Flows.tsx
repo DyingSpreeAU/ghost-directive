@@ -172,13 +172,13 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               <span className="choice-kind r-exotic-text">Exotic armor</span>
               <strong>Three {p.cls} Exotics</strong>
               <span className="muted">{p.element} synergy favored where available.</span>
-              <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
               <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
               <strong>Three weapons from your Vault</strong>
               <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
-              <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
             </button>
           </ChoiceGrid>
         </div>
