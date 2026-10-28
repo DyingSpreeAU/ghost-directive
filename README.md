@@ -102,7 +102,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   screen, swiped left and right (native scroll snapping, `SwipeCols` in `src/ui.tsx`), with a tab strip
   naming each Guardian (dot for waiting rewards) and page dots. In the lobby the last slide is the open
   seat, for adding a Guardian without a device. The column guide and the nightly test tools start
-  collapsed, and the begin/ready bar is compact above the bottom tab bar.
+  collapsed, and the begin/ready bar is compact above the bottom tab bar. Collapsed test tools are a round
+  floating button: tap to open them as a sheet above the tab bar, drag it anywhere (the spot is remembered).
 - **Tooltips**: every `title` hover shows at once in the app's style (`src/Tooltips.tsx`, one listener
   for the page; the title is lifted off while hovered so the browser's own doesn't appear).
 - **Protocol Rulesets** marks the protocol the current run or lobby uses; in a lobby, **Use in lobby**

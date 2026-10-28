@@ -1,7 +1,7 @@
 // Test tools for the nightly build only. App.tsx loads this file only when CHANNEL is set, so a
 // production build never loads it. Everything here acts on the run in the host's browser.
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { ALL_SLOTS, RARITIES, artifactByName, dungeonById, subclassAbilities, type Rarity, type Slot } from './data'
 import {
   addItem, artifactChoices, chestChoices, current, exoticChoices, legendaryWeaponChoices, log, uid, unlockChoices,
@@ -11,6 +11,7 @@ import { CHANNEL } from './channel'
 import { useGD } from './store'
 
 const OPEN_KEY = 'ghost-directive:devtools-open'
+const SPOT_KEY = 'ghost-directive:devtools-spot'
 const SAMPLE_DROPS: Record<Slot, string[]> = {
   Kinetic: ['Fatebringer', 'Pariah', 'Hung Jury SR4'], Energy: ['Funnelweb', 'Stay Away', 'Breachlight'],
   Power: ['Tarantula', 'Hothead', 'Apex Predator'], Helmet: ['Test Helm'], Gauntlets: ['Test Grips'],
@@ -19,6 +20,49 @@ const SAMPLE_DROPS: Record<Slot, string[]> = {
 const pick = <T,>(xs: T[]) => xs[Math.floor(Math.random() * xs.length)]
 
 type Kind = 'encounter' | 'final' | 'chest' | 'expansion'
+
+/**
+ * The collapsed test tools. On a wide screen a striped tab; on a phone a round floating button that
+ * can be dragged out of the way (its spot is remembered) and tapped to open the tools.
+ */
+function ToolsButton({ onOpen }: { onOpen: () => void }) {
+  const [spot, setSpot] = useState<{ x: number; y: number } | null>(() => { try { return JSON.parse(localStorage.getItem(SPOT_KEY) ?? 'null') } catch { return null } })
+  const drag = useRef<{ dx: number; dy: number; moved: boolean } | null>(null)
+  // A dragged spot only applies on a phone; on a wide screen the tab stays in its corner.
+  const placed = spot && matchMedia('(max-width: 900px)').matches ? spot : null
+  const clamp = (x: number, y: number) => ({ x: Math.max(6, Math.min(innerWidth - 58, x)), y: Math.max(6, Math.min(innerHeight - 130, y)) })
+  return (
+    <button
+      className={`devtools-tab ${placed ? 'is-placed' : ''}`}
+      style={placed ? { left: clamp(placed.x, placed.y).x, top: clamp(placed.x, placed.y).y } : undefined}
+      aria-label="Open test tools"
+      onPointerDown={(e) => {
+        const r = e.currentTarget.getBoundingClientRect()
+        drag.current = { dx: e.clientX - r.left, dy: e.clientY - r.top, moved: false }
+        e.currentTarget.setPointerCapture(e.pointerId)
+      }}
+      onPointerMove={(e) => {
+        const d = drag.current
+        if (!d || !matchMedia('(max-width: 900px)').matches) return
+        const next = clamp(e.clientX - d.dx, e.clientY - d.dy)
+        if (!d.moved && spot && Math.hypot(next.x - spot.x, next.y - spot.y) < 6) return
+        d.moved = true
+        setSpot(next)
+      }}
+      onPointerUp={() => {
+        const d = drag.current
+        drag.current = null
+        if (d?.moved) { try { localStorage.setItem(SPOT_KEY, JSON.stringify(spot)) } catch { /* fine */ } return }
+        onOpen()
+      }}
+    >
+      <svg className="devtools-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M14.7 6.3a4 4 0 0 0-5.2 5.2l-5.8 5.8a1.4 1.4 0 0 0 2 2l5.8-5.8a4 4 0 0 0 5.2-5.2l-2.4 2.4-2-.6-.6-2 2.4-2.4Z" fill="currentColor" />
+      </svg>
+      <span className="devtools-tab-label">Test tools</span>
+    </button>
+  )
+}
 
 /** Queues a reward for these Guardians without recording a clear, so the reward screens can be tried. */
 function grant(run: Run, kind: Kind, who: Player[]) {
@@ -54,7 +98,7 @@ export default function DevTools() {
 
   // Nothing to test outside a run, and in the lobby it would cover the Begin button.
   if (!run) return null
-  if (!open) return <button className="devtools-tab" onClick={toggle} aria-label="Open test tools">Test tools</button>
+  if (!open) return <ToolsButton onOpen={toggle} />
 
   const act = (label: string, fn: (r: Run) => void) => {
     if (!host || !run) return
