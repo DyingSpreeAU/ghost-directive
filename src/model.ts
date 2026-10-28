@@ -1,8 +1,8 @@
 import type { RestorePoint } from './bungie'
 import {
-  ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, WEAPON_SLOTS,
+  ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, STARTER_KINDS, WEAPON_SLOTS,
   abilityById, baseKit, dungeonById, subclassAbilities,
-  type ClassType, type Element, type Rarity, type Slot, type VaultEntry,
+  type ClassType, type Element, type StarterKind, type Rarity, type Slot, type VaultEntry,
 } from './data'
 
 // ---------------------------------------------------------------- Rulesets
@@ -66,6 +66,15 @@ export const PRESETS: Ruleset[] = [
 ]
 
 export const STANDARD = PRESETS.find((r) => r.id === 'standard')!
+
+/**
+ * Abilities equipped in game that the run hasn't unlocked. Runs started before class abilities were
+ * tracked have none unlocked; their class ability isn't held against them.
+ */
+export function equippedNotUnlocked(p: Player): string[] {
+  const legacy = !p.unlocked.some((id) => id.split('|')[1] === 'class')
+  return p.configured.filter((id) => !p.unlocked.includes(id) && !(legacy && id.split('|')[1] === 'class'))
+}
 
 export function validateRuleset(r: Ruleset): string[] {
   const errs: string[] = []
@@ -436,7 +445,7 @@ export function computeWarnings(run: Run): Warning[] {
       const eq = itemsIn(p, slot).filter((i) => i.equipped).length
       if (eq > 1) out.push({ id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
     }
-    const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id))
+    const outOfOrder = equippedNotUnlocked(p)
     if (outOfOrder.length) out.push({ id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped but not unlocked: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}`, rule: `${outOfOrder.length === 1 ? 'It isn\u2019t' : 'They aren\u2019t'} unlocked in this run yet. Unequip ${outOfOrder.length === 1 ? 'it' : 'them'} in Destiny 2, or unlock ${outOfOrder.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'archive' })
     if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
     const ga = p.bungie?.artifact
@@ -783,7 +792,8 @@ export type Seat = {
   name: string
   cls: ClassType
   element: Element
-  starter: { super: string; melee: string; grenade: string }
+  /** Starting ability ids. Lobbies saved before class abilities existed have no `class`; see starterOf. */
+  starter: { super: string; class?: string; melee: string; grenade: string }
   checklist: Record<ChecklistKey, boolean>
   /** Artifact chosen for the run; '' until picked. Required before the run starts. */
   artifact: string
@@ -813,7 +823,12 @@ export function defaultStarter(cls: ClassType, el: Element): Seat['starter'] {
   const base = baseKit(cls, el)
   const a = subclassAbilities(cls, el).filter((x) => !base.includes(x.id))
   const first = (k: string) => a.find((x) => x.kind === k)!.id
-  return { super: first('super'), melee: first('melee'), grenade: first('grenade') }
+  return { super: first('super'), class: first('class'), melee: first('melee'), grenade: first('grenade') }
+}
+
+/** A seat's starting abilities, with the default class ability filled in for older saved lobbies. */
+export function starterOf(seat: Seat): Record<StarterKind, string> {
+  return { ...seat.starter, class: seat.starter.class ?? defaultStarter(seat.cls, seat.element).class! }
 }
 
 export function newSeat(n: number, clientId: string | null, isHost = false): Seat {
@@ -873,7 +888,7 @@ export function bindBungieId(target: { run: Run | null; lobby: Lobby | null }, c
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [s.starter.super, s.starter.melee, s.starter.grenade, ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [...STARTER_KINDS.map((k) => starterOf(s)[k]), ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }
@@ -912,7 +927,7 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
       if (pt.starter && typeof pt.starter === 'object') {
         const ids = subclassAbilities(mine.cls, mine.element)
         const st = pt.starter as Record<string, unknown>
-        for (const k of ['super', 'melee', 'grenade'] as const) {
+        for (const k of STARTER_KINDS) {
           if (typeof st[k] === 'string' && ids.some((a) => a.id === st[k] && a.kind === k) && !baseKit(mine.cls, mine.element).includes(st[k] as string)) mine.starter[k] = st[k] as string
         }
       }
@@ -958,9 +973,9 @@ export function exampleRun(code: string, hostCid: string): Run {
   c.name = 'Threadrunner'
   c.isHost = false
   const starters: [Player, string[]][] = [
-    [a, ['Solar|super|Well of Radiance', 'Solar|melee|Incinerator Snap', 'Solar|grenade|Healing Grenade']],
-    [b, ['Void|super|Sentinel Shield', 'Void|melee|Shield Throw', 'Void|grenade|Suppressor Grenade']],
-    [c, ['Strand|super|Silkstrike', 'Strand|melee|Threaded Spike', 'Strand|grenade|Grapple']],
+    [a, ['Solar|super|Well of Radiance', 'Solar|class|Phoenix Dive', 'Solar|melee|Incinerator Snap', 'Solar|grenade|Healing Grenade']],
+    [b, ['Void|super|Sentinel Shield', 'Void|class|Towering Barricade', 'Void|melee|Shield Throw', 'Void|grenade|Suppressor Grenade']],
+    [c, ['Strand|super|Silkstrike', 'Strand|class|Gambler\'s Dodge', 'Strand|melee|Threaded Spike', 'Strand|grenade|Grapple']],
   ]
   const arts = ['Tablet of Ruin', 'Slayer Baron Apothecary Satchel', 'NPA Repulsion Regulator']
   starters.forEach(([p, ids], i) => {

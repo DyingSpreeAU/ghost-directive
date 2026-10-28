@@ -55,17 +55,27 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 ## What's implemented (manual "No Login" mode)
 
 - **Lobby layout** matches the run screen: each seat is a Guardian column with the player's emblem
-  nameplate (shared by their signed-in device), class and subclass, starting Super/melee/grenade as icon
+  nameplate (shared by their signed-in device), class and subclass, starting Super/class ability/melee/grenade as icon
   chips, and the seven artifacts as icon tiles. The player's own seat also shows **Equipped now**: gear
   as icon tiles (red when not starting rarity), equipped abilities, any aspects, fragments or artifact
   perks still on, and the ready check. The bottom bar shows a one-line version.
 - **Lobby**: Protocol Ruleset (snapshot locked per run; presets listed easiest to hardest: Vanguard Directive, Standard Directive (default), Iron Directive), up to 3 seats with host. Each player picks
-  their committed subclass, starting Super/melee/grenade and **artifact** on their own device; no one
-  can ready up or start without an artifact. Starting-gear rules are shown as instructions (nothing
+  their committed subclass, starting Super/class ability/melee/grenade and **artifact** on their own device; no one
+  can ready up or start without an artifact. **Begin** stays disabled until every Guardian with a device is
+  ready; the host has a small **Host override** that names who isn't ready and asks to confirm. Starting-gear rules are shown as instructions (nothing
   to tick). Starting weapons may be grey or green; armor grey. Prismatic seats always have their
   class's Prismatic grenade (Freezing Singularity, Hailfire Spike or Electrified Snare) as base kit,
   so it's unlocked from the start and not offered as the starting grenade. The host picks the
-  chronological expedition (defaults to every dungeon) or a custom one; the route locks on start.
+  chronological expedition (defaults to every dungeon) or a custom one: the dungeon tiles are dragged
+  into run order, and tiles dragged into the **Excluded** box below are left out (× and + buttons and
+  arrow keys do the same; the page scrolls while dragging near an edge). The route locks on start.
+- **Setup and rules** opens the lobby: the Destiny 2 setup checklist and a plain-language breakdown of
+  the rules using the chosen protocol's numbers, including what counts as a wipe (every Guardian dead
+  at the same time, anywhere in the run, traversal included; recorded once, not as separate deaths).
+- **Class abilities** (`src/classAbilities.ts`, from each subclass's class-ability socket in Bungie's
+  manifest) are an ability kind like Super/melee/grenade: one is picked as starting kit, the rest are
+  unlock rewards, and Sync from / Send to read and slot them. Runs started before they existed don't
+  flag an equipped class ability as not unlocked (`equippedNotUnlocked`).
 - **Artifacts** (7, from the compendium's Artifact Perks tab, 21 perks each in three tiers): all
   Artifact research (final bosses and secret chests) offers perks from the player's chosen artifact only.
 - **Mission Briefing**: shared Fireteam Integrity, current encounter with generated destination
@@ -85,6 +95,17 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
   collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
   Guardian's device to re-read Bungie (`run.syncRequest`).
+- **Sidebar** lists the sections of the current page (lobby: Setup and rules, Guardians, Protocol and
+  route; run: Mission Briefing, Fireteam, Combat Report) then the host's pages. The section in view is
+  highlighted by a marker that slides between entries; clicking glides the page there.
+- **Tooltips**: every `title` hover shows at once in the app's style (`src/Tooltips.tsx`, one listener
+  for the page; the title is lifted off while hovered so the browser's own doesn't appear).
+- **Protocol Rulesets** marks the protocol the current run or lobby uses; in a lobby, **Use in lobby**
+  switches to another one.
+- **Exotic class items**: on Prismatic, a final-boss Exotic reward sometimes includes the class's Exotic
+  class item (Stoicism, Relativism, Solipsism), only when a copy is in the player's Vault.
+- **Weapon cards** show the ammo type in the banner (white primary, green special, purple heavy with a
+  white outline), from the definition's `equippingBlock.ammoType`.
 - **Item choices** (final-boss reward and trade-up, `GearPicker` in `src/Flows.tsx`): real icons, with
   each item's type, element and Power read from the player's own account. **Weapons** show a DIM-style card
   (`src/ItemPreview.tsx`) for the selected one only, underneath the choices. **Armor** keeps plain cards;
@@ -105,8 +126,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   so they use their dungeon's). Artifacts show their icon. A signed-in player's column header shows their
   character's emblem banner (synced as `BungieLink.emblem`). Anything that can't load falls back to the
   drawn art or plain header.
-- **Field Arsenal**: 8 slots, configurable capacity, guided swap or warn-only overflow,
-  move-to-Vault (no dismantling), 4→1 trade-up with 5 Vault options. Signed-in players get a
+- **Field Arsenal**: 8 slots, configurable capacity, warn-only or guided overflow. Guided: a slot over
+  capacity opens a prompt with two ways out, **Trade up** (the normal trade-up screen) or **Remove items**,
+  which tells the player to dismantle the item in game, or vault it to keep it for normal play, and gives
+  each item a Vaulted/Send to Vault and a Dismantled button. A selected inventory tile offers To Vault and
+  **Dismantled** (logged as dismantled). 4→1 trade-up with 5 Vault options. Signed-in players get a
   **Sync drops now** button. Saved loadouts and the Vault pool editor are hidden for now (the code
   stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices. With loadouts hidden, the
   Loadout Archive chest reward, loadout warnings and the protocol's loadout-slot setting are off too.
@@ -173,7 +197,7 @@ Refresh button. Hovering "Updated X ago" shows when Bungie generated the data (t
 minted timestamp), since it can lag the game. Until the gear matches, the panel, the Ready button
 and the host's begin bar say to wait: the run records equipped gear as starting gear, and anything
 new after that counts as a drop. The seat is filled once from the character (class, subclass,
-Super, melee, grenade from the equipped subclass's sockets) unless the player already set it up.
+Super, class ability, melee, grenade from the equipped subclass's sockets) unless the player already set it up.
 "Use my character's setup" re-applies it.
 
 **Abilities.** During a run each sync reads the equipped subclass and what's slotted in it. That
@@ -198,14 +222,15 @@ an active perk that hasn't been researched in the run, is flagged.
 
 **Sync from / Send to** (your seat in the lobby). *Sync from* fills the seat from your active
 character. *Send to* does the reverse with the move/equip scope: it switches the active character to
-the seat's subclass, slots its Super, melee and grenade, empties every aspect and fragment socket,
+the seat's subclass, slots its Super, class ability, melee and grenade, empties every aspect and fragment socket,
 and empties the artifact's perk sockets (InsertSocketPlugFree, using component 310 to find each
 socket's options; each subclass socket is identified by its plugs' category, e.g. `warlock.prism.grenades`,
 so Prismatic's separate Transcendence grenade socket is left alone), and equips the seat's artifact if the character holds it. Bungie only allows it in orbit, a
 social space or while offline; in an activity it stops and explains why. When Send to finishes with no problems and
 its own read shows a grey/green weapon and grey armor piece (with an instance id) in all eight slots,
 the seat is marked ready straight away, and the lobby trusts the subclass and artifact until Bungie
-returns data minted after the send.
+returns data minted after the send (at most five minutes). Bungie sends `secondaryComponentsMintedTimestamp`
+as 0001-01-01 when it doesn't apply; that value is ignored in favour of `responseMintedTimestamp`.
 
 **Inventory actions move items in game** (signed-in player's own device, `moveItems` in `src/bungie.ts`):
 To Vault on a run item sends it to the Vault first and only takes it out of the run if that worked;

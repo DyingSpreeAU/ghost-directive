@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, dungeonById, subclassAbilities } from './data'
-import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
+import { ARTIFACTS, CLASSES, DUNGEONS, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
+import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
@@ -51,7 +51,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     if (!mine) return
     setSend({ busy: true })
     try {
-      const abilities = [mine.starter.super, mine.starter.melee, mine.starter.grenade].map((id) => id.split('|')[2])
+      const abilities = STARTER_KINDS.map((k) => starterOf(mine)[k].split('|')[2])
       const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities, artifact: mine.artifact || undefined }, (step) => setSend({ busy: true, step }))
       // Everything applied and the gear is starting gear in every slot: ready up now, no need to wait for Bungie.
       const gearOk = GEAR_SLOTS.every((slot) => report.gear.some((g) => g.slot === slot && g.instanceId && EXPECTED[slot].includes(g.rarity)))
@@ -273,11 +273,11 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           <section className="g-sec" aria-label="Starting abilities">
             <header className="g-sec-head"><span className="eyebrow">Starting abilities</span><span className="muted small">pick one of each</span></header>
             <div className="ab-kinds">
-              {(['super', 'melee', 'grenade'] as const).map((k) => (
+              {STARTER_KINDS.map((k) => (
                 <div key={k} className="ab-kind" data-kind={k} role="radiogroup" aria-label={`Starting ${KIND_LABEL[k].toLowerCase()}`}>
                   <span className="ab-kind-name">{KIND_LABEL[k]}</span>
                   <div className="ab-chips">
-                    {abil.filter((a) => a.kind === k && !always.includes(a.id)).map((a) => chip(a.id, seat.starter[k] === a.id, () => onPatch({ starter: { ...seat.starter, [k]: a.id } })))}
+                    {abil.filter((a) => a.kind === k && !always.includes(a.id)).map((a) => chip(a.id, starterOf(seat)[k] === a.id, () => onPatch({ starter: { ...starterOf(seat), [k]: a.id } })))}
                   </div>
                   {k === 'grenade' && always.length > 0 && (
                     <small className="muted">{always.map((id) => id.split('|')[2]).join(', ')} is always available on Prismatic, on top of this.</small>
@@ -313,7 +313,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
         <>
           <section className="g-sec" aria-label="Starting abilities">
             <header className="g-sec-head"><span className="eyebrow">Starting abilities</span></header>
-            <div className="ab-chips">{(['super', 'melee', 'grenade'] as const).map((k) => chip(seat.starter[k], true))}</div>
+            <div className="ab-chips">{STARTER_KINDS.map((k) => chip(starterOf(seat)[k], true))}</div>
           </section>
           <section className="g-sec" aria-label="Artifact">
             <header className="g-sec-head"><span className="eyebrow">Artifact</span></header>
@@ -666,8 +666,8 @@ function seatFromCharacter(d: EquippedPreview): Patch {
   const { element, abilityIds } = d.subclass
   const base = defaultStarter(cls, element)
   const always = baseKit(cls, element)
-  const pick = (kind: 'super' | 'melee' | 'grenade') => abilityIds.find((id) => id.split('|')[1] === kind && !always.includes(id)) ?? base[kind]
-  return { cls, element, starter: { super: pick('super'), melee: pick('melee'), grenade: pick('grenade') }, ...artifact }
+  const pick = (kind: StarterKind) => abilityIds.find((id) => id.split('|')[1] === kind && !always.includes(id)) ?? base[kind]!
+  return { cls, element, starter: { super: pick('super'), class: pick('class'), melee: pick('melee'), grenade: pick('grenade') }, ...artifact }
 }
 
 /**
@@ -742,7 +742,7 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
           </div>
           {data.subclass ? (
             <div className="equipped-subclass ab-kinds">
-              <div className="ab-kind"><span className="ab-kind-name">Abilities</span><div className="ab-chips">{[data.subclass.super, data.subclass.melee, data.subclass.grenade].filter((x): x is string => !!x).map((n) => plugChip(n))}</div></div>
+              <div className="ab-kind"><span className="ab-kind-name">Abilities</span><div className="ab-chips">{[data.subclass.super, data.subclass.class, data.subclass.melee, data.subclass.grenade].filter((x): x is string => !!x).map((n) => plugChip(n))}</div></div>
               <div className="ab-kind"><span className="ab-kind-name">Aspects and fragments</span>
                 {data.subclass.aspects.length + data.subclass.fragments.length
                   ? <div className="ab-chips">{[...data.subclass.aspects, ...data.subclass.fragments].map((n) => plugChip(n, true))}<span className="small tone-warn">setup calls for none</span></div>

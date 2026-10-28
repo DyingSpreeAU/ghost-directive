@@ -3,7 +3,7 @@
 // Netlify Function at /api/bungie-token. Only restoreGuardian moves or equips items,
 // and only when the player asks for it.
 
-import { ALL_SLOTS, ARTIFACTS, PRISMATIC_BASE_GRENADES, subclassAbilities, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, ARTIFACTS, PRISMATIC_BASE_GRENADES, subclassAbilities, STARTER_KINDS, type StarterKind, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import type { Player } from './model'
 import { inClaudeViewer } from './net'
 
@@ -480,6 +480,7 @@ export type EquippedSubclass = {
   /** Ability ids (our data) for everything recognised in the subclass's sockets. */
   abilityIds: string[]
   super?: string
+  class?: string
   melee?: string
   grenade?: string
   aspects: string[]
@@ -715,7 +716,7 @@ export type SendReport = {
 
 /**
  * Applies a seat's setup to the active character: switches to the seat's subclass, slots its
- * Super, melee and grenade, empties every aspect and fragment socket, and empties the artifact's
+ * Super, class ability, melee and grenade, empties every aspect and fragment socket, and empties the artifact's
  * perk sockets. Bungie only allows this in orbit, a social space, or while offline.
  */
 export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[]; artifact?: string }, progress: (msg: string) => void): Promise<SendReport> {
@@ -759,7 +760,7 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   const wanted = new Map(seat.abilities.flatMap((n) => { const a = byName.get(normName(n)); return a ? [[a.kind, n] as const] : [] }))
   const current = p.itemComponents?.sockets?.data?.[subId]?.sockets ?? []
   const optionNamed = (idx: number) => socketOptions(p, sub.i, idx)
-  type Job = { idx: number; kind: 'fragment' | 'aspect' | 'super' | 'melee' | 'grenade'; name: string }
+  type Job = { idx: number; kind: 'fragment' | 'aspect' | StarterKind; name: string }
   const jobs: Job[] = []
   await Promise.all(current.map(async (sock, idx) => {
     const def = sock.plugHash ? await itemDef(sock.plugHash) : null
@@ -772,9 +773,9 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
     if ((kind === 'aspect' || kind === 'fragment') && !/^Empty/i.test(name)) jobs.push({ idx, kind, name })
   }))
   // Fragments first (aspects decide how many fragment sockets there are), then aspects, then abilities.
-  const rank = { fragment: 0, aspect: 1, super: 2, melee: 3, grenade: 4 }
+  const rank = { fragment: 0, aspect: 1, super: 2, class: 3, melee: 4, grenade: 5 }
   jobs.sort((a, b) => rank[a.kind] - rank[b.kind] || b.idx - a.idx)
-  for (const kind of ['super', 'melee', 'grenade'] as const) {
+  for (const kind of STARTER_KINDS) {
     if (wanted.get(kind) && !jobs.some((j) => j.kind === kind)) report.already.push(`${wanted.get(kind)} already slotted`)
   }
   if (!jobs.some((j) => j.kind === 'aspect')) report.already.push('Aspects already empty')
@@ -830,11 +831,11 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   }
   return report
 }
-/** A subclass socket's kind from its plugs' category, or 'other' for sockets left alone (class ability, jump, Transcendence, Prismatic grenade). */
+/** A subclass socket's kind from its plugs' category, or 'other' for sockets left alone (jump, Transcendence, Prismatic grenade). */
 function socketKind(category?: string): AbilityKind | 'other' | undefined {
   if (!category) return undefined
-  const m = /\.(supers|melee|grenades|aspects|fragments)$/.exec(category)
-  return m ? ({ supers: 'super', melee: 'melee', grenades: 'grenade', aspects: 'aspect', fragments: 'fragment' } as const)[m[1] as 'supers'] : 'other'
+  const m = /\.(supers|class_abilities|melee|grenades|aspects|fragments)$/.exec(category)
+  return m ? ({ supers: 'super', class_abilities: 'class', melee: 'melee', grenades: 'grenade', aspects: 'aspect', fragments: 'fragment' } as const)[m[1] as 'supers'] : 'other'
 }
 
 /**

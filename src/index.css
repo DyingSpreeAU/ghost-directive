@@ -685,7 +685,7 @@ select.needs-pick { border-color: var(--warn); }
 @media (max-width: 520px) { .equipped-artifact { grid-template-columns: minmax(0, 1fr); } }
 
 /* ---------------------------------------------------------------- synaptic link */
-.main > .main-top { display: flex; justify-content: flex-end; margin-bottom: 10px; position: relative; z-index: 20; }
+.main > .main-top { display: flex; justify-content: flex-end; margin-bottom: 10px; position: relative; z-index: 46; } /* above the nightly test tools (45), below pop-ups (50) */
 .synaptic { position: relative; }
 .synaptic-icon { display: inline-flex; padding: 4px; border-radius: 50%; cursor: help; outline-offset: 2px; }
 .synaptic-icon svg path { fill: currentColor; }

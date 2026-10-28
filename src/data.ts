@@ -1,4 +1,5 @@
 import { COMPENDIUM } from './compendium'
+import { CLASS_ABILITIES, CLASS_ABILITY_DESC } from './classAbilities'
 
 // Static game content. Everything here is data-driven so it can be revised
 // when Destiny 2 content changes without touching run logic.
@@ -7,7 +8,7 @@ export type ClassType = 'Hunter' | 'Titan' | 'Warlock'
 /** A committed subclass. Prismatic is a subclass, not a damage type. */
 export type Element = 'Solar' | 'Arc' | 'Void' | 'Stasis' | 'Strand' | 'Prismatic'
 export type DamageElement = Exclude<Element, 'Prismatic'>
-export type AbilityKind = 'super' | 'grenade' | 'melee' | 'aspect' | 'fragment'
+export type AbilityKind = 'super' | 'class' | 'grenade' | 'melee' | 'aspect' | 'fragment'
 export type Rarity = 'Common' | 'Uncommon' | 'Rare' | 'Legendary' | 'Exotic'
 export type Slot =
   | 'Kinetic' | 'Energy' | 'Power'
@@ -16,14 +17,20 @@ export type Slot =
 export const CLASSES: ClassType[] = ['Hunter', 'Titan', 'Warlock']
 export const ELEMENTS: Element[] = ['Solar', 'Arc', 'Void', 'Stasis', 'Strand', 'Prismatic']
 export const DAMAGE_ELEMENTS: DamageElement[] = ['Solar', 'Arc', 'Void', 'Stasis', 'Strand']
-export const ABILITY_KINDS: AbilityKind[] = ['super', 'grenade', 'melee', 'aspect', 'fragment']
+export const ABILITY_KINDS: AbilityKind[] = ['super', 'class', 'grenade', 'melee', 'aspect', 'fragment']
+/** The abilities a seat starts with, one of each. */
+export const STARTER_KINDS = ['super', 'class', 'melee', 'grenade'] as const
+export type StarterKind = (typeof STARTER_KINDS)[number]
 export const RARITIES: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary', 'Exotic']
 export const WEAPON_SLOTS: Slot[] = ['Kinetic', 'Energy', 'Power']
 export const ARMOR_SLOTS: Slot[] = ['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
 export const ALL_SLOTS: Slot[] = [...WEAPON_SLOTS, ...ARMOR_SLOTS]
 
 export const KIND_LABEL: Record<AbilityKind, string> = {
-  super: 'Super', grenade: 'Grenade', melee: 'Melee', aspect: 'Aspect', fragment: 'Fragment',
+  super: 'Super', class: 'Class Ability', grenade: 'Grenade', melee: 'Melee', aspect: 'Aspect', fragment: 'Fragment',
+}
+export const KIND_PLURAL: Record<AbilityKind, string> = {
+  super: 'Supers', class: 'Class Abilities', grenade: 'Grenades', melee: 'Melees', aspect: 'Aspects', fragment: 'Fragments',
 }
 
 export const ELEMENT_COLOR: Record<Element, string> = {
@@ -62,6 +69,7 @@ export function subclassAbilities(cls: ClassType, element: Element): Ability[] {
     names.map((name) => ({ id: abilityId(element, kind, name), kind, name, element }))
   return [
     ...make('super', kit.super),
+    ...make('class', CLASS_ABILITIES[cls][element] ?? []),
     ...make('grenade', kit.grenade ?? C.grenades[element]),
     ...make('melee', kit.melee),
     ...make('aspect', kit.aspect),
@@ -70,7 +78,7 @@ export function subclassAbilities(cls: ClassType, element: Element): Ability[] {
 }
 
 /** One-line description from the compendium, if it has one. */
-export const abilityDesc = (id: string): string | undefined => C.desc[id]
+export const abilityDesc = (id: string): string | undefined => C.desc[id] ?? CLASS_ABILITY_DESC[id]
 
 export function abilityById(id: string): Ability {
   const [element, kind, name] = id.split('|') as [Element, AbilityKind, string]

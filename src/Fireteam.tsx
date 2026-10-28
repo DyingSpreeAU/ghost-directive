@@ -3,9 +3,9 @@
 
 import { useState } from 'react'
 import {
-  ABILITY_KINDS, ALL_SLOTS, KIND_LABEL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
+  ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, itemsIn, recordDeath, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { capacityOf, equippedNotUnlocked, itemsIn, recordDeath, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -210,7 +210,7 @@ function Abilities({ p, showLocked, control }: { p: Player; showLocked: boolean;
   const { dispatch } = useGD()
   const icons = useIcons()
   const all = subclassAbilities(p.cls, p.element)
-  const outOfOrder = p.configured.filter((id) => !p.unlocked.includes(id)).map(abilityById)
+  const outOfOrder = equippedNotUnlocked(p).map(abilityById)
   return (
     <section className="g-sec" aria-label={`${p.name}: subclass`}>
       <header className="g-sec-head">
@@ -222,7 +222,7 @@ function Abilities({ p, showLocked, control }: { p: Player; showLocked: boolean;
           const list = all.filter((a) => a.kind === k && (showLocked || p.unlocked.includes(a.id) || p.configured.includes(a.id)))
           return (
             <div key={k} className="ab-kind">
-              <span className="ab-kind-name">{KIND_LABEL[k]}s <span className="muted">{all.filter((a) => a.kind === k && p.unlocked.includes(a.id)).length}/{all.filter((a) => a.kind === k).length}</span></span>
+              <span className="ab-kind-name">{KIND_PLURAL[k]} <span className="muted">{all.filter((a) => a.kind === k && p.unlocked.includes(a.id)).length}/{all.filter((a) => a.kind === k).length}</span></span>
               <div className="ab-chips">
                 {list.length === 0 && <span className="muted small">None yet</span>}
                 {list.map((a) => {
