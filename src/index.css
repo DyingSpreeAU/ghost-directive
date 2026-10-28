@@ -844,7 +844,8 @@ button.ab-chip:hover { border-color: var(--dim); }
 
 /* ---------------------------------------------------------------- test tools (nightly builds only) */
 .devtools, .devtools-tab {
-  position: fixed; z-index: 60; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  /* Under pop-ups (z-index 50) so it never covers their buttons. */
+  position: fixed; z-index: 45; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
   font: 0.8rem var(--f-mono); color: #1a1508;
 }
 .devtools-tab { padding: 6px 12px; border: 2px solid #1a1508; background: repeating-linear-gradient(-45deg, var(--warn) 0 10px, #f4c56a 10px 20px); cursor: pointer; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -870,3 +871,8 @@ button.ab-chip:hover { border-color: var(--dim); }
 .devtools button:not(.devtools-x):hover { background: var(--warn); }
 .devtools button:focus-visible { outline: 2px solid #1a1508; outline-offset: 2px; }
 .devtools-wide { width: 100%; }
+
+/* The picked option in a 1-of-N reward choice. */
+.choice.is-on::after { content: 'Your pick'; position: absolute; top: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--light); color: var(--light-ink); }
+.choice.choice-artifact.is-on::after { background: var(--artifact); color: #04211d; }
+.choice { position: relative; }

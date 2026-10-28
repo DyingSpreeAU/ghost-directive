@@ -130,7 +130,14 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   if (!step) return null
   const last = i === steps.length - 1
 
-  const title = { unlock: 'Choose an unlock', gear: 'Final-boss reward', artifact: 'Artifact research', chest: 'Chest reward', drops: 'Register your drops' }[step]
+  const n = (xs: unknown[]) => xs.length
+  const title = {
+    unlock: `Choose 1 of ${n(pend.unlock)} abilities`,
+    gear: cat ? `Choose 1 of ${n(pend[cat])} ${cat === 'exotic' ? 'Exotic armor pieces' : 'Vault weapons'}` : 'Final-boss reward: pick a category',
+    artifact: `Research 1 of ${n(pend.artifact)} artifact perks`,
+    chest: `Choose 1 of ${n(pend.chest)} chest rewards`,
+    drops: 'Register your drops',
+  }[step]
   return (
     <Modal
       kicker={`${forSomeoneElse ? `For ${p.name} · ` : ''}${pend.where} · step ${i + 1} of ${steps.length}`}
@@ -147,7 +154,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     >
       {step === 'unlock' && (
         <div className="stack">
-          <p>Pick one {p.element} ability to unlock for the rest of the run. Equipping it in Destiny 2 is up to you.</p>
+          <p>You keep <strong>one</strong> of these {pend.unlock.length}. The {p.element} ability you pick stays unlocked for the rest of the run; the others are not kept. Equipping it in Destiny 2 is up to you.</p>
           <ChoiceGrid>
             {pend.unlock.map((id) => {
               const a = abilityById(id)
@@ -166,17 +173,17 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 
       {step === 'gear' && (!cat ? (
         <div className="stack">
-          <p>Choose a reward category first. You see three options after choosing.</p>
+          <p>First pick a category. Then you choose <strong>1 of 3</strong> items from it, and you keep only the one you choose.</p>
           <ChoiceGrid>
             <button className="choice" disabled={!pend.exotic.length} onClick={() => setCat('exotic')}>
               <span className="choice-kind r-exotic-text">Exotic armor</span>
-              <strong>Three {p.cls} Exotics</strong>
+              <strong>1 of 3 {p.cls} Exotics</strong>
               <span className="muted">{p.element} synergy favored where available.</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
               <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
-              <strong>Three weapons from your Vault</strong>
+              <strong>1 of 3 weapons from your Vault</strong>
               <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
             </button>
@@ -184,7 +191,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
         </div>
       ) : (
         <div className="stack">
-          <p>{cat === 'exotic' ? 'Exotic armor' : 'Vault Legendary weapon'}: pick one, then move it from your Vault in Destiny 2. <button className="link" onClick={() => { setCat(null); setGear(null); setCompare(false) }}>Change category</button></p>
+          <p>You keep <strong>one</strong> of these {pend[cat].length}{cat === 'exotic' ? ' Exotics' : ' weapons'}. Pick it, then move it from your Vault (or Collections) in Destiny 2. <button className="link" onClick={() => { setCat(null); setGear(null); setCompare(false) }}>Change category</button></p>
           <ChoiceGrid>
             {pend[cat].map((g) => {
               const pv = previews.data?.[g.name]
@@ -226,6 +233,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
       ))}
 
       {step === 'artifact' && (
+        <div className="stack">
+        <p>You research <strong>one</strong> of these {pend.artifact.length} {p.artifactName ?? 'artifact'} perks; the others are not kept. Switch it on in Destiny 2 once it&rsquo;s researched.</p>
         <ChoiceGrid>
           {pend.artifact.map((m) => (
             <button key={m} className={`choice choice-artifact ${icons.plug(m) ? 'choice-item' : ''} ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
@@ -236,9 +245,12 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
             </button>
           ))}
         </ChoiceGrid>
+        </div>
       )}
 
       {step === 'chest' && (
+        <div className="stack">
+        <p>You keep <strong>one</strong> of these {pend.chest.length} rewards; the others are not kept.</p>
         <ChoiceGrid>
           {pend.chest.map((c, k) => (
             <button key={chestLabel(c)} className={`choice choice-item ${chest === k ? 'is-on' : ''} ${c.kind !== 'artifact' ? 'choice-upgrade' : 'choice-artifact'}`} onClick={() => setChest(k)}>
@@ -252,6 +264,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
             </button>
           ))}
         </ChoiceGrid>
+        </div>
       )}
 
       {step === 'drops' && <DropsEditor run={run} playerId={p.id} drops={drops} setDrops={setDrops} source={pend.kind === 'chest' ? 'secret chest' : 'encounter drop'} />}
@@ -452,7 +465,7 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
     >
       {stage === 'inputs' ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. Move them to your Vault in Destiny 2, then choose from {tu.options} Legendary {slot} options from your Vault.</p>
+          <p>Pick {tu.inputs} {slot} items{tu.sameRarity ? ' of the same rarity' : ''}. Move them to your Vault in Destiny 2, then choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
           <ul className="pick-list">
             {items.map((it) => (
               <li key={it.id}>
@@ -468,7 +481,7 @@ function TradeUpFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () =
           </ul>
         </div>
       ) : options.length === 0 ? (
-        <p>No eligible Legendary {slot} items in your Vault pool. Add some under Field Arsenal &rsaquo; Vault pool.</p>
+        <p>No eligible Legendary {slot} items in your Vault. Sign in with Bungie so your real Vault fills these options.</p>
       ) : (
         <ChoiceGrid five>
           {options.map((o) => (
