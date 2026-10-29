@@ -316,7 +316,9 @@ another character are reported, not moved. Needs the app scope below.
 **Resuming a run.** Reopening a run from the start screen (a saved run, or the one this browser
 was hosting) shows the lobby again, read-only (`ResumeLobby`, while `Run.resume` is set): the rules,
 each Guardian's seat with their current class, subclass, abilities and artifact, the run setup to
-put back (last restore point, else items marked equipped), and the route. A player's only button is
+put back (equipped: last restore point, else items marked equipped; plus every other run item, carried
+in the inventory), and the route. Restore pulls every run item back, equipped or carried, from the
+Vault or other characters. A player's only button is
 **Restore my Guardian**; a clean restore marks them restored. The host can **Mark restored** any
 Guardian (for anyone restoring by hand or with no device) and use **Host override** to carry on
 without everyone. The run continues once all are restored. Rewards, trade-ups and other prompts wait.

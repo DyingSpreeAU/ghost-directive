@@ -942,11 +942,13 @@ function ResumeSetup({ run, p, ready }: { run: Run; p: Player; ready: boolean })
   const point = p.bungie?.restore?.equipped
   const atPoint = point?.length ? p.inventory.filter((i) => i.instanceId && point.includes(i.instanceId)) : []
   const setup = atPoint.length ? atPoint : p.inventory.filter((i) => i.equipped)
+  // Run items that aren't part of the equipped setup: restored to the character's inventory.
+  const carried = p.inventory.filter((i) => !setup.includes(i))
   const extra = p.bungie?.untracked.length ?? 0
   const mark = (on: boolean) => host!.updateRun((r) => markRestored(r, p.id, on))
   return (
     <section className="g-sec resume-setup" aria-label="Run setup to restore">
-      <header className="g-sec-head"><span className="eyebrow">Run setup</span>{ready && <span className="small tone-ok">&#10003; Restored</span>}</header>
+      <header className="g-sec-head"><span className="eyebrow">Run setup: equipped</span>{ready && <span className="small tone-ok">&#10003; Restored</span>}</header>
       {setup.length === 0 ? <p className="small muted">No gear recorded as equipped in the run inventory.</p> : (
       <div className="tiles" style={{ ['--n' as string]: 5 }}>
         {GEAR_SLOTS.map((slot) => {
@@ -959,6 +961,18 @@ function ResumeSetup({ run, p, ready }: { run: Run; p: Player; ready: boolean })
           )
         })}
       </div>
+      )}
+      {carried.length > 0 && (
+        <>
+          <span className="eyebrow">In inventory ({carried.length})</span>
+          <div className="tiles" style={{ ['--n' as string]: 5 }}>
+            {carried.map((i) => (
+              <span key={i.id} className={`tile item ${rarityClass(i.rarity)}`} title={`${i.slot}: ${i.name} \u00b7 ${i.rarity}`} aria-label={`In inventory: ${i.name}, ${i.slot}, ${i.rarity}`}>
+                {icons.gear(i.name) ? <img src={icons.gear(i.name)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+              </span>
+            ))}
+          </div>
+        </>
       )}
       {!ready && extra > 0 && <p className="small tone-warn">Last sync: {extra} item{extra === 1 ? '' : 's'} on the character that {extra === 1 ? 'isn’t' : 'aren’t'} in the run.</p>}
       {!ready && own && p.bungie && signedIn && (
