@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import solarIcon from './assets/elements/solar.png'
 import arcIcon from './assets/elements/arc.png'
 import voidIcon from './assets/elements/void.png'
@@ -14,7 +15,8 @@ export function Modal(props: { title: string; kicker?: string; onClose?: () => v
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [onClose])
-  return (
+  // Drawn at the top of the page, so nothing in the layout (the sticky sidebar, raised tiles) can cover it.
+  return createPortal(
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
       <div className={`modal ${props.wide ? 'modal-wide' : ''} ${props.xwide ? 'modal-xwide' : ''}`} role="dialog" aria-modal="true" aria-label={props.title}>
         <header className="modal-head">
@@ -27,7 +29,8 @@ export function Modal(props: { title: string; kicker?: string; onClose?: () => v
         <div className="modal-body">{props.children}</div>
         {props.footer && <footer className="modal-foot">{props.footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
