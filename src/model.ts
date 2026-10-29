@@ -517,36 +517,37 @@ export function chestChoices(run: Run, p: Player): ChestReward[] {
 
 export type Severity = 'critical' | 'warn' | 'info'
 /** `discrepancy`: what's in the game doesn't match the run. Anything else is a warning. */
-export type Warning = { id: string; severity: Severity; playerId?: string; title: string; rule: string; where: string; discrepancy?: boolean }
+/** `flash`: keys of the screen parts it's about (elements with a matching `data-flash`), flashed when it's clicked. */
+export type Warning = { id: string; severity: Severity; playerId?: string; title: string; rule: string; where: string; discrepancy?: boolean; flash?: string[] }
 
 export function computeWarnings(run: Run): Warning[] {
   const out: Warning[] = []
   const r = run.ruleset
   if (run.status === 'active' && run.integrity <= r.integrity.wipe) {
-    out.push({ id: 'int-low', severity: 'critical', title: 'One more wipe ends the run', rule: `A wipe costs ${r.integrity.wipe} Integrity and the fireteam has ${run.integrity}.`, where: 'integrity' })
+    out.push({ flash: ['integrity'], id: 'int-low', severity: 'critical', title: 'One more wipe ends the run', rule: `A wipe costs ${r.integrity.wipe} Integrity and the fireteam has ${run.integrity}.`, where: 'integrity' })
   }
   for (const p of run.players) {
     const cap = capacityOf(run, p)
     for (const slot of r.inventory.slots) {
       const n = itemsIn(p, slot).length
-      if (n > cap) out.push({ id: `cap-${p.id}-${slot}`, severity: 'critical', playerId: p.id, title: `${slot} over capacity (${n}/${cap})`, rule: `Each slot holds ${cap} run items, including the equipped one. Move extras to the Vault.`, where: 'arsenal' })
+      if (n > cap) out.push({ flash: [`slot:${p.id}:${slot}`], id: `cap-${p.id}-${slot}`, severity: 'critical', playerId: p.id, title: `${slot} over capacity (${n}/${cap})`, rule: `Each slot holds ${cap} run items, including the equipped one. Move extras to the Vault.`, where: 'arsenal' })
       const eq = itemsIn(p, slot).filter((i) => i.equipped).length
-      if (eq > 1) out.push({ id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
+      if (eq > 1) out.push({ flash: [`slot:${p.id}:${slot}`], id: `eq-${p.id}-${slot}`, severity: 'warn', playerId: p.id, title: `${eq} items marked equipped in ${slot}`, rule: 'Only one item per slot can be equipped in Destiny 2.', where: 'arsenal' })
     }
     const outOfOrder = equippedNotUnlocked(p)
-    if (outOfOrder.length) out.push({ discrepancy: true, id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped but not unlocked: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}`, rule: `${outOfOrder.length === 1 ? 'It isn\u2019t' : 'They aren\u2019t'} unlocked in this run yet. Unequip ${outOfOrder.length === 1 ? 'it' : 'them'} in Destiny 2, or unlock ${outOfOrder.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'archive' })
-    if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ discrepancy: true, id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
+    if (outOfOrder.length) out.push({ flash: outOfOrder.map((id) => `ability:${p.id}:${id}`), discrepancy: true, id: `abl-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped but not unlocked: ${outOfOrder.map((id) => abilityById(id).name).join(', ')}`, rule: `${outOfOrder.length === 1 ? 'It isn\u2019t' : 'They aren\u2019t'} unlocked in this run yet. Unequip ${outOfOrder.length === 1 ? 'it' : 'them'} in Destiny 2, or unlock ${outOfOrder.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'archive' })
+    if (p.bungie?.subclass && p.bungie.subclass.element !== p.element) out.push({ flash: [`abilities:${p.id}`], discrepancy: true, id: `bs-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong subclass equipped: ${p.bungie.subclass.name}`, rule: `This run is committed to ${p.element}. Switch to your ${p.element} subclass in Destiny 2.`, where: 'archive' })
     const ga = p.bungie?.artifact
     if (ga && p.artifactName) {
       if (ga.matched !== p.artifactName) {
-        out.push({ discrepancy: true, id: `ba-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong artifact equipped: ${ga.name}`, rule: `This run uses ${p.artifactName}. Switch artifacts in Destiny 2.`, where: 'artifact' })
+        out.push({ flash: [`artifact:${p.id}`], discrepancy: true, id: `ba-${p.id}`, severity: 'critical', playerId: p.id, title: `Wrong artifact equipped: ${ga.name}`, rule: `This run uses ${p.artifactName}. Switch artifacts in Destiny 2.`, where: 'artifact' })
       } else {
         const extra = ga.activePerks.filter((n) => !p.artifact.includes(n))
-        if (extra.length) out.push({ discrepancy: true, id: `bp-${p.id}`, severity: 'critical', playerId: p.id, title: `Artifact perks on but not researched: ${extra.join(', ')}`, rule: `Only perks researched in this run should be active. Turn ${extra.length === 1 ? 'it' : 'them'} off in Destiny 2, or research ${extra.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'artifact' })
+        if (extra.length) out.push({ flash: [`artifact:${p.id}`], discrepancy: true, id: `bp-${p.id}`, severity: 'critical', playerId: p.id, title: `Artifact perks on but not researched: ${extra.join(', ')}`, rule: `Only perks researched in this run should be active. Turn ${extra.length === 1 ? 'it' : 'them'} off in Destiny 2, or research ${extra.length === 1 ? 'it' : 'them'} from a run reward first.`, where: 'artifact' })
       }
     }
-    if (p.bungie?.missing.length) out.push({ discrepancy: true, id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
-    if (p.bungie?.untracked.length) out.push({ discrepancy: true, id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
+    if (p.bungie?.missing.length) out.push({ flash: p.bungie.missing.map((n) => `item:${p.id}:${n}`), discrepancy: true, id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
+    if (p.bungie?.untracked.length) out.push({ flash: p.bungie.untracked.map((u) => `slot:${p.id}:${u.slot}`), discrepancy: true, id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
   }
   return out
 }

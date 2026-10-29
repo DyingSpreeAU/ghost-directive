@@ -91,7 +91,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
       )}
 
       <section className="command">
-        <div className="panel integrity">
+        <div className="panel integrity" data-flash="integrity">
           <div className="eyebrow">Fireteam Integrity</div>
           <div className="int-value">
             <span className={`num tone-${tone}`}>{run.integrity}</span>
@@ -154,7 +154,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
       {warnings.length > 0 && (
         <section className="warnings" aria-label="Warnings">
           {warnings.map((w) => (
-            <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where)}>
+            <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => { if (!flashTargets(w.flash ?? [])) go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where) }}>
               <span className="warn-sev">{w.discrepancy ? 'Discrepancy' : w.severity === 'info' ? 'Note' : 'Warning'}</span>
               <span className="warn-title">
                 {w.playerId && <b>{run.players.find((p) => p.id === w.playerId)?.name}: </b>}
@@ -314,6 +314,23 @@ export function CombatReport({ run, embedded }: { run: Run; embedded?: boolean }
       </div>
     </section>
   )
+}
+
+/**
+ * Scrolls to the screen parts a warning is about and flashes them red three times. Returns false
+ * when none of them is on screen (e.g. hidden locked abilities), so the caller can fall back.
+ */
+function flashTargets(keys: string[]) {
+  const els = keys.flatMap((k) => [...document.querySelectorAll<HTMLElement>(`[data-flash="${CSS.escape(k)}"]`)])
+  if (!els.length) return false
+  els[0].scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' })
+  for (const el of els) {
+    el.classList.remove('is-flash')
+    void el.offsetWidth // restart the animation on a second click
+    el.classList.add('is-flash')
+    el.addEventListener('animationend', () => el.classList.remove('is-flash'), { once: true })
+  }
+  return true
 }
 
 function ClaimBanner({ run }: { run: Run }) {

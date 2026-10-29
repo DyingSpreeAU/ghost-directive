@@ -1083,3 +1083,10 @@ button.ab-chip:hover { border-color: var(--dim); }
 .pick-count strong { color: var(--light); font-family: var(--f-mono); }
 .choice.trade-in.is-on::after { content: 'Trading in'; top: auto; bottom: 8px; }
 .choice.trade-in { padding-bottom: 30px; }
+
+/* ---------------------------------------------------------------- a clicked warning flashes what it's about */
+.is-flash { animation: gd-flash 0.5s ease-in-out 3; position: relative; z-index: 1; }
+@keyframes gd-flash {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50% { box-shadow: 0 0 0 2px var(--danger), 0 0 22px color-mix(in srgb, var(--danger) 70%, transparent); background-color: color-mix(in srgb, var(--danger) 18%, transparent); }
+}

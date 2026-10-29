@@ -153,7 +153,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
           const items = itemsIn(p, slot)
           const over = items.length > cap
           return (
-            <div key={slot} className={`g-slot ${over ? 'is-over' : ''}`}>
+            <div key={slot} className={`g-slot ${over ? 'is-over' : ''}`} data-flash={`slot:${p.id}:${slot}`}>
               <div className="g-slot-head">
                 <span className="g-slot-name">{slot}</span>
                 {run.ruleset.progression && p.tiers && <span title={`Gear progression: your ${slot} is at ${slotTier(run, p, slot)}.${slotTier(run, p, slot) === 'Legendary' ? '' : ' A non-Exotic drop here moves it up a tier.'}`}><TierWord tier={slotTier(run, p, slot)} /></span>}
@@ -162,7 +162,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               </div>
               <div className="tiles" style={{ ['--n' as string]: Math.max(cap, items.length, 4) }}>
                 {items.map((it, i) => (
-                  <Tile key={it.id} it={it} icon={icons.gear(it.name)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
+                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} icon={icons.gear(it.name)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
                 {Array.from({ length: Math.max(0, cap - items.length) }, (_, i) => (
                   control && !p.bungie
@@ -208,10 +208,11 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
 }
 
 /** One item: its Bungie icon where known, otherwise a rarity-coloured initial. */
-function Tile({ it, icon, over, selected, onSelect }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void }) {
+function Tile({ it, icon, over, selected, onSelect, flash }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void; flash?: string }) {
   const [broken, setBroken] = useState(false)
   return (
     <button
+      data-flash={flash}
       className={`tile item ${rarityClass(it.rarity)} ${it.equipped ? 'is-eq' : ''} ${over ? 'is-over' : ''} ${selected ? 'is-selected' : ''}`}
       title={`${it.name} · ${it.rarity}${it.equipped ? ' · Equipped' : ''}`}
       aria-label={`${it.name}, ${it.rarity}${it.equipped ? ', equipped' : ''}`}
@@ -231,7 +232,7 @@ function Abilities({ p, showLocked, control }: { p: Player; showLocked: boolean;
   const all = subclassAbilities(p.cls, p.element)
   const outOfOrder = equippedNotUnlocked(p).map(abilityById)
   return (
-    <section className="g-sec" aria-label={`${p.name}: subclass`}>
+    <section className="g-sec" aria-label={`${p.name}: subclass`} data-flash={`abilities:${p.id}`}>
       <header className="g-sec-head">
         <span className="eyebrow">Subclass{p.bungie?.subclass ? ` · ${p.bungie.subclass.name}` : ''}</span>
         <span className="muted small">{p.unlocked.length}/{all.length} unlocked</span>
@@ -251,8 +252,8 @@ function Abilities({ p, showLocked, control }: { p: Player; showLocked: boolean;
                   const icon = icons.plug(a.name)
                   const body = <>{icon ? <img src={icon} alt="" loading="lazy" /> : null}<span>{a.name}</span></>
                   return control
-                    ? <button key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}. Select to mark ${conf ? 'not ' : ''}equipped in game.${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`} aria-pressed={conf} onClick={() => dispatch({ type: 'configure', abilityId: a.id }, p.id)}>{body}</button>
-                    : <span key={a.id} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`}>{body}</span>
+                    ? <button key={a.id} data-flash={`ability:${p.id}:${a.id}`} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}. Select to mark ${conf ? 'not ' : ''}equipped in game.${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`} aria-pressed={conf} onClick={() => dispatch({ type: 'configure', abilityId: a.id }, p.id)}>{body}</button>
+                    : <span key={a.id} data-flash={`ability:${p.id}:${a.id}`} className={`ab-chip ${unlocked ? 'is-unlocked' : 'is-locked'} ${conf ? 'is-conf' : ''} ${conf && !unlocked ? 'is-bad' : ''}`} title={`${a.name}: ${state}${abilityDesc(a.id) ? `\n\n${abilityDesc(a.id)}` : ''}`}>{body}</span>
                 })}
               </div>
             </div>
@@ -269,7 +270,7 @@ function ArtifactPerks({ p, control }: { p: Player; control: boolean }) {
   const icons = useIcons()
   const art = artifactByName(p.artifactName)
   return (
-    <section className="g-sec" aria-label={`${p.name}: artifact`}>
+    <section className="g-sec" aria-label={`${p.name}: artifact`} data-flash={`artifact:${p.id}`}>
       <header className="g-sec-head">
         <span className="eyebrow">Artifact</span>
         <span className="muted small">{p.artifact.length}/21 researched</span>

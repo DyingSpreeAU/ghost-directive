@@ -146,6 +146,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   using the Standard Directive's numbers. It plays once as an intro on a browser's first visit
   (`ghost-directive:seen-intro`), skippable, and opens from **How it works** on the start screen.
   Sections animate as they scroll into view; reduced-motion users get still frames.
+- **Warnings point at what they mean**: each warning lists the screen parts it's about
+  (`Warning.flash`, matched against `data-flash` on the Integrity panel, slots, item tiles, ability
+  chips and sections, and the artifact). Clicking one scrolls to them and flashes them red three times.
+  Labels follow the type: **Discrepancy** when the game doesn't match the run, otherwise **Warning**.
 - **Report a bug** (sidebar, the foot of the page on phones, and the start screen) posts to Netlify Forms
   (form `bug-report`, declared in `index.html`) with optional run data; reports show in the Netlify
   dashboard under Forms. Form detection has to be enabled for the site. Where Netlify isn't serving the
