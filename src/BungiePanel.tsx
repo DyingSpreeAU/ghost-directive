@@ -39,7 +39,7 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
   try {
     const snap = await fetchSnapshot(p.cls)
     reportLink({ ok: true })
-    const drops = run.status === 'active' ? detectDrops(run.id, p, snap) : []
+    const drops = run.status === 'active' ? detectDrops(run.id, p, snap, run.rebaseAt) : []
     // Check mismatches as if the detected drops were already registered.
     const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, instanceId: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
     const { missing, untracked, undismantled } = reconcile(snap, withDrops)
@@ -94,6 +94,13 @@ export function useAutoSync(run: Run | null, me: Player | undefined, dispatch: (
     if (ready) syncBungie(run, me!, dispatch, notify)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.syncRequest, ready])
+  // A reopened run: read the account straight away, so drop detection forgets the break and the
+  // resume screen shows what's on the character now.
+  const resumeAt = run?.resume?.at
+  useEffect(() => {
+    if (ready && resumeAt) syncBungie(run!, me!, dispatch, notify)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumeAt, ready])
   const progress = (run?.claimed.length ?? 0) + (run?.chests.length ?? 0)
   const latest = useRef({ run, me })
   latest.current = { run, me }
@@ -227,7 +234,7 @@ export function SynapticLink({ onSignOut }: { onSignOut?: () => void }) {
  * Puts the run's setup back on the player's character in Destiny 2: weapons and armor outside the
  * run go to the Vault, run items come to the character, and the last recorded setup is equipped.
  */
-export function RestoreGuardian({ run, p }: { run: Run; p: Player }) {
+export function RestoreGuardian({ run, p, onRestored, label = 'Restore my Guardian', className = 'btn btn-ghost btn-sm' }: { run: Run; p: Player; onRestored?: (r: RestoreReport) => void; label?: string; className?: string }) {
   const { signedIn } = useBungie()
   const { dispatch, toast } = useGD()
   const [open, setOpen] = useState(false)
@@ -240,15 +247,17 @@ export function RestoreGuardian({ run, p }: { run: Run; p: Player }) {
   const go = async () => {
     setBusy(true); setError(null); setReport(null)
     try {
-      setReport(await restoreGuardian(p, point, setStep))
+      const r = await restoreGuardian(p, point, setStep)
+      setReport(r)
       await syncBungie(run, p, dispatch, toast)
+      onRestored?.(r)
     } catch (e) { setError((e as Error).message) }
     setBusy(false); setStep('')
   }
   const close = () => { if (!busy) { setOpen(false); setReport(null); setError(null) } }
   return (
     <>
-      <button className="btn btn-ghost btn-sm" onClick={() => setOpen(true)}>Restore my Guardian</button>
+      <button className={className} onClick={() => setOpen(true)}>{label}</button>
       {open && (
         <Modal
           title="Restore my Guardian"

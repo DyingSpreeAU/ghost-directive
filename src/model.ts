@@ -239,6 +239,10 @@ export type Run = {
   example?: boolean
   /** Guardians the host removed after they left, so their device can be told. */
   departed?: { name: string; clientId: string | null }[]
+  /** Set while a reopened run waits for every Guardian to restore their character; `ready` holds player ids. */
+  resume?: { at: number; ready: string[] }
+  /** When the run was last reopened: drop detection forgets anything picked up before this. */
+  rebaseAt?: number
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10)
@@ -354,6 +358,30 @@ export function removePlayer(run: Run, playerId: string) {
   run.pending = run.pending.filter((x) => x.playerId !== playerId)
   run.departed = [...(run.departed ?? []), { name: p.name, clientId: p.clientId }]
   log(run, 'run', `${p.name} left the fireteam and was removed from the run. ${run.players.length} Guardian${run.players.length === 1 ? '' : 's'} carry on.`)
+  if (run.resume) {
+    run.resume.ready = run.resume.ready.filter((x) => x !== playerId)
+    if (run.players.every((x) => run.resume!.ready.includes(x.id))) endResume(run)
+  }
+}
+
+/**
+ * A run reopened after a break: everyone restores their character before play picks up again, and
+ * drop detection forgets whatever was picked up outside the run in the meantime.
+ */
+export function startResume(run: Run) {
+  if (run.status !== 'active' || run.example) return
+  const at = Date.now()
+  run.resume = { at, ready: [] }
+  run.rebaseAt = at
+  log(run, 'run', 'Run reopened. Every Guardian restores their character before play continues.')
+}
+
+/** Ends the resume ready-up; `forced` when the host continued without everyone. */
+export function endResume(run: Run, forced = false) {
+  if (!run.resume) return
+  const waiting = run.players.filter((x) => !run.resume!.ready.includes(x.id)).map((x) => x.name)
+  delete run.resume
+  log(run, 'run', forced && waiting.length ? `Host continued the run without waiting for ${waiting.join(', ')}.` : 'Every Guardian is restored. The run continues.')
 }
 
 /** One Guardian died: Integrity drops by the protocol's death cost and their death count goes up. */
@@ -680,6 +708,7 @@ export type Intent =
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
+  | { type: 'resume-ready'; ready: boolean }
 
 const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -908,6 +937,16 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     case 'sync-request': {
       run.syncRequest = Date.now()
+      return null
+    }
+    case 'resume-ready': {
+      if (!run.resume) return 'The run is already under way.'
+      run.resume.ready = run.resume.ready.filter((x) => x !== p.id)
+      if (it.ready) {
+        run.resume.ready.push(p.id)
+        log(run, 'run', `${p.name} restored their Guardian.`)
+        if (run.players.every((x) => run.resume!.ready.includes(x.id))) endResume(run)
+      }
       return null
     }
     case 'bungie-unlink': {

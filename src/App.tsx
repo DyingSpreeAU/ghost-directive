@@ -1,6 +1,7 @@
 import { BugReport } from './BugReport'
 import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ResumeGate } from './ResumeGate'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
@@ -557,11 +558,13 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   // Slots that went up a tier: walk the player (or the host, for a Guardian with no device) through the swap.
   const upgradeFor = run?.players.find((x) => x.upgrades?.length && (x.id === me?.id || (role === 'host' && x.clientId === null)))
   const tradeFor = run?.players.find((x) => x.trade && (x.id === me?.id || (role === 'host' && x.clientId === null)))
-  const activeFlow: Flow | null = flow
-    ?? (tradeFor && run?.status === 'active' ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } : null)
+  // A reopened run waiting for everyone to restore holds back the automatic prompts.
+  const paused = !!run?.resume && run.status === 'active'
+  const activeFlow: Flow | null = flow ?? (paused ? null
+    : (tradeFor && run?.status === 'active' ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } : null)
     ?? (upgradeFor && run?.status === 'active' ? { type: 'upgrade', playerId: upgradeFor.id, upgradeId: upgradeFor.upgrades![0].id } : null)
     ?? (autoReward ? { type: 'reward', pendingId: autoReward.id } : null)
-    ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null)
+    ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null))
   const closeFlow = () => {
     if (flow) setFlow(null)
     else if (activeFlow?.type === 'reward') setDeferred((d) => [...d, activeFlow.pendingId])
@@ -614,6 +617,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
           )}
           {view === 'protocols' && role === 'host' ? <Protocols />
             : view === 'history' && role === 'host' ? <History />
+            : paused ? <ResumeGate run={run!} />
             : run ? <Briefing run={run} warnings={warnings} pendingDeferred={myPending.length} onOpenRewards={() => { setDeferred([]); if (myPending[0]) setFlow({ type: 'reward', pendingId: myPending[0].id }) }} />
             : lobby ? <LobbyView lobby={lobby} />
             : null}

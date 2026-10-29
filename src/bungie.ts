@@ -399,7 +399,8 @@ export function reconcile(snap: BungieSnapshot, p: Player) {
 
 // ------------------------------------------------------------------ drop detection
 
-type Baseline = { ids: string[]; starting: string[] }
+/** `at`: when the baseline was last brought up to date (a reopened run does that once). */
+type Baseline = { ids: string[]; starting: string[]; at?: number }
 const baselineKey = (runId: string, playerId: string) => `ghost-directive:drop-baseline:${runId}:${playerId}`
 
 /**
@@ -409,17 +410,23 @@ const baselineKey = (runId: string, playerId: string) => `ghost-directive:drop-b
  * a sync lost in transit is simply re-sent next time. Moving an item between Vault and character
  * keeps its instance id, so transfers don't count; pulling a fresh copy from Collections does.
  */
-export function detectDrops(runId: string, p: Player, snap: BungieSnapshot) {
+export function detectDrops(runId: string, p: Player, snap: BungieSnapshot, rebaseAt?: number) {
   const key = baselineKey(runId, p.id)
   let base: Baseline | null = null
   try { base = JSON.parse(localStorage.getItem(key) ?? 'null') } catch { /* fresh baseline */ }
+  const known = new Set([...p.inventory.map((i) => i.instanceId), ...(p.dismissed ?? [])])
   if (!base) {
     const starting = p.inventory.length === 0 ? snap.equipped.map((e) => e.instanceId).filter((x): x is string => !!x) : []
-    base = { ids: snap.instances.map((i) => i.instanceId).filter((id) => !starting.includes(id)), starting }
+    base = { ids: snap.instances.map((i) => i.instanceId).filter((id) => !starting.includes(id)), starting, at: Date.now() }
+    try { localStorage.setItem(key, JSON.stringify(base)) } catch { /* detection still works this session */ }
+  } else if (rebaseAt && (base.at ?? 0) < rebaseAt) {
+    // The run was reopened: whatever arrived while it was paused came from normal play, not the run.
+    const ids = new Set(base.ids)
+    for (const i of snap.instances) if (!known.has(i.instanceId)) ids.add(i.instanceId)
+    base = { ...base, ids: [...ids], at: Date.now() }
     try { localStorage.setItem(key, JSON.stringify(base)) } catch { /* detection still works this session */ }
   }
   const baseline = new Set(base.ids)
-  const known = new Set([...p.inventory.map((i) => i.instanceId), ...(p.dismissed ?? [])])
   const seen = new Set<string>()
   return snap.instances
     .filter((i) => !baseline.has(i.instanceId) && !known.has(i.instanceId) && !seen.has(i.instanceId) && (seen.add(i.instanceId), true))

@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 import type { Slot } from './data'
-import { PRESETS, uid, type Intent, type Lobby, type LobbyIntent, type Ruleset, type Run } from './model'
+import { PRESETS, startResume, uid, type Intent, type Lobby, type LobbyIntent, type Ruleset, type Run } from './model'
 import type { TransportStatus } from './net'
 
 /** Everything the host's browser keeps. Guests keep nothing but their device id. */
@@ -60,15 +60,16 @@ export function shelveActive(s: HostStore) {
   s.active = null
 }
 
-/** Makes a saved run the one being hosted. The run being hosted, if any, is saved. */
+/** Makes a saved run the one being hosted and opens its resume ready-up. The run being hosted, if any, is saved. */
 export function resumeRun(s: HostStore, runId: string) {
-  if (s.active?.id === runId) { s.lobby = null; return }
+  if (s.active?.id === runId) { s.lobby = null; startResume(s.active); return }
   const run = s.saved.find((x) => x.id === runId)
   if (!run) return
   shelveActive(s)
   s.saved = s.saved.filter((x) => x.id !== runId)
   s.active = run
   s.lobby = null
+  startResume(run)
 }
 
 /**
