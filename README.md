@@ -173,7 +173,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   (form `bug-report`, declared in `index.html`) with optional run data, the build (`VERSION`: short
   commit and build date, from Netlify's `COMMIT_REF`) and the Bungie link state; reports show in the Netlify
   dashboard under Forms. Form detection has to be enabled for the site. Where Netlify isn't serving the
-  page, the report is copied to the clipboard instead.
+  page, the report is copied to the clipboard instead. Each verified submission also becomes a GitHub
+  issue labelled `bug-report` (and the channel), via the event-triggered function
+  `netlify/functions/submission-created.mjs`. Env: `GITHUB_TOKEN` (fine-grained, Issues read and write
+  on this repo only); optional `GITHUB_REPO`. "@" in player text is neutralised so reports can't ping
+  anyone; run data goes in a collapsed block, trimmed to fit.
 - **Weapon cards** show the ammo type in the banner (white primary, green special, purple heavy with a
   white outline), from the definition's `equippingBlock.ammoType`.
 - **Item choices** (final-boss reward and trade-up, `GearPicker` in `src/Flows.tsx`): real icons, with
