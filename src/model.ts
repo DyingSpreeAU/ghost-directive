@@ -716,10 +716,11 @@ export type Intent =
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[]; bonusSlot?: Slot }
   | { type: 'upgrade-pick'; upgradeId: string; item: string }
   | { type: 'upgrade-done'; upgradeId: string }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; links?: { itemId: string; instanceId: string }[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
   | { type: 'resume-ready'; ready: boolean }
+  | { type: 'link-item'; itemId?: string; name?: string; slot?: Slot; instanceId: string }
 
 const str = (v: unknown, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
 
@@ -910,6 +911,13 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         p.configured = it.configured.filter((x): x is string => typeof x === 'string' && valid.has(x))
       }
       if (first) log(run, 'run', `${p.name} linked their Bungie account (${vault.length} eligible Vault items).`)
+      // Run items known only by name, matched to their copy on the account.
+      for (const raw of Array.isArray(it.links) ? it.links.slice(0, 40) : []) {
+        const l = (raw ?? {}) as { itemId?: unknown; instanceId?: unknown }
+        const item = p.inventory.find((x) => x.id === l.itemId && !x.instanceId)
+        const instanceId = str(l.instanceId, 30)
+        if (item && instanceId && !p.inventory.some((x) => x.instanceId === instanceId)) item.instanceId = instanceId
+      }
       // New items on the account since the run started count as drops; equipped gear at the start is starting gear.
       const dismissed = new Set(p.dismissed ?? [])
       for (const raw of Array.isArray(it.drops) ? it.drops.slice(0, 40) : []) {
@@ -948,6 +956,24 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     case 'sync-request': {
       run.syncRequest = Date.now()
+      return null
+    }
+    case 'link-item': {
+      // Which copy on the account is the run's: by item, or the first run item of that name with no copy yet.
+      const instanceId = str(it.instanceId, 30)
+      if (!instanceId) return 'No item copy given.'
+      const item = it.itemId ? p.inventory.find((x) => x.id === it.itemId) : p.inventory.find((x) => !x.instanceId && x.name === it.name && x.slot === it.slot)
+      if (!item) return it.itemId ? 'Item not in your run inventory.' : null
+      if (p.inventory.some((x) => x !== item && x.instanceId === instanceId)) return 'That copy is already another run item.'
+      const prev = item.instanceId
+      item.instanceId = instanceId
+      p.dismissed = (p.dismissed ?? []).filter((x) => x !== instanceId)
+      // Until the next sync: this copy stops being flagged, and the copy it replaced is flagged instead.
+      if (p.bungie) {
+        const was = p.bungie.untracked.find((u) => u.instanceId === instanceId)
+        p.bungie.untracked = p.bungie.untracked.filter((u) => u !== was)
+        if (was && prev) p.bungie.untracked.push({ slot: item.slot, name: item.name, rarity: item.rarity, instanceId: prev, equipped: item.equipped })
+      }
       return null
     }
     case 'resume-ready': {

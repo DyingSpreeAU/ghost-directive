@@ -127,6 +127,8 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   // Gear on the character that isn't part of the run, as of the last Bungie sync.
   const outside = (p.bungie?.untracked ?? []).map((u, k) => ({ ...u, key: `out-${k}` }))
   const selOut = outside.find((u) => u.key === selected)
+  // The run holds an item of the same name: this may be the copy that should count.
+  const twin = selOut && p.inventory.find((i) => i.name === selOut.name && i.slot === selOut.slot)
   const select = (id: string) => { setSelected(selected === id ? null : id); setRemoving(false) }
 
   const eligibleForTrade = (slot: Slot) => {
@@ -184,7 +186,9 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                       <span className="tag tag-bad">Not in the run</span>{' '}
                       {[selOut.rarity, selOut.equipped ? 'Equipped' : 'In inventory', selOut.fate ? `${FATE_LABEL[selOut.fate]} earlier` : ''].filter(Boolean).join(' · ')}
                     </span>
-                    <span className="item-meta">{selOut.fate
+                    <span className="item-meta">{twin
+                      ? `A second ${selOut.name}: the run tracks your other copy. If this one is the run's, say so and the other copy is flagged instead.`
+                      : selOut.fate
                       ? 'This item left the run but is on your character again. Put it away, or dismantle it if that was its fate.'
                       : 'On your character in Destiny 2 but not part of the run. Put it in your Vault, or add it if it was a run drop the app missed.'}</span>
                   </div>
@@ -196,7 +200,8 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                         setMoving(false)
                         if (r && !r.problems.length) { setSelected(null); void syncBungie(run, p, dispatch, () => {}) }
                       }}>{moving ? 'Moving\u2026' : 'To Vault'}</button>}
-                      {!selOut.fate && <button className="chip chip-quiet" disabled={!active} title="It was a run drop: add it to the run inventory." onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>Add to run</button>}
+                      {twin && selOut.instanceId && <button className="chip" disabled={!active} title={`The run has ${twin.name}, but the app is tracking your other copy. Make this copy the run's; the other one is then flagged instead.`} onClick={() => { dispatch({ type: 'link-item', itemId: twin.id, instanceId: selOut.instanceId! }, p.id); setSelected(null); toast(`This ${twin.name} is now the run's copy.`) }}>This is the run&rsquo;s copy</button>}
+                      {!selOut.fate && !twin && <button className="chip chip-quiet" disabled={!active} title="It was a run drop: add it to the run inventory." onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>Add to run</button>}
                     </div>
                   )}
                 </div>

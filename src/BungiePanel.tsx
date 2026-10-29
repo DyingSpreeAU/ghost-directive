@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { accountName, bungieConfigured, detectDrops, fetchSnapshot, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
+import { accountName, bungieConfigured, detectDrops, fetchSnapshot, linkByName, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
 import { Modal } from './ui'
 import type { Intent, Player, Run } from './model'
 import { useGD } from './store'
@@ -39,13 +39,17 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
   try {
     const snap = await fetchSnapshot(p.cls)
     reportLink({ ok: true })
-    const drops = run.status === 'active' ? detectDrops(run.id, p, snap, run.rebaseAt) : []
-    // Check mismatches as if the detected drops were already registered.
-    const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, instanceId: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
+    const found0 = run.status === 'active' ? detectDrops(run.id, p, snap, run.rebaseAt) : []
+    // Run items known only by name get their copy; a copy linked that way isn't a new drop.
+    const links = linkByName(snap, p, new Set(found0.filter((d) => !d.starting).map((d) => d.instanceId)))
+    const linked = new Map(links.map((l) => [l.itemId, l.instanceId]))
+    const drops = found0.filter((d) => ![...linked.values()].includes(d.instanceId))
+    // Check mismatches as if the links and detected drops were already registered.
+    const withDrops = { ...p, inventory: [...p.inventory.map((i) => (linked.has(i.id) ? { ...i, instanceId: linked.get(i.id) } : i)), ...drops.map((d) => ({ id: d.instanceId, instanceId: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
     const { missing, untracked, undismantled } = reconcile(snap, withDrops)
     const sub = snap.subclass
     dispatch({
-      type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, undismantled, drops,
+      type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, undismantled, drops, links,
       subclass: sub ? { name: sub.name, element: sub.element } : null,
       configured: sub && sub.element === p.element ? sub.abilityIds : [],
       artifact: snap.artifact,

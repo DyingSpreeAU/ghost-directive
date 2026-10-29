@@ -144,6 +144,13 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   still on the account. Each Guardian column lists them under **Left the run**. Gear that isn't in
   the run also shows in its slot as a red, hatched tile marked **Not in the run**, with **To Vault**
   (on the player's own signed-in device) and **Add to run** (for a drop the app missed).
+- **Exact copies**: every run item tracks one copy on the account by instance id, so a second copy of
+  the same weapon is flagged as not in the run. Pulling a reward, trade-up pick or tier piece takes
+  the Vault copy first (never a copy the run already tracks or one that left it) and records that
+  copy (`link-item`). Items recorded by name only (older runs, or moved by hand) are matched on the
+  next sync: a copy that's new since the run started, else the equipped one, one carried on the
+  character, then anywhere (`linkByName`). If the app picked the wrong copy, the other copy's tile
+  offers **This is the run's copy** to swap them.
 - **Equipped state syncs**: each Bungie sync sends what the character has equipped, and the host marks
   the matching run items (by instance id, else slot and name), so every device sees other Guardians'
   equipped gear.

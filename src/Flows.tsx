@@ -2,13 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
   capacityOf, changeIntegrity, current, itemsIn, log, recordClear, slotTier, tradeable,
-  type ChestReward, type NewItem, type Pending, type Player, type Run,
+  type ChestReward, type Intent, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
 import { ElementMark, Modal, TierWord, rarityClass } from './ui'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
-import { bungieConfigured, isSignedIn, ownedInSlot, tierWeapons } from './bungie'
+import { bungieConfigured, isSignedIn, ownedInSlot, tierWeapons, type MoveResult } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
@@ -91,9 +91,18 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
 
 type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'bonus' | 'drops'
 
+/** After the app moved a reward into place, the run item (recorded by name) takes that exact copy. */
+function linker(dispatch: (i: Intent, pid?: string) => void, playerId: string) {
+  return (r: MoveResult | null, name: string, slot: Slot) => {
+    const instanceId = r?.pulled[name]
+    if (instanceId) dispatch({ type: 'link-item', name, slot, instanceId }, playerId)
+  }
+}
+
 function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: () => void }) {
   const { dispatch, toast, me } = useGD()
   const p = run.players.find((x) => x.id === pend.playerId)!
+  const linkPulled = linker(dispatch, p.id)
   const gearAvail = pend.exotic.length + pend.legendary.length > 0
   const steps: Step[] = [
     ...(pend.unlock.length ? ['unlock' as const] : []),
@@ -136,7 +145,10 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
     // An Exotic they don't hold yet has to be pulled from Collections in game; the next sync links that copy.
     if (gear && notHeld(p, gear)) toast(`Pull ${gear.name} from Collections in Destiny 2. The app links that copy to this reward on its next sync.`)
-    else if (gear && canMoveInGame(p, me)) moveInGame(p, [{ name: gear.name, instanceId: gear.instanceId, to: 'character' }], toast)
+    else if (gear && canMoveInGame(p, me)) {
+      const g = gear
+      moveInGame(p, [{ name: g.name, instanceId: g.instanceId, to: 'character' }], toast).then((r) => linkPulled(r, g.name, g.slot))
+    }
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
 
@@ -556,6 +568,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
   const [moving, setMoving] = useState(false)
   const tu = run.ruleset.tradeUp
   const p = run.players.find((x) => x.id === playerId)!
+  const linkPulled = linker(dispatch, playerId)
   // Once the inputs are traded in, the options are fixed on the run until one is picked.
   const trade = p.trade
   const slot = trade?.slot ?? asked
@@ -596,8 +609,12 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
       const r = await moveInGame(p, [{ name: choice.name, to: 'character' }], toast)
       setMoving(false)
       if (!r) return
-    } else toast(`Traded up for ${choice.name}. Move it to your character in Destiny 2.`)
-    dispatch({ type: 'tradeup', choice }, playerId)
+      dispatch({ type: 'tradeup', choice }, playerId)
+      linkPulled(r, choice.name, choice.slot)
+    } else {
+      toast(`Traded up for ${choice.name}. Move it to your character in Destiny 2.`)
+      dispatch({ type: 'tradeup', choice }, playerId)
+    }
     onClose()
   }
   const kind = slot === 'Class Item' ? 'class items' : WEAPON_SLOTS.includes(slot) ? 'weapons' : `${slot.toLowerCase()} pieces`
@@ -653,6 +670,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
 function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose: () => void; playerId: string; upgradeId: string }) {
   const { dispatch, toast, me, canControl } = useGD()
   const p = run.players.find((x) => x.id === playerId)!
+  const linkPulled = linker(dispatch, playerId)
   const up = p.upgrades?.find((x) => x.id === upgradeId)
   const inGame = canMoveInGame(p, me)
   const [held, setHeld] = useState<boolean | null>(null)
@@ -686,6 +704,10 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
       const r = await moveInGame(p, [{ name: up.item, slot: up.slot, to: 'character' }], toast)
       setMoving(false)
       if (!r) return
+      dispatch({ type: 'upgrade-done', upgradeId: up.id }, p.id)
+      linkPulled(r, up.item, up.slot)
+      onClose()
+      return
     }
     dispatch({ type: 'upgrade-done', upgradeId: up.id }, p.id)
     onClose()

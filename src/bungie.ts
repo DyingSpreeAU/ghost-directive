@@ -377,6 +377,28 @@ function restorePoint(p: ProfileResponse, charId: string, items: Record<string, 
   }
 }
 
+/**
+ * Run items known only by name (a reward, trade-up or tier piece recorded before its copy was
+ * known) get a copy on the account: a copy that's new since the run started first, then the
+ * equipped one, one carried on the character, then anywhere. Copies already tracked, or that left
+ * the run, aren't used. Each copy goes to one run item.
+ */
+export function linkByName(snap: BungieSnapshot, p: Player, fresh: Set<string>): { itemId: string; instanceId: string }[] {
+  const taken = new Set<string>([...p.inventory.map((i) => i.instanceId).filter((x): x is string => !!x), ...(p.dismissed ?? [])])
+  const carried = new Map(snap.carried.filter((c) => c.instanceId).map((c) => [c.instanceId!, c]))
+  const rank = (id: string) => (fresh.has(id) ? 0 : carried.get(id)?.equipped ? 1 : carried.has(id) ? 2 : 3)
+  const out: { itemId: string; instanceId: string }[] = []
+  for (const it of p.inventory.filter((i) => !i.instanceId)) {
+    const pick = snap.instances
+      .filter((x) => x.name === it.name && x.slot === it.slot && !taken.has(x.instanceId))
+      .sort((a, b) => rank(a.instanceId) - rank(b.instanceId))[0]
+    if (!pick) continue
+    taken.add(pick.instanceId)
+    out.push({ itemId: it.id, instanceId: pick.instanceId })
+  }
+  return out
+}
+
 /** Compares the run's tracked items with what the account actually holds. */
 /**
  * Compares the run with the account: run items not on the account, gear on the character that isn't
@@ -1091,6 +1113,7 @@ export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResu
   const held = holdings(p, items)
   const power = (h: Held) => p.itemComponents?.instances?.data?.[h.instanceId]?.primaryStat?.value ?? 0
   const used = new Set<string>()
+  const taken = new Set<string>([...player.inventory.map((i) => i.instanceId).filter((x): x is string => !!x), ...(player.dismissed ?? [])])
   const move = (h: Held, toVault: boolean, characterId: string) =>
     api('/Destiny2/Actions/Items/TransferItem/', { itemReferenceHash: h.itemHash, stackSize: 1, transferToVault: toVault, itemId: h.instanceId, characterId, membershipType: mem.membershipType })
 
@@ -1099,10 +1122,13 @@ export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResu
       const row = items[h.itemHash]
       return !op.slot || (!!row && ALL_SLOTS[row[1]] === op.slot && (row[3] === 3 || row[3] === CLASS_TYPE[player.cls]))
     }
-    const copies = held.filter((h) => !used.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name && fits(h)))
-    // Pulling: the best copy not already on the character (Vault first). Vaulting: the copy on the character.
+    // A pull never takes a copy the run already tracks, or one that left the run.
+    const claimed = op.to === 'character' && !op.instanceId ? taken : new Set<string>()
+    const copies = held.filter((h) => !used.has(h.instanceId) && !claimed.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name && fits(h)))
+    // Pulling: a reward comes from the Vault, so the Vault copy first, then another character's,
+    // and a copy already on the run character only when there's no other. Vaulting: the copy on the character.
     const pick = op.to === 'character'
-      ? copies.find((h) => h.where === charId) ?? copies.filter((h) => h.where !== 'postmaster').sort((a, b) => Number(b.where === 'vault') - Number(a.where === 'vault') || power(b) - power(a))[0]
+      ? copies.filter((h) => h.where !== 'postmaster').sort((a, b) => Number(b.where === 'vault') - Number(a.where === 'vault') || Number(a.where === charId) - Number(b.where === charId) || power(b) - power(a))[0]
       : copies.find((h) => h.where === charId && !h.equipped) ?? copies.find((h) => h.where !== 'vault' && h.where !== 'postmaster') ?? copies.find((h) => h.where === 'vault')
     if (!pick) { out.problems.push(op.to === 'character' ? `${op.name}: not on your account (claim it from Collections in game)` : `${op.name}: not found on your account`); continue }
     used.add(pick.instanceId)
