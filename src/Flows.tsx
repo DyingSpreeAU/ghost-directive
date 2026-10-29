@@ -8,7 +8,7 @@ import { useGD, type Flow } from './store'
 import { ElementMark, Modal, TierWord, rarityClass } from './ui'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
-import { bungieConfigured, isSignedIn, ownedInSlot, tierWeapons, type MoveResult } from './bungie'
+import { bungieConfigured, isSignedIn, ownedInSlot, tierWeaponType, tierWeapons, type MoveResult } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
@@ -90,6 +90,9 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
 // ------------------------------------------------------------------ Player: resolve a reward
 
 type Step = 'unlock' | 'gear' | 'artifact' | 'chest' | 'bonus' | 'drops'
+
+/** Armor pieces as the game names them; class items by class. */
+const ARMOR_PIECE: Record<string, string> = { Helmet: 'Helmet', Gauntlets: 'Gauntlets', Chest: 'Chest Armor', Legs: 'Leg Armor', Hunter: 'Cloak', Warlock: 'Bond', Titan: 'Mark' }
 
 /** After the app moved a reward into place, the run item (recorded by name) takes that exact copy. */
 function linker(dispatch: (i: Intent, pid?: string) => void, playerId: string) {
@@ -689,6 +692,14 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
       dispatch({ type: 'upgrade-pick', upgradeId: up.id, item: from[Math.floor(Math.random() * from.length)] }, p.id)
     })()
   }, [up?.id, up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
+  // What the piece is, as the game names it: the weapon type, or the armor piece.
+  const [wtype, setWtype] = useState<string | undefined>()
+  useEffect(() => {
+    if (!up?.item || !weapon) return
+    let live = true
+    tierWeaponType(up.item).then((t) => live && setWtype(t))
+    return () => { live = false }
+  }, [up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!up?.item || !inGame) return
     let live = true
@@ -731,7 +742,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
             {up.reason === 'drop' && up.drop && <li><strong>Dismantle {up.drop.name}</strong> in Destiny 2. It moved your {up.slot} up a tier, but you don&rsquo;t keep it until the slot is Legendary.</li>}
             <li>
               {up.item
-                ? <><strong>Use {up.item}</strong>, {up.to === 'Uncommon' ? 'an' : 'a'} <TierWord tier={up.to} /> {weapon ? `${up.slot.toLowerCase()} weapon` : up.slot === 'Class Item' ? 'class item' : `${up.slot.toLowerCase()} piece`}. </>
+                ? <><strong>Use {up.item}</strong>, {up.to === 'Uncommon' ? 'an' : 'a'} <TierWord tier={up.to} /> {weapon ? `${up.slot.toLowerCase()} ${wtype ?? 'weapon'}` : ARMOR_PIECE[up.slot === 'Class Item' ? p.cls : up.slot]}. </>
                 : <>Picking your <TierWord tier={up.to} /> {up.slot.toLowerCase()} weapon&hellip; </>}
               {up.item && (inGame
                 ? held === null ? <span className="muted">Checking your account&hellip;</span>

@@ -1077,11 +1077,15 @@ export async function ownedInSlot(names: string[], slot: Slot, cls: ClassType): 
   return out
 }
 
-let tierPool: Promise<{ weapons: Record<string, Record<string, string[]>> }> | null = null
+let tierPool: Promise<{ weapons: Record<string, Record<string, string[]>>; types?: Record<string, string> }> | null = null
 /** Uncommon and Rare weapons per slot that can be pulled from Collections (public/bungie-tiers.json). */
+const loadTiers = () => (tierPool ??= fetch('/bungie-tiers.json').then((r) => (r.ok ? r.json() : { weapons: {} }), () => ({ weapons: {} })))
 export function tierWeapons() {
-  tierPool ??= fetch('/bungie-tiers.json').then((r) => (r.ok ? r.json() : { weapons: {} }), () => ({ weapons: {} }))
-  return tierPool.then((t) => t.weapons ?? {})
+  return loadTiers().then((t) => t.weapons ?? {})
+}
+/** A tier weapon's type as the game names it ("Auto Rifle"), if known. */
+export function tierWeaponType(name: string) {
+  return loadTiers().then((t) => t.types?.[name])
 }
 
 // ------------------------------------------------------------------ run inventory moves (Vault ⇄ run character)
