@@ -89,6 +89,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
   final-boss category-first reward (Exotic armor or Vault Legendary weapon), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
+- **Mini command bar** (host, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's
+  top scrolls above the window, a compact bar shrinks into place at the top of the main column with
+  Integrity, the current dungeon, encounter and progress, and Clear / Record wipe (or the secret chest
+  question). Clicking Integrity or the encounter scrolls back to the full panel. On phones it keeps
+  Integrity and the buttons, and the Guardian name tabs stick below it.
 - **Host actions are two buttons.** Progress records an encounter clear: Integrity changes and
   every player's reward screen opens straight away. Then, for each secret chest before the next
   encounter (positions from `DUNGEONS` in `src/data.ts`), Progress asks "Did you get Secret Chest N?"

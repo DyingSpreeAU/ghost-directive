@@ -1121,3 +1121,41 @@ button.ab-chip:hover { border-color: var(--dim); }
 .resume-guide-list { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 0.88rem; }
 .resume-guide-list li::before { content: "\25C6"; color: var(--light); font-size: 0.6rem; margin-right: 6px; vertical-align: 2px; }
 .resume-guide p { margin: 0; }
+
+/* ---------------------------------------------------------------- host mini command bar */
+/* Takes no room in the page; its bar sticks to the top of the main column once the full panel scrolls away. */
+.mini-dock { position: sticky; top: 8px; height: 0; margin-bottom: -22px; z-index: 30; }
+body:has(.channel-badge) .mini-dock { top: 34px; } /* under the nightly badge */
+.mini-command {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
+  padding: 8px 12px; background: color-mix(in srgb, var(--hull) 94%, transparent); backdrop-filter: blur(6px);
+  border: 1px solid color-mix(in srgb, var(--light) 35%, var(--seam)); border-radius: var(--radius);
+  box-shadow: 0 12px 34px #000b;
+  /* Hidden: larger and lower, as if it were still the full panel; it shrinks up into place. */
+  opacity: 0; visibility: hidden; transform: translateY(60px) scale(1.12); transform-origin: top center;
+  transition: opacity 0.22s ease, transform 0.32s cubic-bezier(0.2, 0.8, 0.25, 1), visibility 0s linear 0.32s;
+}
+.mini-command.is-on { opacity: 1; visibility: visible; transform: none; transition: opacity 0.22s ease, transform 0.32s cubic-bezier(0.2, 0.8, 0.25, 1), visibility 0s; }
+.mini-command > button { all: unset; cursor: pointer; display: grid; gap: 2px; min-width: 0; }
+.mini-command > button:focus-visible { outline: 2px solid var(--light); outline-offset: 3px; }
+.mini-int { width: 120px; }
+.mini-int .meter { height: 4px; }
+.mini-num { font: 600 1.25rem/1 var(--f-mono); }
+.mini-num small { font-size: 0.7rem; color: var(--dim); margin-left: 2px; }
+.mini-enc-name { font-family: var(--f-display); font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-enc-name .tag { margin-left: 8px; vertical-align: 2px; }
+.mini-enc .eyebrow { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-acts { display: flex; align-items: center; gap: 8px; }
+@media (max-width: 900px) {
+  .mini-command { grid-template-columns: auto minmax(0, 1fr); gap: 10px; padding: 8px 10px; }
+  .mini-enc { display: none !important; }
+  .mini-int { width: 78px; }
+  .mini-int .eyebrow { display: none; }
+  .mini-acts { justify-content: flex-end; gap: 6px; }
+  .mini-acts .small { display: none; }
+  .mini-acts .btn { white-space: nowrap; padding: 7px 10px; }
+  /* The Guardian name tabs stick below the bar while it shows. */
+  .briefing:has(.mini-command.is-on) .swipe-tabs { top: 64px; }
+  body:has(.channel-badge) .briefing:has(.mini-command.is-on) .swipe-tabs { top: 90px; }
+}
+@media (prefers-reduced-motion: reduce) { .mini-command, .mini-command.is-on { transition: none; } }

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ALL_SLOTS, DAMAGE_ELEMENTS, WEAPON_SLOTS, dungeonById, type Element, type Rarity, type Slot,
 } from './data'
@@ -40,8 +40,10 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
   const hostName = run.players.find((p) => p.isHost)?.name ?? 'The host'
   const waitingOn = run.players.filter((p) => run.pending.some((x) => x.playerId === p.id))
 
+  const command = useRef<HTMLElement>(null)
   return (
     <div className="briefing">
+      {isHost && active && <MiniCommand run={run} target={command} />}
       {run.example && isHost && (
         <div className="example-banner">
           <strong>Example run.</strong> Sample data so you can try every flow. The other two Guardians have no device linked, so their pending rewards wait for a player, or you can resolve them.
@@ -90,7 +92,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
         </section>
       )}
 
-      <section className="command">
+      <section className="command" ref={command}>
         <div className="panel integrity" data-flash="integrity">
           <div className="eyebrow">Fireteam Integrity</div>
           <div className="int-value">
@@ -171,6 +173,62 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
       <div className="fold-label"><span>Records</span></div>
 
       <CombatReport run={run} />
+    </div>
+  )
+}
+
+/**
+ * The host's command panel, shrunk into a bar at the top of the page once the full panel starts to
+ * scroll off screen: Integrity, the current encounter, and the clear and wipe buttons.
+ */
+function MiniCommand({ run, target }: { run: Run; target: React.RefObject<HTMLElement | null> }) {
+  const { openFlow, host, toast } = useGD()
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    const el = target.current
+    if (!el) return
+    // On once the panel's top has gone above the window and part of it is hidden.
+    const io = new IntersectionObserver(([e]) => setOn(e.intersectionRatio < 0.98 && e.boundingClientRect.top < 0), { threshold: [0, 0.25, 0.5, 0.75, 0.98, 1] })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [target])
+  const { dungeon, encounter, done, total } = current(run)
+  const r = run.ruleset.integrity
+  const tone = run.integrity <= r.wipe ? 'danger' : run.integrity <= r.wipe * 2 ? 'warn' : 'light'
+  const claimed = run.claimed.includes(encounter.id)
+  const chest = pendingChest(run)
+  const answer = (found: boolean) => {
+    host!.updateRun((x) => recordChest(x, found))
+    toast(found ? `Secret Chest ${chest!.number} found. Chest rewards sent.` : `Secret Chest ${chest!.number} skipped.`)
+  }
+  const top = () => target.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return (
+    <div className="mini-dock" aria-hidden={!on}>
+      <div className={`mini-command ${on ? 'is-on' : ''}`} role="region" aria-label="Run controls">
+        <button className="mini-int" onClick={top} tabIndex={on ? 0 : -1} title="Back to the full panel">
+          <span className="eyebrow">Integrity</span>
+          <span className={`mini-num tone-${tone}`}>{run.integrity}<small>/{r.max}</small></span>
+          <Meter value={run.integrity} max={r.max} tone={tone} />
+        </button>
+        <button className="mini-enc" onClick={top} tabIndex={on ? 0 : -1} title="Back to the full panel">
+          <span className="eyebrow">{dungeon.name} &middot; {done}/{total}</span>
+          <span className="mini-enc-name">{encounter.name}{encounter.type === 'final' && <span className="tag tag-final">Final boss</span>}</span>
+        </button>
+        <div className="mini-acts">
+          {chest ? (
+            <>
+              <span className="small">Secret Chest {chest.number}?</span>
+              <button className="btn btn-light btn-sm" tabIndex={on ? 0 : -1} onClick={() => answer(true)}>Got it</button>
+              <button className="btn btn-ghost btn-sm" tabIndex={on ? 0 : -1} onClick={() => answer(false)}>Missed<span className="hide-narrow"> it</span></button>
+            </>
+          ) : (
+            <button className="btn btn-light btn-sm" tabIndex={on ? 0 : -1} disabled={claimed} onClick={() => openFlow({ type: 'clear' })} title={`+${r.clear} Integrity`}>
+              {encounter.type === 'final' ? 'Clear final boss' : 'Clear encounter'}
+            </button>
+          )}
+          <button className="btn btn-danger btn-sm" tabIndex={on ? 0 : -1} onClick={() => openFlow({ type: 'wipe' })} title={`\u2212${r.wipe} Integrity`}>Record wipe</button>
+        </div>
+      </div>
     </div>
   )
 }
