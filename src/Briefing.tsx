@@ -155,7 +155,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
         <section className="warnings" aria-label="Warnings">
           {warnings.map((w) => (
             <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where)}>
-              <span className="warn-sev">{w.severity === 'critical' ? 'Discrepancy' : w.severity === 'warn' ? 'Check' : 'Note'}</span>
+              <span className="warn-sev">{w.discrepancy ? 'Discrepancy' : w.severity === 'info' ? 'Note' : 'Warning'}</span>
               <span className="warn-title">
                 {w.playerId && <b>{run.players.find((p) => p.id === w.playerId)?.name}: </b>}
                 {w.title}
