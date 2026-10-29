@@ -78,19 +78,83 @@ function RouteArt() {
   )
 }
 
-/** The Integrity gauge: starts, drains on a wipe and a death, refills on a clear. */
+type Beat = { v: number; kind?: 'clear' | 'death' | 'wipe' }
+
+/**
+ * The gauge's script, from the Standard protocol's numbers: a start, a few clears and a death, then
+ * deaths and wipes draining it to zero.
+ */
+function integrityScript(): Beat[] {
+  const death = I.death || 5
+  let v = I.start
+  const beats: Beat[] = [{ v }]
+  const add = (kind: Beat['kind'], d: number) => { v = Math.max(0, Math.min(I.max, v + d)); beats.push({ v, kind }) }
+  add('clear', I.clear); add('clear', I.clear); add('death', -death); add('clear', I.clear)
+  const fall: ('death' | 'wipe')[] = ['death', 'wipe', 'death', 'death', 'wipe']
+  for (let k = 0; v > 0 && k < 60; k++) add(fall[k % fall.length], fall[k % fall.length] === 'wipe' ? -I.wipe : -death)
+  return beats
+}
+const SCRIPT = integrityScript()
+const BEAT_MS = 1150
+const OVER_MS = 3000
+const LABEL = { clear: 'Clear', death: 'Death', wipe: 'Wipe' }
+
+/** Counts from the shown number to the target over a short ease. */
+function useTween(target: number, ms = 450) {
+  const [shown, setShown] = useState(target)
+  const from = useRef(target)
+  useEffect(() => {
+    const a = from.current, t0 = performance.now()
+    let raf = 0
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - t0) / ms)
+      const v = Math.round(a + (target - a) * (1 - (1 - k) ** 3))
+      setShown(v); from.current = v
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [target, ms])
+  return shown
+}
+
+/**
+ * The Integrity gauge, played out: clears fill it, deaths and wipes drain it, and at zero the run
+ * ends. Then it starts over. The arc and the number always show the same value.
+ */
 function IntegrityArt() {
+  const [i, setI] = useState(0)
+  const [over, setOver] = useState(false)
+  const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  useEffect(() => {
+    if (still) return
+    const last = i >= SCRIPT.length - 1
+    const t = setTimeout(() => {
+      if (!last) return setI(i + 1)
+      if (!over) return setOver(true)
+      setOver(false); setI(0)
+    }, last ? (over ? OVER_MS : BEAT_MS) : i === 0 ? 1600 : BEAT_MS)
+    return () => clearTimeout(t)
+  }, [i, over, still])
+  const beat = SCRIPT[i]
+  const shown = useTween(beat.v)
+  const pct = (shown / I.max) * 100
+  const delta = beat.kind && i > 0 ? beat.v - SCRIPT[i - 1].v : 0
   return (
-    <div className="xp-int">
+    <div className={`xp-int ${over ? 'is-over' : ''} ${pct <= 20 ? 'is-low' : ''}`}>
       <svg viewBox="0 0 200 120" className="xp-svg">
         <path d="M20 110 A80 80 0 0 1 180 110" className="xp-track" />
-        <path d="M20 110 A80 80 0 0 1 180 110" className="xp-gauge" pathLength={100} />
+        <path d="M20 110 A80 80 0 0 1 180 110" className="xp-gauge" pathLength={100} style={{ strokeDashoffset: 100 - pct, opacity: shown === 0 ? 0 : 1 }} />
       </svg>
-      <div className="xp-int-num"><span className="xp-count" /></div>
+      <div className="xp-int-num">
+        {over ? <span className="xp-runover">Run over</span> : <span className="xp-count">{shown}</span>}
+        {beat.kind && !over && <span key={i} className={`xp-delta t-${beat.kind}`}>{delta > 0 ? '+' : '\u2212'}{Math.abs(delta)} {LABEL[beat.kind]}</span>}
+      </div>
+      {over && <div className="xp-shatter" />}
       <ul className="xp-int-steps">
-        <li className="t-ok">Clear <b>+{I.clear}</b></li>
-        <li className="t-bad">Death <b>&minus;{I.death}</b></li>
-        <li className="t-bad">Wipe <b>&minus;{I.wipe}</b></li>
+        <li className={`t-ok ${beat.kind === 'clear' && !over ? 'is-on' : ''}`}>Clear <b>+{I.clear}</b></li>
+        <li className={`t-bad ${beat.kind === 'death' && !over ? 'is-on' : ''}`}>Death <b>&minus;{I.death}</b></li>
+        <li className={`t-bad ${beat.kind === 'wipe' && !over ? 'is-on' : ''}`}>Wipe <b>&minus;{I.wipe}</b></li>
       </ul>
     </div>
   )

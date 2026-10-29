@@ -160,7 +160,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   the mode's pillars (route, Integrity, earned kit, gear progression, rewards, Field Arsenal, fireteam),
   using the Standard Directive's numbers. It plays once as an intro on a browser's first visit
   (`ghost-directive:seen-intro`), skippable, and opens from **How it works** on the start screen.
-  Sections animate as they scroll into view; reduced-motion users get still frames.
+  Sections animate as they scroll into view; reduced-motion users get still frames. The Integrity
+  gauge plays a scripted run (`integrityScript`): clears and a death, then deaths and wipes down to
+  0, "Run over", and it loops. Arc and number are driven from the same value.
 - **Warnings point at what they mean**: each warning lists the screen parts it's about
   (`Warning.flash`, matched against `data-flash` on the Integrity panel, slots, item tiles, ability
   chips and sections, and the artifact). Clicking one scrolls to them and flashes them red three times.
