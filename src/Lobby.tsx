@@ -29,7 +29,8 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   }
 
   // Signed-in players: live equipped gear, used to fill their seat once and to warn before readying up.
-  const eq = useEquipped()
+  // Once they've set their seat themselves, read the character of that class when they're not in game.
+  const eq = useEquipped(mine?.custom ? mine.cls : undefined)
   useAutofill(eq, mine, (patch) => { if (mine) patchSeat(mine, patch) }, toast)
   // A seat still called "Guardian N" takes the player's Bungie name; a name they typed stays.
   const bungieName = eq.data ? bungieDisplayName(eq.data.name) : ''
@@ -619,8 +620,10 @@ function since(t: number, now: number) {
 type Equipped = ReturnType<typeof useEquipped>
 
 /** The signed-in player's live equipped gear, refreshed every minute while in the lobby. */
-function useEquipped() {
+function useEquipped(prefer?: ClassType) {
   const { signedIn } = useBungie()
+  const preferRef = useRef(prefer)
+  preferRef.current = prefer
   const [data, setData] = useState<EquippedPreview | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -628,7 +631,7 @@ function useEquipped() {
   const refresh = useCallback((): Promise<EquippedPreview | null> => {
     setBusy(true)
     setError(null)
-    return fetchEquipped()
+    return fetchEquipped(preferRef.current)
       .then(
         (d) => { setData(d); reportLink({ ok: true }); return d },
         (e) => { setError((e as Error).message); reportLink({ error: (e as Error).message }); return null },
@@ -640,7 +643,7 @@ function useEquipped() {
     refresh()
     const t = setInterval(refresh, 60_000)
     return () => clearInterval(t)
-  }, [signedIn, refresh])
+  }, [signedIn, refresh, prefer])
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(t) }, [])
   // A Send to that passed every check vouches for the subclass and artifact until Bungie's data
   // catches up (data minted after the send), and its own read of the gear stands in for the preview's.
@@ -725,7 +728,7 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
         )}
       </header>
       <h4 id="equipped-now-title" className="equipped-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h4>
-      {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : 'Not in game: showing your most recently played character'}</p>}
+      {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : `Not in game: showing your most recently played ${data.cls}`}</p>}
       {data && seat && data.cls !== seat.cls && <p className="small tone-warn">Your seat is set to {seat.cls}. Use my character&rsquo;s setup to match, or switch characters in game.</p>}
       <div className="row-acts">
         {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}

@@ -447,11 +447,11 @@ export type EquippedPreview = {
   fetchedAt: number
 }
 
-/** What the active character has equipped right now, for the lobby preview. */
-export async function fetchEquipped(): Promise<EquippedPreview> {
+/** What the active character has equipped right now, for the lobby preview (offline: the seat's class, when given). */
+export async function fetchEquipped(prefer?: ClassType): Promise<EquippedPreview> {
   const [{ mem, name }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,202,204,205,305`)
-  const picked = pickCharacter(p)
+  const picked = pickFor(p, prefer)
   if (!picked) throw new BungieError('No characters found on this account.')
   const { id, char: c, online } = picked
   const equipped = (p.characterEquipment?.data?.[id]?.items ?? [])
@@ -558,6 +558,16 @@ export function classifySubclass(cls: ClassType, name: string, element: Element,
  * The character to read: the one in game right now (its current activity is set while online,
  * in orbit or an activity), otherwise the most recently played. Optionally limited to a class.
  */
+/**
+ * The character to read for a seat: the one in game right now, else the most recently played of
+ * the seat's class, else the most recently played.
+ */
+function pickFor(p: ProfileResponse, prefer?: ClassType) {
+  const any = pickCharacter(p)
+  if (!any || any.online || !prefer) return any
+  return pickCharacter(p, prefer) ?? any
+}
+
 function pickCharacter(p: ProfileResponse, cls?: ClassType) {
   const acts = p.characterActivities?.data ?? {}
   const list = Object.entries(p.characters?.data ?? {})
@@ -771,7 +781,7 @@ export type SendReport = {
 export async function sendSetup(seat: { cls: ClassType; element: Element; abilities: string[]; artifact?: string }, progress: (msg: string) => void): Promise<SendReport> {
   const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,201,204,205,305,310`)
-  const picked = pickCharacter(p)
+  const picked = pickFor(p, seat.cls)
   if (!picked) throw new BungieError('No characters found on this account.')
   const charId = picked.id
   const gear = (p.characterEquipment?.data?.[charId]?.items ?? [])
