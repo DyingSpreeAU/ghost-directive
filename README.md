@@ -124,7 +124,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   Any non-Exotic gear arriving in a slot below Legendary (detected or registered drops, the final-boss
   Vault weapon) raises the slot a tier instead of joining the inventory (`receiveGear` / `raiseTier`);
   reaching Legendary keeps a Legendary drop. Each raise queues an `Upgrade` that opens an Upgrade screen
-  for the player (the host for device-less Guardians): dismantle the drop, then use the tier's piece,
+  for the player (the host for device-less Guardians): dismantle or vault the drop (vault to keep it for
+  normal play), then use the tier's piece,
   pulled from the Vault when owned, else from Collections. Weapons are any Uncommon/Rare of the slot
   with a Collections entry (`public/bungie-tiers.json`), picked once on the player's device (preferring
   one they own) and fixed with `upgrade-pick`; armor is a fixed set per class (`TIER_ARMOR` in
@@ -138,7 +139,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   fragments from their perk definitions). It shows on reward cards and as hover text on ability chips.
 - **Item ledger**: items that leave the run are kept on the player (`retired`, newest first) with their
   instance id and what happened: traded in, vaulted, dismantled or removed from the run. A drop that
-  raised a slot's tier is recorded as dismantled, so a later sync doesn't count it again. Each sync
+  raised a slot's tier is recorded as used for a tier-up (`tiered`; dismantled or vaulted, so it's
+  never flagged as undismantled), so a later sync doesn't count it again. Each sync
   reads everything on the run character (equipped or carried) and flags, as discrepancies, gear that
   isn't in the run (naming the fate of any that left it earlier) and items marked dismantled that are
   still on the account. Each Guardian column lists them under **Left the run**. Gear that isn't in

@@ -1107,6 +1107,7 @@ button.ab-chip:hover { border-color: var(--dim); }
 .fate-dismantled { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 50%, var(--seam)); }
 .fate-traded { color: var(--light); border-color: color-mix(in srgb, var(--light) 50%, var(--seam)); }
 .fate-vaulted { color: #6fa0e6; border-color: color-mix(in srgb, #6fa0e6 50%, var(--seam)); }
+.fate-tiered { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, var(--seam)); }
 
 /* Resume screen: the lobby, read-only. */
 .st-restored { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 50%, transparent); }

@@ -178,8 +178,9 @@ export type Player = {
 export type DetectedDrop = { name: string; slot: Slot; rarity: Rarity; instanceId: string; starting?: boolean }
 
 /** What a player's device reports after reading their Destiny profile. Tokens never leave that device. */
-export type Fate = 'traded' | 'vaulted' | 'dismantled' | 'removed'
-export const FATE_LABEL: Record<Fate, string> = { traded: 'traded in', vaulted: 'vaulted', dismantled: 'dismantled', removed: 'removed from the run' }
+/** `tiered`: a drop that moved its slot up a tier, then dismantled or vaulted by the player. */
+export type Fate = 'traded' | 'vaulted' | 'dismantled' | 'removed' | 'tiered'
+export const FATE_LABEL: Record<Fate, string> = { traded: 'traded in', vaulted: 'vaulted', dismantled: 'dismantled', removed: 'removed from the run', tiered: 'used for a tier-up' }
 export type Untracked = { slot: Slot; name: string; rarity?: Rarity; instanceId?: string; equipped?: boolean; fate?: Fate }
 
 export type BungieLink = {
@@ -462,8 +463,9 @@ export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipp
   if (item.rarity === 'Exotic' || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
   const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })
   if (up?.to === 'Legendary' && item.rarity === 'Legendary') return addItem(run, p, item)
-  // Below Legendary the drop is dismantled; remembering it keeps a sync from counting it again.
-  if (reason === 'drop') dismiss(p, [{ ...item, id: uid(), equipped: false }], 'dismantled')
+  // Below Legendary the drop leaves the run (dismantled, or vaulted to keep for normal play);
+  // remembering it keeps a sync from counting it again.
+  if (reason === 'drop') dismiss(p, [{ ...item, id: uid(), equipped: false }], 'tiered')
   return null
 }
 
@@ -868,7 +870,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         vault.push({ name, slot: e.slot as Slot, rarity: e.rarity as Rarity, element: DAMAGE_ELEMENTS.includes(e.element as never) ? e.element : undefined, archetype: str(e.archetype, 40) || undefined })
       }
       const strs = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n).map((x) => str(x)).filter(Boolean) : [])
-      const FATES: Fate[] = ['traded', 'vaulted', 'dismantled', 'removed']
+      const FATES: Fate[] = ['traded', 'vaulted', 'dismantled', 'removed', 'tiered']
       const untracked: Untracked[] = (Array.isArray(it.untracked) ? it.untracked.slice(0, 40) : [])
         .map((raw) => (raw ?? {}) as { slot?: unknown; name?: unknown; rarity?: unknown; instanceId?: unknown; equipped?: unknown; fate?: unknown })
         .map((u) => ({ slot: u.slot as Slot, name: str(u.name), rarity: RARITIES.includes(u.rarity as Rarity) ? u.rarity as Rarity : undefined, instanceId: str(u.instanceId, 24) || undefined, equipped: !!u.equipped, fate: FATES.includes(u.fate as Fate) ? u.fate as Fate : undefined }))

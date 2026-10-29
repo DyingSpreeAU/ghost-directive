@@ -667,7 +667,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
 // ------------------------------------------------------------------ Player: gear progression
 
 /**
- * A slot went up a tier. Below Legendary: dismantle the drop, then use the tier's piece (pulled from
+ * A slot went up a tier. Below Legendary: dismantle or vault the drop, then use the tier's piece (pulled from
  * the Vault when the player owns it, otherwise from Collections). At Legendary: keep the drop.
  */
 function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose: () => void; playerId: string; upgradeId: string }) {
@@ -739,7 +739,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
             : <p>Your {up.slot} slot reached <TierWord tier="Legendary" />. From now on, Legendary drops in this slot are yours to keep.</p>
         ) : (
           <ol className="upgrade-steps">
-            {up.reason === 'drop' && up.drop && <li><strong>Dismantle {up.drop.name}</strong> in Destiny 2. It moved your {up.slot} up a tier, but you don&rsquo;t keep it until the slot is Legendary.</li>}
+            {up.reason === 'drop' && up.drop && <li><strong>Dismantle or vault {up.drop.name}</strong> in Destiny 2. It moved your {up.slot} up a tier, but it isn&rsquo;t yours for the run until the slot is Legendary. Vault it if you want to keep it for normal play.</li>}
             <li>
               {up.item
                 ? <><strong>Use {up.item}</strong>, {up.to === 'Uncommon' ? 'an' : 'a'} <TierWord tier={up.to} /> {weapon ? `${up.slot.toLowerCase()} ${wtype ?? 'weapon'}` : ARMOR_PIECE[up.slot === 'Class Item' ? p.cls : up.slot]}. </>
