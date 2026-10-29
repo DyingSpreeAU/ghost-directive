@@ -170,7 +170,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   chips and sections, and the artifact). Clicking one scrolls to them and flashes them red three times.
   Labels follow the type: **Discrepancy** when the game doesn't match the run, otherwise **Warning**.
 - **Report a bug** (sidebar, the foot of the page on phones, and the start screen) posts to Netlify Forms
-  (form `bug-report`, declared in `index.html`) with optional run data; reports show in the Netlify
+  (form `bug-report`, declared in `index.html`) with optional run data, the build (`VERSION`: short
+  commit and build date, from Netlify's `COMMIT_REF`) and the Bungie link state; reports show in the Netlify
   dashboard under Forms. Form detection has to be enabled for the site. Where Netlify isn't serving the
   page, the report is copied to the clipboard instead.
 - **Weapon cards** show the ammo type in the banner (white primary, green special, purple heavy with a

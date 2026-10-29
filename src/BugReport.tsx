@@ -3,7 +3,8 @@
 // serving the page (local preview, the claude.ai build), the report is copied to the clipboard instead.
 
 import { useState } from 'react'
-import { CHANNEL } from './channel'
+import { CHANNEL, VERSION } from './channel'
+import { linkStatus } from './BungiePanel'
 import { Modal } from './ui'
 import type { Lobby, Run } from './model'
 
@@ -29,6 +30,8 @@ export function BugReport({ run, lobby, role }: { run?: Run | null; lobby?: Lobb
       page: run ? `run (${run.status})` : lobby ? 'lobby' : 'start screen',
       role: role ?? '',
       channel: CHANNEL || 'production',
+      version: VERSION,
+      bungie: linkStatus(),
       browser: navigator.userAgent,
       screen: `${innerWidth}x${innerHeight}`,
       at: new Date().toISOString(),

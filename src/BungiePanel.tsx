@@ -17,6 +17,14 @@ const subs = new Set<() => void>()
 const setSync = (s: Partial<SyncState>) => { sync = { ...sync, ...s }; subs.forEach((f) => f()) }
 const subscribe = (f: () => void) => { subs.add(f); const off = onAuthChange(f); return () => { subs.delete(f); off() } }
 
+/** One line on the Bungie link for bug reports: signed in or not, and how the last read went. */
+export function linkStatus() {
+  if (!bungieConfigured) return 'not available in this build'
+  if (!isSignedIn()) return 'signed out'
+  const ago = sync.fetchedAt ? `${Math.round((Date.now() - sync.fetchedAt) / 60_000)} min ago` : 'never this visit'
+  return sync.error ? `signed in; last read failed: ${sync.error.slice(0, 200)} (last good read ${ago})` : `signed in; last good read ${ago}`
+}
+
 /** Any Bungie read reports here so the indicator shows the true state. */
 export function reportLink(r: { ok: true } | { error: string }) {
   if ('error' in r) setSync({ error: r.error })
