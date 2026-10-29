@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, slotTier, tradeable,
+  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, sandbox, slotTier, tradeTierOk, tradeableFor,
   type ChestReward, type Intent, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -503,8 +503,8 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
   const cap = capacityOf(run, p)
   const excess = items.length - cap
   const tu = run.ruleset.tradeUp
-  const inputs = items.filter(tradeable)
-  const canTrade = canControl(p.id) && !p.trade && slotTier(run, p, slot) === 'Legendary' && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => inputs.filter((i) => i.rarity === r).length >= tu.inputs) : inputs.length >= tu.inputs)
+  const inputs = items.filter(tradeableFor(run.ruleset))
+  const canTrade = canControl(p.id) && !p.trade && tradeTierOk(run, p, slot) && tu.enabled && (tu.sameRarity ? RARITIES.some((r) => inputs.filter((i) => i.rarity === r).length >= tu.inputs) : inputs.length >= tu.inputs)
   const inGame = canMoveInGame(p, me)
   if (excess <= 0) return null
   const toVault = async (it: (typeof items)[number]) => {
@@ -575,7 +575,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
   // Once the inputs are traded in, the options are fixed on the run until one is picked.
   const trade = p.trade
   const slot = trade?.slot ?? asked
-  const items = itemsIn(p, slot).filter(tradeable)
+  const items = itemsIn(p, slot).filter(tradeableFor(run.ruleset))
   const [sel, setSel] = useState<string[]>([])
   const [starting, setStarting] = useState(false)
   const [choice, setChoice] = useState<VaultEntry | null>(null)
@@ -634,7 +634,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
     >
       {!trade ? (
         <div className="stack">
-          <p>Pick {tu.inputs} {slot} items: Legendary or Exotic, in any mix{tu.sameRarity ? ' (all of one rarity)' : ''}. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
+          <p>Pick {tu.inputs} {slot} items: {sandbox(run.ruleset).tradeUpExotics ? 'Legendary or Exotic, in any mix' : 'Legendary'}{tu.sameRarity ? ' (all of one rarity)' : ''}. Then you choose <strong>1 of {tu.options}</strong> Legendary {slot} options from your Vault.</p>
           <p className="small muted">In Destiny 2, dismantle the items you trade in, or vault them if you want to keep them for normal play.</p>
           <p className="callout"><strong>No take-backs.</strong> Once you trade these in, they leave the run and the options are fixed: you can&rsquo;t go back, re-roll or cancel, only pick one.</p>
           <div className="pick-count small"><strong>{sel.length}</strong> of {tu.inputs} selected</div>

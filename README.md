@@ -237,6 +237,19 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   device has been gone ~15 s. No claim screen.
 - **Combat Report**, **Run History**, and a **Protocol editor** (customize, duplicate,
   export/import JSON) with validation.
+- **Sandbox editor** (`src/Sandbox.tsx`, opened by Customize or Edit on Protocol Rulesets): every rule of a
+  protocol in six sections (Integrity, Starting setup, Gear progression, Inventory and trade-ups,
+  Rewards, Lobby and sessions). One list (`FIELDS`) describes each setting and drives its control, a
+  "changed" marker with reset, per-section change counts, and the "How this plays" summary of changes
+  from the protocol it's compared with (`Ruleset.basedOn`, else Standard). Sub-options hide while their
+  parent is off. Settings added for it live in `Ruleset.sandbox` (`Sandbox`, defaults in
+  `SANDBOX_DEFAULTS`, read through `sandbox(r)`), so older protocols and runs play unchanged:
+  final boss Integrity bonus, Integrity per secret chest, secret chests on/off, starting gear rarity
+  per group (weapons, heavy, armor; also each slot's starting tier with progression), whole subclass
+  unlocked at the start, BONUS chance, Exotics usable any time, final boss option counts, Collections-
+  only Exotics, Prismatic Exotic class items, Arsenal Expansion chance, trade-up rules (Exotic inputs,
+  Legendary slot needed), and the ready-up and resume gates. The lobby's setup guide, rules and
+  starting-gear checks follow these settings. Protocol cards show how many changes a custom one has.
 - State persists in `localStorage`. First launch loads a clearly marked example run.
 
 ## Not yet built (per spec roadmap / open questions)

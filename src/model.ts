@@ -31,6 +31,70 @@ export type Ruleset = {
   progression?: boolean
   overflow: 'guided' | 'warn'
   loadouts: { baseSlots: number }
+  /** The protocol this one was made from, for the editor's comparison. */
+  basedOn?: string
+  /** Sandbox settings added later; anything missing plays as the default (see `sandbox`). */
+  sandbox?: Partial<Sandbox>
+}
+
+/** Rarity groups for starting gear and gear progression's starting tiers. */
+export type GearGroup = 'weapons' | 'heavy' | 'armor'
+export const groupOf = (slot: Slot): GearGroup => (slot === 'Power' ? 'heavy' : WEAPON_SLOTS.includes(slot) ? 'weapons' : 'armor')
+
+/** The finer rules of a protocol. Defaults are how the mode has always played. */
+export type Sandbox = {
+  /** Extra Integrity for clearing a dungeon's final boss, on top of the clear. */
+  finalClear: number
+  /** Integrity for finding a secret chest. */
+  chestFound: number
+  /** Ask about secret chests at all. */
+  secretChests: boolean
+  /** Highest rarity allowed in starting gear per group; with progression, each slot also starts at it. */
+  startGear: Record<GearGroup, Rarity>
+  /** 'one': one Super, class ability, melee and grenade to start; 'all': the whole subclass from the start. */
+  startAbilities: 'one' | 'all'
+  /** Chance (%) of a BONUS tier-up after a reward, with progression. */
+  bonusChance: number
+  /** Exotic drops can be used straight away, whatever the slot's tier. */
+  exoticsAnyTime: boolean
+  /** How many Exotic armor, Vault Legendary and Artifact perk options a final boss offers. */
+  exoticChoices: number
+  legendaryChoices: number
+  artifactChoices: number
+  /** Signed-in players are only offered Exotics unlocked in their Collections. */
+  collectionsOnly: boolean
+  /** Prismatic Guardians can be offered their Exotic class item (one rolled copy from their Vault). */
+  exoticClassItems: boolean
+  /** Chance (%) that a secret chest offers an Arsenal Expansion (with "chests can offer upgrades"). */
+  expansionChance: number
+  /** Trade-ups only once a slot has reached Legendary (with progression). */
+  tradeUpNeedsLegendary: boolean
+  /** Exotics can be traded in. */
+  tradeUpExotics: boolean
+  /** A reopened run waits for every Guardian to restore their character. */
+  resumeGate: boolean
+  /** The run can't begin until every connected Guardian is ready (the host can override). */
+  readyGate: boolean
+}
+
+export const SANDBOX_DEFAULTS: Sandbox = {
+  finalClear: 0, chestFound: 0, secretChests: true,
+  startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
+  bonusChance: 10, exoticsAnyTime: true,
+  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, collectionsOnly: true, exoticClassItems: true, expansionChance: 28,
+  tradeUpNeedsLegendary: true, tradeUpExotics: true,
+  resumeGate: true, readyGate: true,
+}
+
+/** A protocol's sandbox settings, with defaults for anything it doesn't set. */
+export function sandbox(r: Ruleset): Sandbox {
+  return { ...SANDBOX_DEFAULTS, ...r.sandbox, startGear: { ...SANDBOX_DEFAULTS.startGear, ...r.sandbox?.startGear } }
+}
+
+/** Rarities starting gear may have in a slot: up to the group's limit (never Exotic). */
+export function startRarities(r: Ruleset, slot: Slot): Rarity[] {
+  const top = RARITIES.indexOf(sandbox(r).startGear[groupOf(slot)])
+  return RARITIES.slice(0, Math.min(top, RARITIES.indexOf('Legendary')) + 1)
 }
 
 /** Listed easiest to hardest; Standard is the default. */
@@ -95,6 +159,15 @@ export function validateRuleset(r: Ruleset): string[] {
   if (r.tradeUp.inputs < 2 || r.tradeUp.inputs > 8) errs.push('Trade-up inputs must be 2–8.')
   if (r.tradeUp.options < 1 || r.tradeUp.options > 8) errs.push('Trade-up options must be 1–8.')
   if (r.loadouts.baseSlots < 0 || r.loadouts.baseSlots > 10) errs.push('Loadout slots must be 0–10.')
+  const s = sandbox(r)
+  const pct = (n: number) => n >= 0 && n <= 100
+  if (s.finalClear < 0 || s.finalClear > max) errs.push('The final boss bonus must be 0 up to the maximum Integrity.')
+  if (s.chestFound < 0 || s.chestFound > max) errs.push('The secret chest Integrity must be 0 up to the maximum Integrity.')
+  if (!pct(s.bonusChance)) errs.push('The BONUS chance must be 0–100%.')
+  if (!pct(s.expansionChance)) errs.push('The Arsenal Expansion chance must be 0–100%.')
+  for (const [k, label] of [['exoticChoices', 'Exotic armor'], ['legendaryChoices', 'Vault Legendary'], ['artifactChoices', 'Artifact perk']] as const) {
+    if (s[k] < 1 || s[k] > 6) errs.push(`${label} options must be 1–6.`)
+  }
   return errs
 }
 
@@ -286,7 +359,7 @@ export function createRun(opts: {
   }
   for (const p of run.players) {
     p.configured = [...p.unlocked]
-    if (run.ruleset.progression) p.tiers = startingTiers()
+    if (run.ruleset.progression) p.tiers = startingTiers(run.ruleset)
   }
   log(run, 'run', `Run started under ${run.ruleset.name}. Route: ${run.route.map((d) => dungeonById(d).name).join(' → ')}.`)
   return run
@@ -347,6 +420,10 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
 
 /** Items that can go into a trade-up: Legendary or Exotic, in any mix. */
 export const tradeable = (i: Item) => (i.rarity === 'Legendary' || i.rarity === 'Exotic') && i.source !== 'starting gear'
+/** Trade-up inputs under a protocol: Legendary, and Exotic unless it says otherwise; never starting gear. */
+export const tradeableFor = (r: Ruleset) => (i: Item) => tradeable(i) && (i.rarity !== 'Exotic' || sandbox(r).tradeUpExotics)
+/** Whether a slot's tier allows trade-ups (Legendary, unless the protocol drops that rule). */
+export const tradeTierOk = (run: Run, p: Player, slot: Slot) => !sandbox(run.ruleset).tradeUpNeedsLegendary || slotTier(run, p, slot) === 'Legendary'
 
 /**
  * A Guardian left the fireteam: the host takes them out of the run so the rest can carry on.
@@ -372,8 +449,9 @@ export function removePlayer(run: Run, playerId: string) {
 export function startResume(run: Run) {
   if (run.status !== 'active' || run.example) return
   const at = Date.now()
-  run.resume = { at, ready: [] }
   run.rebaseAt = at
+  if (!sandbox(run.ruleset).resumeGate) { log(run, 'run', 'Run reopened.'); return }
+  run.resume = { at, ready: [] }
   log(run, 'run', 'Run reopened. Every Guardian restores their character before play continues.')
 }
 
@@ -430,9 +508,10 @@ export function addItem(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>
   return it
 }
 
-/** Gear progression start: Common everywhere, except the heavy weapon at Uncommon. */
-export function startingTiers(): Partial<Record<Slot, Rarity>> {
-  return Object.fromEntries(ALL_SLOTS.map((s) => [s, s === 'Power' ? 'Uncommon' : 'Common']))
+/** Gear progression start: each slot at its group's starting rarity (by default Common, the heavy weapon Uncommon). */
+export function startingTiers(r: Ruleset): Partial<Record<Slot, Rarity>> {
+  const g = sandbox(r).startGear
+  return Object.fromEntries(ALL_SLOTS.map((s) => [s, g[groupOf(s)] === 'Exotic' ? 'Legendary' : g[groupOf(s)]]))
 }
 
 /** A slot's tier; Legendary when progression is off (or the run predates it), which means no limit. */
@@ -460,7 +539,7 @@ export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reas
  * the slot one tier instead of joining the inventory; reaching Legendary keeps a dropped item.
  */
 export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>, reason: 'drop' | 'reward' = 'drop'): Item | null {
-  if (item.rarity === 'Exotic' || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
+  if ((item.rarity === 'Exotic' && sandbox(run.ruleset).exoticsAnyTime) || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
   const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })
   if (up?.to === 'Legendary' && item.rarity === 'Legendary') return addItem(run, p, item)
   // Below Legendary the drop leaves the run (dismantled, or vaulted to keep for normal play);
@@ -504,22 +583,23 @@ export function unlockChoices(run: Run, p: Player) {
   return shuffle(eligible).slice(0, run.ruleset.rewards.unlockChoices)
 }
 
-export function exoticChoices(p: Player): VaultEntry[] {
+export function exoticChoices(p: Player, r: Ruleset = STANDARD): VaultEntry[] {
+  const sb = sandbox(r)
   const owned = new Set(p.inventory.map((i) => i.name))
   // Signed in with Bungie: only Exotics unlocked in their Collections, which they can pull in game.
-  const unlocked = p.bungie?.exotics ? new Set(p.bungie.exotics.unlocked) : null
+  const unlocked = p.bungie?.exotics && sb.collectionsOnly ? new Set(p.bungie.exotics.unlocked) : null
   const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name) && (!unlocked || unlocked.has(e.name)))
   // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
   const picks = favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
-    .slice(0, 3)
+    .slice(0, sb.exoticChoices)
     .map((e): VaultEntry => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
   // Prismatic only: now and then an Exotic class item takes a spot, but only one the player has in their Vault.
   const classItem = EXOTIC_CLASS_ITEM[p.cls]
   // The offer is one specific copy: its roll is fixed, and its two perks are shown.
   const rolls = p.bungie?.classItems ?? []
-  if (p.element === 'Prismatic' && rolls.length && !owned.has(classItem) && Math.random() < 0.5) {
+  if (sb.exoticClassItems && p.element === 'Prismatic' && rolls.length && !owned.has(classItem) && Math.random() < 0.5) {
     const roll = rolls[Math.floor(Math.random() * rolls.length)]
-    picks.splice(Math.floor(Math.random() * Math.max(1, picks.length)), picks.length >= 3 ? 1 : 0, {
+    picks.splice(Math.floor(Math.random() * Math.max(1, picks.length)), picks.length >= sb.exoticChoices ? 1 : 0, {
       name: classItem, slot: 'Class Item', rarity: 'Exotic', element: 'Prismatic', archetype: 'Exotic Class Item',
       instanceId: roll.instanceId, perks: roll.perks,
       note: `${roll.perks.map((x) => x.name).join(' + ')}. This exact copy, from your Vault.`,
@@ -533,10 +613,10 @@ const EXOTIC_CLASS_ITEM: Record<ClassType, string> = { Titan: 'Stoicism', Hunter
 
 export const vaultPool = (p: Player) => (p.vault.length ? p.vault : EXAMPLE_VAULT)
 
-export function legendaryWeaponChoices(p: Player): VaultEntry[] {
+export function legendaryWeaponChoices(p: Player, r: Ruleset = STANDARD): VaultEntry[] {
   const owned = new Set(p.inventory.map((i) => i.name))
   const pool = vaultPool(p).filter((v) => v.rarity === 'Legendary' && WEAPON_SLOTS.includes(v.slot) && !owned.has(v.name))
-  return favor(pool, (v) => (v.element === p.element ? 1 : 0)).slice(0, 3)
+  return favor(pool, (v) => (v.element === p.element ? 1 : 0)).slice(0, sandbox(r).legendaryChoices)
 }
 
 export function tradeUpChoices(run: Run, p: Player, slot: Slot): VaultEntry[] {
@@ -560,7 +640,7 @@ export function chestChoices(run: Run, p: Player): ChestReward[] {
   if (run.ruleset.rewards.chestArtifact) artifactChoices(p, 3).forEach((mod) => out.push({ kind: 'artifact', mod }))
   if (run.ruleset.rewards.chestUpgrades) {
     // Arsenal Expansion is uncommon. Loadout Archive is off while saved loadouts are hidden.
-    if (Math.random() < 0.28) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
+    if (Math.random() < sandbox(run.ruleset).expansionChance / 100) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
   }
   return out.slice(0, 3)
 }
@@ -640,7 +720,7 @@ export type Pending = {
  * and before the next encounter can be cleared.
  */
 export function pendingChest(run: Run): { number: number; remaining: number } | null {
-  if (run.status !== 'active') return null
+  if (run.status !== 'active' || !sandbox(run.ruleset).secretChests) return null
   const { dungeon } = current(run)
   const i = run.eIdx
   const gap = i === 0 ? dungeon.chestsAtStart : dungeon.chestsAfter[i - 1] ?? 0
@@ -650,8 +730,8 @@ export function pendingChest(run: Run): { number: number; remaining: number } | 
   return { number: before + done + 1, remaining: gap - done }
 }
 
-/** 1 in 10: a BONUS tier-up after the rewards (gear progression, while a slot is below Legendary). */
-const rollBonus = (run: Run, p: Player) => !!run.ruleset.progression && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') && Math.random() < 0.1
+/** A BONUS tier-up after the rewards (gear progression, while a slot is below Legendary); 1 in 10 by default. */
+const rollBonus = (run: Run, p: Player) => !!run.ruleset.progression && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') && Math.random() < sandbox(run.ruleset).bonusChance / 100
 
 /** Records whether the fireteam got the next secret chest; a found chest gives everyone a chest reward. */
 export function recordChest(run: Run, found: boolean) {
@@ -662,6 +742,8 @@ export function recordChest(run: Run, found: boolean) {
   if (!found) { log(run, 'chest', `Secret Chest ${next.number} skipped in ${dungeon.name}.`); return }
   run.chests.push(`${dungeon.id}#${next.number}`)
   log(run, 'chest', `Secret Chest ${next.number} found in ${dungeon.name}.`)
+  const bonus = sandbox(run.ruleset).chestFound
+  if (bonus) changeIntegrity(run, bonus, `Found Secret Chest ${next.number}.`, 'chest')
   for (const p of run.players) {
     run.pending.push({
       id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false,
@@ -678,14 +760,14 @@ export function recordClear(run: Run) {
   const final = encounter.type === 'final'
   const rw = run.ruleset.rewards
   run.claimed.push(encounter.id)
-  changeIntegrity(run, run.ruleset.integrity.clear, `Cleared ${encounter.name}.`, 'clear')
+  changeIntegrity(run, run.ruleset.integrity.clear + (final ? sandbox(run.ruleset).finalClear : 0), `Cleared ${encounter.name}.`, 'clear')
   for (const p of run.players) {
     run.pending.push({
       id: uid(), playerId: p.id, kind: 'clear', where: `${dungeon.name} \u00b7 ${encounter.name}`, final,
       unlock: unlockChoices(run, p).map((a) => a.id),
-      exotic: final && rw.finalBossGear ? exoticChoices(p) : [],
-      legendary: final && rw.finalBossGear ? legendaryWeaponChoices(p) : [],
-      artifact: final && rw.finalBossArtifact ? artifactChoices(p) : [],
+      exotic: final && rw.finalBossGear ? exoticChoices(p, run.ruleset) : [],
+      legendary: final && rw.finalBossGear ? legendaryWeaponChoices(p, run.ruleset) : [],
+      artifact: final && rw.finalBossArtifact ? artifactChoices(p, sandbox(run.ruleset).artifactChoices) : [],
       chest: [],
       bonus: rollBonus(run, p),
     })
@@ -798,8 +880,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const inputs = p.inventory.filter((i) => ids.includes(i.id))
       if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
       const slot = inputs[0].slot
-      if (inputs.some((i) => i.slot !== slot || !tradeable(i))) return 'Inputs must share a slot and be Legendary or Exotic.'
-      if (slotTier(run, p, slot) !== 'Legendary') return `Trade-ups need your ${slot} at Legendary.`
+      if (inputs.some((i) => i.slot !== slot || !tradeableFor(run.ruleset)(i))) return sandbox(run.ruleset).tradeUpExotics ? 'Inputs must share a slot and be Legendary or Exotic.' : 'Inputs must share a slot and be Legendary.'
+      if (!tradeTierOk(run, p, slot)) return `Trade-ups need your ${slot} at Legendary.`
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
@@ -1134,7 +1216,7 @@ export function bindBungieId(target: { run: Run | null; lobby: Lobby | null }, c
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: [...STARTER_KINDS.map((k) => starterOf(s)[k]), ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
+    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: sandbox(l.ruleset).startAbilities === 'all' ? subclassAbilities(s.cls, s.element).map((a) => a.id) : [...STARTER_KINDS.map((k) => starterOf(s)[k]), ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }

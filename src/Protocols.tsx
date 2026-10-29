@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { STANDARD, uid, validateRuleset, type Ruleset } from './model'
 import { allProtocols, useGD, type HostStore } from './store'
+import { SandboxEditor, basisOf, differences } from './Sandbox'
 
 export function Protocols() {
   const { host, toast, run, lobby } = useGD()
@@ -13,7 +14,7 @@ export function Protocols() {
   const [io, setIo] = useState<{ mode: 'export' | 'import'; text: string } | null>(null)
   const [ioErr, setIoErr] = useState('')
 
-  const derive = (base: Ruleset, suffix: string): Ruleset => ({ ...structuredClone(base), id: uid(), preset: false, name: `${base.name} ${suffix}` })
+  const derive = (base: Ruleset, suffix: string): Ruleset => ({ ...structuredClone(base), id: uid(), preset: false, name: `${base.name} ${suffix}`, basedOn: base.id })
   const saveCustom = (r: Ruleset) => setStore((s) => ({ ...s, protocols: s.protocols.some((p) => p.id === r.id) ? s.protocols.map((p) => (p.id === r.id ? r : p)) : [...s.protocols, r] }))
 
   const doImport = () => {
@@ -42,8 +43,9 @@ export function Protocols() {
       </header>
 
       {editing ? (
-        <Editor
+        <SandboxEditor
           value={editing}
+          all={list}
           onCancel={() => setEditing(null)}
           onSave={(r) => { saveCustom(r); setEditing(null); toast(`Saved ${r.name}`) }}
         />
@@ -54,6 +56,7 @@ export function Protocols() {
               <span className="choice-kind">{p.preset ? 'Preset' : 'Custom protocol'}{p.id === inUse && <span className="in-use-tag">{run ? 'This run' : 'This lobby'}</span>}</span>
               <strong>{p.name}</strong>
               <span className="muted">{p.description}</span>
+              {!p.preset && (() => { const b = basisOf(p, list); const n = differences(p, b).length; return <span className="small muted">{n ? `${n} change${n === 1 ? '' : 's'} from ${b.name}` : `Same rules as ${b.name}`}</span> })()}
               <dl className="proto-stats">
                 <div><dt>Start</dt><dd>{p.integrity.start}/{p.integrity.max}</dd></div>
                 <div><dt>Clear</dt><dd>+{p.integrity.clear}</dd></div>
@@ -95,97 +98,6 @@ export function Protocols() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function Num({ id, label, value, onChange, hint }: { id: string; label: string; value: number; onChange: (n: number) => void; hint?: string }) {
-  return (
-    <div className="field">
-      <label htmlFor={id}>{label}</label>
-      <input id={id} type="number" value={value} onChange={(e) => onChange(Number(e.target.value))} />
-      {hint && <small className="muted">{hint}</small>}
-    </div>
-  )
-}
-
-function Toggle({ id, label, checked, onChange }: { id: string; label: string; checked: boolean; onChange: (b: boolean) => void }) {
-  return <label className="switch" htmlFor={id}><input id={id} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} /> {label}</label>
-}
-
-function Editor({ value, onSave, onCancel }: { value: Ruleset; onSave: (r: Ruleset) => void; onCancel: () => void }) {
-  const [r, setR] = useState(value)
-  const errs = validateRuleset(r)
-  const set = (fn: (d: Ruleset) => void) => setR((x) => { const d = structuredClone(x); fn(d); return d })
-  const wipesToFail = Math.ceil(r.integrity.start / Math.max(1, r.integrity.wipe))
-  const clearsPerWipe = r.integrity.clear > 0 ? (r.integrity.wipe / r.integrity.clear).toFixed(1) : '∞'
-  return (
-    <div className="panel editor">
-      <div className="field">
-        <label htmlFor="pr-name">Protocol name</label>
-        <input id="pr-name" value={r.name} onChange={(e) => set((d) => { d.name = e.target.value })} />
-      </div>
-      <div className="field">
-        <label htmlFor="pr-desc">Description</label>
-        <input id="pr-desc" value={r.description} onChange={(e) => set((d) => { d.description = e.target.value })} />
-      </div>
-
-      <fieldset>
-        <legend>Run Survival</legend>
-        <div className="field-grid">
-          <Num id="pr-start" label="Starting Integrity" value={r.integrity.start} onChange={(n) => set((d) => { d.integrity.start = n })} />
-          <Num id="pr-max" label="Maximum Integrity" value={r.integrity.max} onChange={(n) => set((d) => { d.integrity.max = n })} />
-          <Num id="pr-clear" label="Per clear" value={r.integrity.clear} onChange={(n) => set((d) => { d.integrity.clear = n })} />
-          <Num id="pr-wipe" label="Per wipe" value={r.integrity.wipe} onChange={(n) => set((d) => { d.integrity.wipe = n })} />
-          <Num id="pr-death" label="Per player death" value={r.integrity.death ?? 0} onChange={(n) => set((d) => { d.integrity.death = n })} />
-        </div>
-        <p className="small muted">With no clears, the run ends on wipe {wipesToFail}. {clearsPerWipe} clears offset one wipe.</p>
-      </fieldset>
-
-      <fieldset>
-        <legend>Inventory</legend>
-        <div className="field-grid">
-          <Num id="pr-cap" label="Starting item slots" value={r.inventory.capacity} onChange={(n) => set((d) => { d.inventory.capacity = n })} hint="Includes the equipped item" />
-          {/* Starting loadout slots: hidden while saved loadouts are. */}
-          <div className="field">
-            <label htmlFor="pr-ovf">When a reward overflows</label>
-            <select id="pr-ovf" value={r.overflow} onChange={(e) => set((d) => { d.overflow = e.target.value as Ruleset['overflow'] })}>
-              <option value="guided">Offer a guided swap</option>
-              <option value="warn">Warn and let the player proceed</option>
-            </select>
-          </div>
-        </div>
-        <div className="toggles">
-          <Toggle id="pr-prog" label="Gear progression (each slot climbs Common > Uncommon > Rare > Legendary)" checked={!!r.progression} onChange={(b) => set((d) => { d.progression = b })} />
-          <Toggle id="pr-tu" label="Trade-ups enabled" checked={r.tradeUp.enabled} onChange={(b) => set((d) => { d.tradeUp.enabled = b })} />
-          <Toggle id="pr-tur" label="Trade-up inputs must share a rarity" checked={r.tradeUp.sameRarity} onChange={(b) => set((d) => { d.tradeUp.sameRarity = b })} />
-        </div>
-        <div className="field-grid">
-          <Num id="pr-tui" label="Trade-up inputs" value={r.tradeUp.inputs} onChange={(n) => set((d) => { d.tradeUp.inputs = n })} />
-          <Num id="pr-tuo" label="Trade-up options" value={r.tradeUp.options} onChange={(n) => set((d) => { d.tradeUp.options = n })} />
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Rewards</legend>
-        <div className="field-grid">
-          <Num id="pr-uc" label="Unlock choices per clear" value={r.rewards.unlockChoices} onChange={(n) => set((d) => { d.rewards.unlockChoices = n })} />
-        </div>
-        <div className="toggles">
-          <Toggle id="pr-fbg" label="Final bosses offer Exotic armor or Vault Legendary" checked={r.rewards.finalBossGear} onChange={(b) => set((d) => { d.rewards.finalBossGear = b })} />
-          <Toggle id="pr-fba" label="Final bosses offer Artifact research" checked={r.rewards.finalBossArtifact} onChange={(b) => set((d) => { d.rewards.finalBossArtifact = b })} />
-          <Toggle id="pr-ca" label="Secret chests offer Artifact research" checked={r.rewards.chestArtifact} onChange={(b) => set((d) => { d.rewards.chestArtifact = b })} />
-          <Toggle id="pr-cu" label="Secret chests can offer upgrades" checked={r.rewards.chestUpgrades} onChange={(b) => set((d) => { d.rewards.chestUpgrades = b })} />
-          <Toggle id="pr-rc" label="Final bosses show the items in each category before picking (easier)" checked={!!r.rewards.revealCategories} onChange={(b) => set((d) => { d.rewards.revealCategories = b })} />
-          <Toggle id="pr-later" label="Players can put off reward choices (Later)" checked={!!r.rewards.allowLater} onChange={(b) => set((d) => { d.rewards.allowLater = b })} />
-        </div>
-      </fieldset>
-
-      {errs.length > 0 && <ul className="errs">{errs.map((e) => <li key={e}>{e}</li>)}</ul>}
-      <div className="row-acts end">
-        <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button className="btn btn-light" disabled={errs.length > 0} onClick={() => onSave(r)}>Save protocol</button>
-      </div>
     </div>
   )
 }

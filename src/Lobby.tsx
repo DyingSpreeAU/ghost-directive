@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
-import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Player, type Run, type Seat } from './model'
+import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, sandbox, startRarities, type Ruleset, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Player, type Run, type Seat } from './model'
 import { allProtocols, endSavedRuns, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
@@ -30,7 +30,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
   // Signed-in players: live equipped gear, used to fill their seat once and to warn before readying up.
   // Once they've set their seat themselves, read the character of that class when they're not in game.
-  const eq = useEquipped(mine?.custom ? mine.cls : undefined)
+  const eq = useEquipped(mine?.custom ? mine.cls : undefined, lobby.ruleset)
   useAutofill(eq, mine, (patch) => { if (mine) patchSeat(mine, patch) }, toast)
   // A seat still called "Guardian N" takes the player's Bungie name; a name they typed stays.
   const bungieName = eq.data ? bungieDisplayName(eq.data.name) : ''
@@ -55,7 +55,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
       const abilities = STARTER_KINDS.map((k) => starterOf(mine)[k].split('|')[2])
       const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities, artifact: mine.artifact || undefined }, (step) => setSend({ busy: true, step }))
       // Everything applied and the gear is starting gear in every slot: ready up now, no need to wait for Bungie.
-      const gearOk = GEAR_SLOTS.every((slot) => report.gear.some((g) => g.slot === slot && g.instanceId && EXPECTED[slot].includes(g.rarity)))
+      const gearOk = GEAR_SLOTS.every((slot) => report.gear.some((g) => g.slot === slot && g.instanceId && startRarities(lobby.ruleset, slot).includes(g.rarity)))
       const readied = report.problems.length === 0 && gearOk && !!artifactByName(mine.artifact)
       if (report.problems.length === 0) eq.setSent({ at: Date.now(), gear: report.gear })
       if (readied && !mine.ready) patchSeat(mine, { ready: true })
@@ -132,7 +132,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               onPatch={(p) => patchSeat(s, p)}
               notice={undefined}
               sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
-              equipped={s.clientId === me ? <EquippedNow eq={eq} seat={s} onApply={(patch) => patchSeat(s, patch)} /> : undefined}
+              equipped={s.clientId === me ? <EquippedNow eq={eq} seat={s} ruleset={lobby.ruleset} onApply={(patch) => patchSeat(s, patch)} /> : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -531,7 +531,8 @@ function RouteTiles({ route, onChange }: { route: string[]; onChange: (next: str
 
 function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void; notice?: React.ReactNode; readyRow?: React.ReactNode }) {
   const [confirm, setConfirm] = useState(false)
-  const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
+  // A protocol can drop the ready-up rule: then the host can begin whenever.
+  const notReady = sandbox(lobby.ruleset).readyGate ? lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId))) : []
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
   const noRoute = lobby.route.length === 0
   const { host } = useGD()
@@ -576,6 +577,13 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
   const r = lobby.ruleset
   const i = r.integrity
   const tu = r.tradeUp
+  const sb = sandbox(r)
+  const g = sb.startGear
+  const pct = (n: number) => (n === 10 ? '1 in 10' : `${n}%`)
+  // The two gear checklist lines follow the protocol's starting rarities.
+  const gearLine = (key: string, label: string, hint: string) => key === 'weapons'
+    ? { label: `${colorsOf(startRarities(r, 'Kinetic'))} weapons, heavy ${colorsOf(startRarities(r, 'Power'))}`.replace(/^./, (c) => c.toUpperCase()), hint: `Kinetic and energy weapons up to ${g.weapons}; the heavy weapon up to ${g.heavy}.` }
+    : key === 'greyArmor' ? { label: `${colorsOf(startRarities(r, 'Helmet'))} armor on every slot`.replace(/^./, (c) => c.toUpperCase()), hint: `Armor up to ${g.armor}, in all five slots.` } : { label, hint }
   return (
     <section id="setup" className="panel setup-guide section-anchor" aria-labelledby="setup-guide-title">
       <div className="guide-part">
@@ -583,7 +591,8 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
         <p className="section-note">Every Guardian starts the run under-geared. Do this in game before the host records anything.</p>
         <ul className="guide-list">
-          {CHECKLIST.map((c) => <li key={c.key}><strong>{c.label.replace(/ equipped$/, '')}</strong><span className="muted">{c.hint}</span></li>)}
+          {CHECKLIST.filter((c) => sb.startAbilities !== 'all' || (c.key !== 'noAspects' && c.key !== 'noFragments')).map((c) => { const l = gearLine(c.key, c.label, c.hint); return <li key={c.key}><strong>{l.label.replace(/ equipped$/, '')}</strong><span className="muted">{l.hint}</span></li> })}
+          {sb.startAbilities === 'all' && <li><strong>Every ability unlocked</strong><span className="muted">This protocol starts each Guardian with their whole subclass: use any Super, ability, aspect or fragment.</span></li>}
           <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
         </ul>
       </div>
@@ -592,15 +601,16 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
         <h2 id="rules-title">How the run works</h2>
         <ul className="rules-list">
           <li><strong>Integrity is your fireteam&rsquo;s life.</strong> You start with <b>{i.start}</b> (it can go up to {i.max}). If it reaches <b>0</b>, the run is over.</li>
-          <li><strong>Clear an encounter:</strong> <span className="tone-ok">+{i.clear}</span> Integrity, and each Guardian picks a reward.</li>
+          <li><strong>Clear an encounter:</strong> <span className="tone-ok">+{i.clear}</span> Integrity, and each Guardian picks a reward.{sb.finalClear > 0 && <> A final boss gives <span className="tone-ok">+{sb.finalClear}</span> more.</>}</li>
+          {sb.secretChests && <li><strong>Secret chests:</strong> {sb.chestFound > 0 ? <><span className="tone-ok">+{sb.chestFound}</span> Integrity and </> : null}a chest reward for every Guardian.</li>}
           <li><strong>A Guardian dies:</strong> <span className="tone-danger">&minus;{i.death ?? 0}</span> Integrity. Record it on that Guardian&rsquo;s column.</li>
           <li><strong>The fireteam wipes:</strong> <span className="tone-danger">&minus;{i.wipe}</span> Integrity.</li>
           <li className="rules-key"><strong>What counts as a wipe:</strong> every Guardian in the fireteam dead at the same time, at any point in the run. That includes traversal sections and anywhere the game would let you revive or respawn: no wipe mechanic or Darkness zone is needed. Record it as one wipe, not as separate deaths.</li>
           {r.progression && (
-            <li><strong>Gear progression:</strong> every slot starts at <TierWord tier="Common" /> (your heavy weapon at <TierWord tier="Uncommon" />) and climbs <TierWord tier="Uncommon" /> &rarr; <TierWord tier="Rare" /> &rarr; <TierWord tier="Legendary" />. Each non-Exotic drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). Exotics can be used at any time. After any reward there&rsquo;s a 1 in 10 BONUS: move any slot up a tier.</li>
+            <li><strong>Gear progression:</strong> weapons start at <TierWord tier={g.weapons} />, the heavy weapon at <TierWord tier={g.heavy} /> and armor at <TierWord tier={g.armor} />; each slot climbs towards <TierWord tier="Legendary" />. Each non-Exotic drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). {sb.exoticsAnyTime ? 'Exotics can be used at any time.' : 'Exotics count as drops too.'}{sb.bonusChance > 0 && <> After any reward there&rsquo;s a {pct(sb.bonusChance)} BONUS: move any slot up a tier.</>}</li>
           )}
-          <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> Legendary or Exotic items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression ? ' that\u2019s reached Legendary' : ''} for a Legendary from your Vault.</> : null}</li>
-          <li><strong>Abilities and artifact perks</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>
+          <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> {sb.tradeUpExotics ? 'Legendary or Exotic' : 'Legendary'} items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression && sb.tradeUpNeedsLegendary ? ' that\u2019s reached Legendary' : ''} for a Legendary from your Vault.</> : null}</li>
+          <li><strong>{sb.startAbilities === 'all' ? 'Artifact perks' : 'Abilities and artifact perks'}</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>
           <li><strong>Honour system:</strong> the app tracks the run; it doesn&rsquo;t police it. Play it straight.</li>
         </ul>
       </div>
@@ -608,15 +618,11 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
   )
 }
 
-/** Starting-gear rarity per slot: grey everywhere, except the heavy weapon may be grey or green. */
-const GREY: Rarity[] = ['Common']
-const HEAVY_OK: Rarity[] = ['Common', 'Uncommon']
+/** Starting gear may be up to each group's rarity in the protocol (by default grey, the heavy weapon grey or green). */
 const GEAR_SLOTS: Slot[] = ['Kinetic', 'Energy', 'Power', 'Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
-const EXPECTED: Record<Slot, Rarity[]> = {
-  Kinetic: GREY, Energy: GREY, Power: HEAVY_OK,
-  Helmet: GREY, Gauntlets: GREY, Chest: GREY, Legs: GREY, 'Class Item': GREY,
-}
 const COLOR_WORD: Partial<Record<Rarity, string>> = { Common: 'grey', Uncommon: 'green', Rare: 'blue', Legendary: 'purple', Exotic: 'Exotic' }
+/** "grey", "grey or green", "grey, green or blue"… for a group's allowed starting rarities. */
+const colorsOf = (r: Rarity[]) => r.map((x) => COLOR_WORD[x]).join(', ').replace(/, ([^,]*)$/, ' or $1')
 /** Bungie data older than this is treated as possibly behind the game. */
 const STALE_MS = 3 * 60_000
 
@@ -630,7 +636,7 @@ function since(t: number, now: number) {
 type Equipped = ReturnType<typeof useEquipped>
 
 /** The signed-in player's live equipped gear, refreshed every minute while in the lobby. */
-function useEquipped(prefer?: ClassType) {
+function useEquipped(prefer: ClassType | undefined, ruleset: Ruleset) {
   const { signedIn } = useBungie()
   const preferRef = useRef(prefer)
   preferRef.current = prefer
@@ -660,7 +666,7 @@ function useEquipped(prefer?: ClassType) {
   const [sent, setSent] = useState<{ at: number; gear: SendReport['gear'] } | null>(null)
   const vouched = !!sent && (!data?.mintedAt || data.mintedAt < sent.at) && now - sent.at < 5 * 60_000
   const gear = vouched ? sent!.gear : data?.items
-  const off = gear ? gear.filter((i) => !EXPECTED[i.slot].includes(i.rarity)) : []
+  const off = gear ? gear.filter((i) => !startRarities(ruleset, i.slot).includes(i.rarity)) : []
   const empty = gear ? GEAR_SLOTS.filter((slot) => !gear.some((i) => i.slot === slot)) : []
   // The run starts with no aspects, fragments or artifact perks switched on.
   const extras = vouched ? [] : [...(data?.subclass ? [...data.subclass.aspects, ...data.subclass.fragments] : []), ...(data?.artifact?.activePerks ?? [])]
@@ -698,7 +704,7 @@ function useAutofill(eq: Equipped, seat: Seat | undefined, apply: (p: Patch) => 
 }
 
 /** Inside the player's own seat: what their character has equipped right now, checked against the starting rules. */
-function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply: (p: Patch) => void }) {
+function EquippedNow({ eq, seat, ruleset, onApply }: { eq: Equipped; seat?: Seat; ruleset: Ruleset; onApply: (p: Patch) => void }) {
   const icons = useIcons()
   if (!bungieConfigured || !eq.active) return null
   const { data, now } = eq
@@ -712,8 +718,9 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
       {slots.map((slot) => {
         const i = slotOf(slot)
         if (!i) return <span key={slot} className="tile tile-empty item is-off" title={`${slot}: nothing equipped`} aria-label={`${slot}: nothing equipped`} />
-        const ok = EXPECTED[slot].includes(i.rarity)
-        const why = ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${EXPECTED[slot].map((r) => COLOR_WORD[r]).join(' or ')}`
+        const allowed = startRarities(ruleset, slot)
+        const ok = allowed.includes(i.rarity)
+        const why = ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${colorsOf(allowed)}`
         return (
           <span key={slot} className={`tile item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`} title={`${slot}: ${i.name} \u00b7 ${why}`} aria-label={`${slot}: ${i.name}, ${why}`}>
             {icons.gear(i.name) ? <img src={icons.gear(i.name)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
@@ -750,9 +757,9 @@ function EquippedNow({ eq, seat, onApply }: { eq: Equipped; seat?: Seat; onApply
       {data && (
         <>
           <div className="equipped-grid" aria-label="Equipped gear">
-            <span className="ab-kind-name">Weapons <span className="muted">grey; heavy grey or green</span></span>
+            <span className="ab-kind-name">Weapons <span className="muted">{colorsOf(startRarities(ruleset, 'Kinetic'))}; heavy {colorsOf(startRarities(ruleset, 'Power'))}</span></span>
             {gearRow(['Kinetic', 'Energy', 'Power'])}
-            <span className="ab-kind-name">Armor <span className="muted">grey</span></span>
+            <span className="ab-kind-name">Armor <span className="muted">{colorsOf(startRarities(ruleset, 'Helmet'))}</span></span>
             {gearRow(['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item'])}
           </div>
           {data.subclass ? (

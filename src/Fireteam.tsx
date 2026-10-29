@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
-import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
+import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeTierOk, tradeableFor, recordDeath, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -132,8 +132,8 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   const select = (id: string) => { setSelected(selected === id ? null : id); setRemoving(false) }
 
   const eligibleForTrade = (slot: Slot) => {
-    if (slotTier(run, p, slot) !== 'Legendary') return false
-    const items = itemsIn(p, slot).filter(tradeable)
+    if (!tradeTierOk(run, p, slot)) return false
+    const items = itemsIn(p, slot).filter(tradeableFor(run.ruleset))
     if (!tu.sameRarity) return items.length >= tu.inputs
     return RARITIES.some((rr) => items.filter((i) => i.rarity === rr).length >= tu.inputs)
   }
