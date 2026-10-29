@@ -70,6 +70,8 @@ export type Sandbox = {
   tradeUpNeedsLegendary: boolean
   /** Exotics can be traded in. */
   tradeUpExotics: boolean
+  /** A slot must be able to hold every traded-in item (capacity, with Arsenal Expansions) before it can trade up. */
+  tradeUpNeedsRoom: boolean
 }
 
 export const SANDBOX_DEFAULTS: Sandbox = {
@@ -77,7 +79,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
   bonusChance: 10, exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
-  tradeUpNeedsLegendary: true, tradeUpExotics: true,
+  tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -413,8 +415,15 @@ export function changeIntegrity(run: Run, delta: number, reason: string, kind: L
 export const tradeable = (i: Item) => (i.rarity === 'Legendary' || i.rarity === 'Exotic') && i.source !== 'starting gear'
 /** Trade-up inputs under a protocol: Legendary, and Exotic unless it says otherwise; never starting gear. */
 export const tradeableFor = (r: Ruleset) => (i: Item) => tradeable(i) && (i.rarity !== 'Exotic' || sandbox(r).tradeUpExotics)
-/** Whether a slot's tier allows trade-ups (Legendary, unless the protocol drops that rule). */
-export const tradeTierOk = (run: Run, p: Player, slot: Slot) => !sandbox(run.ruleset).tradeUpNeedsLegendary || slotTier(run, p, slot) === 'Legendary'
+/** Why a slot can't trade up under the protocol's rules (tier, room), or null when it can. Items aren't checked here. */
+export function tradeBlock(run: Run, p: Player, slot: Slot): string | null {
+  const sb = sandbox(run.ruleset)
+  if (sb.tradeUpNeedsLegendary && slotTier(run, p, slot) !== 'Legendary') return `Trade-ups need your ${slot} at Legendary.`
+  const need = run.ruleset.tradeUp.inputs
+  if (sb.tradeUpNeedsRoom && capacityOf(run, p) < need) return `Trade-ups need room for ${need} items: your slots hold ${capacityOf(run, p)}. An Arsenal Expansion adds one.`
+  return null
+}
+export const tradeTierOk = (run: Run, p: Player, slot: Slot) => !tradeBlock(run, p, slot)
 
 /**
  * A Guardian left the fireteam: the host takes them out of the run so the rest can carry on.
@@ -871,7 +880,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
       const slot = inputs[0].slot
       if (inputs.some((i) => i.slot !== slot || !tradeableFor(run.ruleset)(i))) return sandbox(run.ruleset).tradeUpExotics ? 'Inputs must share a slot and be Legendary or Exotic.' : 'Inputs must share a slot and be Legendary.'
-      if (!tradeTierOk(run, p, slot)) return `Trade-ups need your ${slot} at Legendary.`
+      const blocked = tradeBlock(run, p, slot)
+      if (blocked) return blocked
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`

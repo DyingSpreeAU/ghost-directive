@@ -59,6 +59,7 @@ const FIELDS: Field[] = [
   { path: 'tradeUp.options', label: 'Vault options offered', section: 'inventory', kind: 'num', min: 1, max: 8, group: 'Trade-ups', when: (r) => r.tradeUp.enabled },
   { path: 'tradeUp.sameRarity', label: 'Traded-in items must share a rarity', section: 'inventory', kind: 'toggle', group: 'Trade-ups', when: (r) => r.tradeUp.enabled },
   { path: 'sandbox.tradeUpExotics', label: 'Exotics can be traded in', section: 'inventory', kind: 'toggle', group: 'Trade-ups', when: (r) => r.tradeUp.enabled },
+  { path: 'sandbox.tradeUpNeedsRoom', label: 'Slots need room for every item traded in', section: 'inventory', kind: 'toggle', group: 'Trade-ups', when: (r) => r.tradeUp.enabled, hint: 'Off: an over-full slot can trade up. On: with fewer item slots than items traded in, players need Arsenal Expansions first.' },
   { path: 'sandbox.tradeUpNeedsLegendary', label: 'Only once the slot is Legendary', section: 'inventory', kind: 'toggle', group: 'Trade-ups', when: (r) => r.tradeUp.enabled && prog(r) },
 
   { path: 'rewards.unlockChoices', label: 'Ability choices per clear', section: 'rewards', kind: 'num', min: 1, max: 5, group: 'Every clear' },
@@ -200,6 +201,13 @@ export function SandboxEditor({ value, all, onSave, onCancel }: { value: Ruleset
               <div className="sb-fields">{fields.filter((f) => (f.group ?? '') === g).map(control)}</div>
             </div>
           ))}
+          {section === 'inventory' && r.tradeUp.enabled && r.inventory.capacity < r.tradeUp.inputs && (() => {
+            const short = r.tradeUp.inputs - r.inventory.capacity
+            const expansions = sb.secretChests && r.rewards.chestUpgrades && sb.expansionChance > 0
+            return sb.tradeUpNeedsRoom
+              ? <p className={`small ${expansions ? 'muted' : 'tone-warn'}`}>Slots hold {r.inventory.capacity} but a trade-up takes {r.tradeUp.inputs}: each Guardian needs {short} Arsenal Expansion{short === 1 ? '' : 's'} before trading up.{expansions ? '' : ' Arsenal Expansions are off (Rewards → Secret chests), so nobody could ever trade up.'}</p>
+              : <p className="small muted">Slots hold {r.inventory.capacity} but a trade-up takes {r.tradeUp.inputs}: players trade up from an over-full slot. Turn on &ldquo;Slots need room for every item traded in&rdquo; to require Arsenal Expansions first.</p>
+          })()}
           {section === 'integrity' && <p className="small muted">With no clears, wipe {wipes} ends the run. {i.clear > 0 ? `${(i.wipe / i.clear).toFixed(1)} clears earn back a wipe.` : 'Clears don’t restore Integrity.'}</p>}
         </section>
 

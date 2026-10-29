@@ -247,7 +247,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   final boss Integrity bonus, Integrity per secret chest, secret chests on/off, starting gear rarity
   per group (weapons, heavy, armor; also each slot's starting tier with progression), whole subclass
   unlocked at the start, BONUS chance, Exotics usable any time, final boss option counts, Prismatic Exotic class
-  items, Arsenal Expansion chance, and trade-up rules (Exotic inputs, Legendary slot needed). App
+  items, Arsenal Expansion chance, and trade-up rules (Exotic inputs, Legendary slot needed, and room for every traded-in item:
+  with fewer item slots than inputs, Guardians need Arsenal Expansions before trading up; the editor
+  explains the combination and warns when expansions are off). App
   settings stay out of it and always on: the ready-up gate, the resume gate, Collections-only Exotics
   and the over-capacity prompt (`Ruleset.overflow` is ignored). The lobby's setup guide, rules and
   starting-gear checks follow these settings. Protocol cards show how many changes a custom one has.
