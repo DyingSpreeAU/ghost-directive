@@ -392,7 +392,7 @@ export function reconcile(snap: BungieSnapshot, p: Player) {
     missing: p.inventory.filter((i) => (i.instanceId ? !ids.has(i.instanceId) : !snap.owned.has(i.name))).map((i) => i.name),
     untracked: snap.carried
       .filter((c) => !(c.instanceId && runIds.has(c.instanceId)) && !runNames.has(`${c.slot}|${c.name}`))
-      .map((c) => ({ slot: c.slot, name: c.name, equipped: c.equipped, fate: c.instanceId ? fates.get(c.instanceId) : undefined })),
+      .map((c) => ({ slot: c.slot, name: c.name, rarity: c.rarity, instanceId: c.instanceId, equipped: c.equipped, fate: c.instanceId ? fates.get(c.instanceId) : undefined })),
     undismantled: (p.retired ?? []).filter((r) => r.fate === 'dismantled' && r.instanceId && ids.has(r.instanceId)).map((r) => r.name),
   }
 }

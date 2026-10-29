@@ -180,7 +180,7 @@ export type DetectedDrop = { name: string; slot: Slot; rarity: Rarity; instanceI
 /** What a player's device reports after reading their Destiny profile. Tokens never leave that device. */
 export type Fate = 'traded' | 'vaulted' | 'dismantled' | 'removed'
 export const FATE_LABEL: Record<Fate, string> = { traded: 'traded in', vaulted: 'vaulted', dismantled: 'dismantled', removed: 'removed from the run' }
-export type Untracked = { slot: Slot; name: string; equipped?: boolean; fate?: Fate }
+export type Untracked = { slot: Slot; name: string; rarity?: Rarity; instanceId?: string; equipped?: boolean; fate?: Fate }
 
 export type BungieLink = {
   name: string
@@ -563,7 +563,7 @@ export function computeWarnings(run: Run): Warning[] {
       const back = un.filter((u) => u.fate)
       const what = (u: Untracked) => `${u.name} (${u.slot}${u.equipped ? ', equipped' : ''}${u.fate ? `, ${FATE_LABEL[u.fate]}` : ''})`
       out.push({
-        flash: un.map((u) => `slot:${p.id}:${u.slot}`), discrepancy: true, id: `bu-${p.id}`, severity: un.some((u) => u.equipped || u.fate) ? 'critical' : 'warn', playerId: p.id,
+        flash: un.map((u) => `out:${p.id}:${u.slot}:${u.name}`), discrepancy: true, id: `bu-${p.id}`, severity: un.some((u) => u.equipped || u.fate) ? 'critical' : 'warn', playerId: p.id,
         title: back.length ? `${back.length} item${back.length === 1 ? '' : 's'} that left the run ${back.length === 1 ? 'is' : 'are'} back on your character` + (un.length > back.length ? `, and ${un.length - back.length} more not in the run` : '') : `On your character but not in the run (${un.length})`,
         rule: `${un.map(what).join(', ')}. Only run gear may be on your character: move ${un.length === 1 ? 'it' : 'them'} to the Vault, or register ${un.length === 1 ? 'it' : 'them'} if earned this run.`,
         where: 'arsenal',
@@ -829,8 +829,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const strs = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n).map((x) => str(x)).filter(Boolean) : [])
       const FATES: Fate[] = ['traded', 'vaulted', 'dismantled', 'removed']
       const untracked: Untracked[] = (Array.isArray(it.untracked) ? it.untracked.slice(0, 40) : [])
-        .map((raw) => (raw ?? {}) as { slot?: unknown; name?: unknown; equipped?: unknown; fate?: unknown })
-        .map((u) => ({ slot: u.slot as Slot, name: str(u.name), equipped: !!u.equipped, fate: FATES.includes(u.fate as Fate) ? u.fate as Fate : undefined }))
+        .map((raw) => (raw ?? {}) as { slot?: unknown; name?: unknown; rarity?: unknown; instanceId?: unknown; equipped?: unknown; fate?: unknown })
+        .map((u) => ({ slot: u.slot as Slot, name: str(u.name), rarity: RARITIES.includes(u.rarity as Rarity) ? u.rarity as Rarity : undefined, instanceId: str(u.instanceId, 24) || undefined, equipped: !!u.equipped, fate: FATES.includes(u.fate as Fate) ? u.fate as Fate : undefined }))
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
       const prevRestore = p.bungie?.restore

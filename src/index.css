@@ -761,6 +761,13 @@ button.tile-empty:hover:not(:disabled) { border-color: var(--dim); color: var(--
 .tile-eq { position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; background: var(--light); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .tiles .tile.item.is-over { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
 .tiles .tile.item.is-selected { outline: 2px solid var(--text); outline-offset: 2px; }
+/* Gear on the character that isn't in the run: dimmed, hatched and outlined in red. */
+.tiles .tile.item.is-outside { border: 1px dashed var(--danger); border-bottom: 3px solid var(--danger); }
+.tiles .tile.item.is-outside img { opacity: 0.55; filter: grayscale(0.5); }
+.tiles .tile.item.is-outside::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--danger) 28%, transparent) 0 3px, transparent 3px 9px); }
+.tile-out { position: absolute; left: 3px; top: 3px; z-index: 1; min-width: 14px; height: 14px; display: grid; place-items: center; background: var(--danger); color: #fff; font: 700 10px/1 var(--f-display); }
+.tile-detail.is-outside { border-left-color: var(--danger); }
+.tile-detail .item-main .item-meta + .item-meta { margin-top: 2px; }
 .tile:focus-visible { outline: 2px solid var(--light); outline-offset: 2px; }
 .tile-detail { --rc: var(--r-common); display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 8px 10px; background: var(--ink); border: 1px solid var(--seam); border-left: 4px solid var(--rc); }
 .tile-detail .item-acts.row { flex-direction: row; flex-wrap: wrap; }

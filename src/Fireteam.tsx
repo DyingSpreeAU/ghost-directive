@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
-import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -124,6 +124,9 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   const [selected, setSelected] = useState<string | null>(null)
   const [removing, setRemoving] = useState(false)
   const sel = p.inventory.find((i) => i.id === selected)
+  // Gear on the character that isn't part of the run, as of the last Bungie sync.
+  const outside = (p.bungie?.untracked ?? []).map((u, k) => ({ ...u, key: `out-${k}` }))
+  const selOut = outside.find((u) => u.key === selected)
   const select = (id: string) => { setSelected(selected === id ? null : id); setRemoving(false) }
 
   const eligibleForTrade = (slot: Slot) => {
@@ -169,7 +172,35 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                     ? <button key={i} className="tile tile-empty" disabled={!active} aria-label={`Add a ${slot} item`} onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>+</button>
                     : <span key={i} className="tile tile-empty" aria-hidden="true" />
                 ))}
+                {outside.filter((u) => u.slot === slot).map((u) => (
+                  <OutsideTile key={u.key} u={u} icon={icons.gear(u.name)} flash={`out:${p.id}:${u.slot}:${u.name}`} selected={selected === u.key} onSelect={() => select(u.key)} />
+                ))}
               </div>
+              {selOut && selOut.slot === slot && (
+                <div className={`tile-detail is-outside ${rarityClass(selOut.rarity ?? 'Legendary')}`} role="group" aria-label={selOut.name}>
+                  <div className="item-main">
+                    <span className="item-name">{selOut.name}</span>
+                    <span className="item-meta">
+                      <span className="tag tag-bad">Not in the run</span>{' '}
+                      {[selOut.rarity, selOut.equipped ? 'Equipped' : 'In inventory', selOut.fate ? `${FATE_LABEL[selOut.fate]} earlier` : ''].filter(Boolean).join(' · ')}
+                    </span>
+                    <span className="item-meta">{selOut.fate
+                      ? 'This item left the run but is on your character again. Put it away, or dismantle it if that was its fate.'
+                      : 'On your character in Destiny 2 but not part of the run. Put it in your Vault, or add it if it was a run drop the app missed.'}</span>
+                  </div>
+                  {control && (
+                    <div className="item-acts row">
+                      {inGame && <button className="chip" disabled={moving || !!selOut.equipped} title={selOut.equipped ? 'Equip something else in Destiny 2 first, or use Restore my Guardian.' : 'Send it to your Vault in Destiny 2.'} onClick={async () => {
+                        setMoving(true)
+                        const r = await moveInGame(p, [{ name: selOut.name, instanceId: selOut.instanceId, slot: selOut.slot, to: 'vault' }], toast)
+                        setMoving(false)
+                        if (r && !r.problems.length) { setSelected(null); void syncBungie(run, p, dispatch, () => {}) }
+                      }}>{moving ? 'Moving\u2026' : 'To Vault'}</button>}
+                      {!selOut.fate && <button className="chip chip-quiet" disabled={!active} title="It was a run drop: add it to the run inventory." onClick={() => openFlow({ type: 'register', playerId: p.id, slot })}>Add to run</button>}
+                    </div>
+                  )}
+                </div>
+              )}
               {sel && sel.slot === slot && (
                 <div className={`tile-detail ${rarityClass(sel.rarity)}`} role="group" aria-label={sel.name}>
                   <div className="item-main">
@@ -218,6 +249,19 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
         </details>
       )}
     </section>
+  )
+}
+
+/** Gear on the character that isn't in the run: shown in its slot, struck through in red. */
+function OutsideTile({ u, icon, selected, onSelect, flash }: { u: { name: string; rarity?: Item['rarity']; equipped?: boolean; fate?: Fate }; icon?: string; selected: boolean; onSelect: () => void; flash: string }) {
+  const [broken, setBroken] = useState(false)
+  const label = `${u.name}: not in the run${u.equipped ? ', equipped' : ''}${u.fate ? `, ${FATE_LABEL[u.fate].toLowerCase()} earlier` : ''}`
+  return (
+    <button data-flash={flash} className={`tile item is-outside ${rarityClass(u.rarity ?? 'Legendary')} ${u.equipped ? 'is-eq' : ''} ${selected ? 'is-selected' : ''}`} title={label} aria-label={label} aria-pressed={selected} onClick={onSelect}>
+      {icon && !broken ? <img src={icon} alt="" loading="lazy" onError={() => setBroken(true)} /> : <span className="tile-initial">{u.name.slice(0, 2)}</span>}
+      <span className="tile-out" aria-hidden="true">!</span>
+      {u.equipped && <span className="tile-eq" aria-hidden="true" />}
+    </button>
   )
 }
 

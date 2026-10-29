@@ -141,7 +141,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   raised a slot's tier is recorded as dismantled, so a later sync doesn't count it again. Each sync
   reads everything on the run character (equipped or carried) and flags, as discrepancies, gear that
   isn't in the run (naming the fate of any that left it earlier) and items marked dismantled that are
-  still on the account. Each Guardian column lists them under **Left the run**.
+  still on the account. Each Guardian column lists them under **Left the run**. Gear that isn't in
+  the run also shows in its slot as a red, hatched tile marked **Not in the run**, with **To Vault**
+  (on the player's own signed-in device) and **Add to run** (for a drop the app missed).
 - **Equipped state syncs**: each Bungie sync sends what the character has equipped, and the host marks
   the matching run items (by instance id, else slot and name), so every device sees other Guardians'
   equipped gear.

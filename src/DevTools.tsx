@@ -169,6 +169,15 @@ export default function DevTools() {
               <button onClick={() => act('inventory emptied', (r) => { one(r).inventory = [] })}>Empty inventory</button>
               <button onClick={() => act('every slot Legendary', (r) => { const p = one(r); if (p.tiers) for (const k of Object.keys(p.tiers)) p.tiers[k as Slot] = 'Legendary'; p.upgrades = [] })}>All slots Legendary</button>
             </div>
+            <button className="devtools-wide" onClick={() => act('gear outside the run', (r) => {
+              const p = one(r)
+              p.bungie ??= { name: p.name, character: p.cls, syncedAt: Date.now(), vaultItems: 0, missing: [], untracked: [] }
+              p.bungie.untracked = [
+                { slot: 'Kinetic', name: pick(SAMPLE_DROPS.Kinetic), rarity: 'Legendary', equipped: true },
+                { slot: 'Helmet', name: pick(SAMPLE_DROPS.Helmet), rarity: 'Exotic' },
+                { slot: 'Power', name: pick(SAMPLE_DROPS.Power), rarity: 'Legendary', fate: 'traded' },
+              ]
+            })}>Gear outside the run</button>
           </section>
 
           <section>
