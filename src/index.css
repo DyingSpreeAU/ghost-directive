@@ -96,6 +96,7 @@ p { margin: 0; }
 
 .main {
   min-width: 0;
+  overflow-x: clip; /* nothing (like the hidden, enlarged mini bar) may widen the page; clip keeps sticky working */
   padding-block: 28px 64px;
   padding-left: max(28px, env(safe-area-inset-left, 0px));
   padding-right: max(28px, env(safe-area-inset-right, 0px));
@@ -530,8 +531,15 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
 .net-unavailable .dot { background: var(--dim); }
 .net p { flex-basis: 100%; text-transform: none; letter-spacing: 0; font-family: var(--f-body); }
 
-.code-card { display: grid; gap: 6px; justify-items: start; padding: 14px 18px; border: 1px solid var(--seam); background: var(--hull); border-top: 2px solid var(--light); }
-.code-big { font-size: 2.2rem; letter-spacing: 0.24em; color: var(--light); line-height: 1; user-select: all; }
+/* Lobby code: top right of the lobby, resume and run pages, with the page's actions under it. */
+.head-side { display: grid !important; justify-items: end; align-content: start; gap: 10px; margin-left: auto; }
+.code-card { display: grid; gap: 4px; justify-items: start; padding: 8px 10px 8px 14px; border: 1px solid var(--seam); background: var(--hull); border-top: 2px solid var(--light); }
+.code-row { display: flex; align-items: center; gap: 10px; }
+.code-big { font-size: 1.5rem; letter-spacing: 0.22em; color: var(--light); line-height: 1; user-select: all; }
+.code-copy { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; background: transparent; border: 1px solid var(--seam); border-radius: var(--radius); color: var(--dim); cursor: pointer; }
+.code-copy:hover, .code-copy:focus-visible { color: var(--light); border-color: var(--light); }
+@media (max-width: 900px) { .page-head > .head-side { order: -1; width: 100%; } }
+.code-copy svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 .seats { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .seat { padding: 16px; display: grid; gap: 12px; align-content: start; border-top: 2px solid var(--el, var(--seam)); }
@@ -1124,7 +1132,8 @@ button.ab-chip:hover { border-color: var(--dim); }
 
 /* ---------------------------------------------------------------- host mini command bar */
 /* Takes no room in the page; its bar sticks to the top of the main column once the full panel scrolls away. */
-.mini-dock { position: sticky; top: 8px; height: 0; margin-bottom: -22px; z-index: 30; }
+.mini-dock { position: sticky; top: 8px; height: 0; z-index: 30; }
+.mini-dock + * { margin-top: -22px; } /* a grid track can't shrink below zero: pull the next item up over the dock's gap */
 body:has(.channel-badge) .mini-dock { top: 34px; } /* under the nightly badge */
 .mini-command {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;

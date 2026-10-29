@@ -101,7 +101,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               : 'Set up your Guardian, then mark yourself ready. The host chooses the protocol and route and starts the run.'}
           </p>
         </div>
-        <CodeCard code={lobby.code} />
+        <div className="head-side"><CodeCard code={lobby.code} /></div>
       </header>
 
       {role === 'host' && net.status === 'unavailable' && (
@@ -173,18 +173,24 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function CodeCard({ code }: { code: string }) {
+/** The lobby code, top right of every lobby, resume and run page, with a copy button. */
+export function CodeCard({ code }: { code: string }) {
   const { toast } = useGD()
+  const copy = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const el = e.currentTarget.previousSibling as HTMLElement
+    navigator.clipboard.writeText(code).then(() => toast('Code copied'), () => {
+      const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); toast('Code selected. Copy it to share.')
+    })
+  }
   return (
     <div className="code-card">
       <div className="eyebrow">Lobby code</div>
-      <div className="code-big mono" aria-label={`Lobby code ${code.split('').join(' ')}`}>{code}</div>
-      <button className="btn btn-ghost btn-sm" onClick={(e) => {
-        const el = (e.currentTarget.previousSibling as HTMLElement)
-        navigator.clipboard.writeText(code).then(() => toast('Code copied'), () => {
-          const r = document.createRange(); r.selectNodeContents(el); const sel = getSelection(); sel?.removeAllRanges(); sel?.addRange(r); toast('Code selected. Copy it to share.')
-        })
-      }}>Copy code</button>
+      <div className="code-row">
+        <span className="code-big mono" aria-label={`Lobby code ${code.split('').join(' ')}`}>{code}</span>
+        <button className="code-copy" onClick={copy} aria-label="Copy code" title="Copy code">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2" /><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" /></svg>
+        </button>
+      </div>
     </div>
   )
 }
@@ -862,7 +868,7 @@ export function ResumeLobby({ run }: { run: Run }) {
           <h1>{run.name}</h1>
           <p className="section-note">Every Guardian restores their character before play continues. Nothing about the run can change here.</p>
         </div>
-        {role === 'host' && <CodeCard code={run.code} />}
+        <div className="head-side"><CodeCard code={run.code} /></div>
       </header>
 
       <ResumeGuide />

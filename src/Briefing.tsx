@@ -10,6 +10,7 @@ import { makeLobbyCode } from './net'
 import { bungieConfigured } from './bungie'
 import { Fireteam } from './Fireteam'
 import { BungiePanel } from './BungiePanel'
+import { CodeCard } from './Lobby'
 import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter } from './ui'
 
@@ -71,11 +72,14 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
             <span>{run.route.length} dungeon{run.route.length > 1 ? 's' : ''}, route locked</span>
           </div>
         </div>
-        <div className="row-acts">
+        <div className="head-side">
+          <CodeCard code={run.code} />
+          <div className="row-acts">
           {active && myPlayerId && bungieConfigured && (
             <button className="btn btn-ghost btn-sm" title="Ask every signed-in Guardian's device to read Bungie now: drops, equipped gear, subclass and artifact." onClick={() => { dispatch({ type: 'sync-request' }); toast('Sync requested for every signed-in Guardian.') }}>Sync all</button>
           )}
           {active && isHost && <button className="btn btn-ghost btn-sm" onClick={() => openFlow({ type: 'abandon' })}>End run</button>}
+          </div>
         </div>
       </header>
 

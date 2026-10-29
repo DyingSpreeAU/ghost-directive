@@ -89,6 +89,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
   final-boss category-first reward (Exotic armor or Vault Legendary weapon), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
+- **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume
+  and run pages (first on phones), for everyone, with a copy icon button.
 - **Mini command bar** (host, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's
   top scrolls above the window, a compact bar shrinks into place at the top of the main column with
   Integrity, the current dungeon, encounter and progress, and Clear / Record wipe (or the secret chest
