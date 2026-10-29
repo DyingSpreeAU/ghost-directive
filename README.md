@@ -314,14 +314,15 @@ moving works anywhere, and the result says which happened. Postmaster items and 
 another character are reported, not moved. Needs the app scope below.
 
 **Resuming a run.** Reopening a run from the start screen (a saved run, or the one this browser
-was hosting) puts everyone on a resume screen before play continues (`Run.resume`). Each Guardian
-restores their character: signed-in players press Restore my Guardian there (a clean restore marks
-them restored), anyone else does it by hand and presses "I've restored it myself", and the host
-marks Guardians with no device. The run continues once all are restored, or when the host uses
-Host override. Rewards, trade-ups and other prompts wait. Reopening also sets `Run.rebaseAt`, and
-each device's next sync adds everything on the account to its drop baseline, so gear picked up while
-the run was paused never counts as a drop; it shows as gear that isn't in the run instead. Every
-signed-in device syncs as soon as the resume screen opens.
+was hosting) shows the lobby again, read-only (`ResumeLobby`, while `Run.resume` is set): the rules,
+each Guardian's seat with their current class, subclass, abilities and artifact, the run setup to
+put back (last restore point, else items marked equipped), and the route. A player's only button is
+**Restore my Guardian**; a clean restore marks them restored. The host can **Mark restored** any
+Guardian (for anyone restoring by hand or with no device) and use **Host override** to carry on
+without everyone. The run continues once all are restored. Rewards, trade-ups and other prompts wait.
+Reopening also sets `Run.rebaseAt`, and each device's next sync adds everything on the account to
+its drop baseline, so gear picked up while the run was paused never counts as a drop; it shows as
+gear that isn't in the run instead. Every signed-in device syncs as soon as the resume screen opens.
 
 **Synaptic Link.** A Ghost icon at the top right of every lobby and run page shows the Bungie link:
 green when signed in and the last read succeeded within 5 minutes, red otherwise (signed out, an

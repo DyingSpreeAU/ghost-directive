@@ -1,14 +1,13 @@
 import { BugReport } from './BugReport'
 import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { ResumeGate } from './ResumeGate'
 import { Briefing } from './Briefing'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
 import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
-import { LobbyView } from './Lobby'
+import { LobbyView, ResumeLobby } from './Lobby'
 import { Protocols } from './Protocols'
 import {
   GDContext, useGD, deleteRun, guestSession, hasHostSession, lastCode, loadHostStore, resumableRuns, resumeRun, saveGuestSession, saveHostStore, shelveActive, storageIsPersistent,
@@ -578,7 +577,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const warnings = run ? computeWarnings(run) : []
   const crit = warnings.filter((w) => w.severity === 'critical').length
   const code = run?.code ?? lobby?.code ?? ''
-  const sections = run ? RUN_NAV : lobby ? LOBBY_NAV : []
+  const sections = run ? (paused ? LOBBY_NAV : RUN_NAV) : lobby ? LOBBY_NAV : []
   const pages = PAGE_NAV.filter((n) => !n.hostOnly || role === 'host')
   const nav = [...sections, ...pages]
   const inRun = !!run && view === 'briefing'
@@ -617,7 +616,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
           )}
           {view === 'protocols' && role === 'host' ? <Protocols />
             : view === 'history' && role === 'host' ? <History />
-            : paused ? <ResumeGate run={run!} />
+            : paused ? <ResumeLobby run={run!} />
             : run ? <Briefing run={run} warnings={warnings} pendingDeferred={myPending.length} onOpenRewards={() => { setDeferred([]); if (myPending[0]) setFlow({ type: 'reward', pendingId: myPending[0].id }) }} />
             : lobby ? <LobbyView lobby={lobby} />
             : null}

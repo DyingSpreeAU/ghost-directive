@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
-import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Seat } from './model'
+import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Player, type Run, type Seat } from './model'
 import { allProtocols, endSavedRuns, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
-import { reportLink, useBungie } from './BungiePanel'
+import { RestoreGuardian, reportLink, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean }
@@ -205,8 +205,12 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped }: {
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped, statusLabel, resume }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
+  /** Replaces the lobby's own status word (the resume screen shows Restored or Waiting). */
+  statusLabel?: string
+  /** On the resume screen: Bungie sign-in is about restoring, not the Vault. */
+  resume?: boolean
   /** Re-reads the active character from Bungie and fills this seat (signed-in player's own seat). */
   sync?: { busy: boolean; run: () => void; sending: boolean; send: () => void }
   /** Bungie sync status for the player's own seat, shown by the Ready button. */
@@ -224,7 +228,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   const always = baseKit(seat.cls, seat.element)
   // Someone else's seat shows the same full layout, read-only.
   const ro = !editable
-  const status = seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected'
+  const status = statusLabel ?? (seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected')
   const chip = (id: string, on: boolean, onClick: () => void) => {
     const a = abil.find((x) => x.id === id)
     if (!a) return null
@@ -317,7 +321,7 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           )}
       </div>
 
-      {you && <SeatBungie />}
+      {you && <SeatBungie resume={resume} />}
 
       {hostTools && (
         <div className="seat-tools">
@@ -329,10 +333,10 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   )
 }
 
-function RouteAndProtocol({ lobby }: { lobby: Lobby }) {
+function RouteAndProtocol({ lobby, readOnly }: { lobby: Lobby; readOnly?: boolean }) {
   const { host } = useGD()
   const [chronoCount, setChronoCount] = useState(lobby.expedition === 'chronological' ? lobby.route.length : DUNGEONS.length)
-  const set = host?.updateLobby
+  const set = readOnly ? undefined : host?.updateLobby
   const protocols = host ? allProtocols(host.store) : []
   const r = lobby.ruleset
 
@@ -553,21 +557,34 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
 }
 
 /** Optional: sign in during the lobby so the Vault syncs as soon as the run starts. */
-function SeatBungie() {
+function SeatBungie({ resume }: { resume?: boolean }) {
   const { signedIn } = useBungie()
   if (!bungieConfigured) return null
   return signedIn
-    ? <p className="small seat-bungie"><span className="tag tag-bungie">Bungie</span> Signed in. Your Vault syncs when the run starts.</p>
-    : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">to use your real Vault (optional).</span></p>
+    ? <p className="small seat-bungie"><span className="tag tag-bungie">Bungie</span> Signed in. {resume ? 'Restore my Guardian puts your run setup back in game.' : 'Your Vault syncs when the run starts.'}</p>
+    : <p className="small seat-bungie"><button className="link" onClick={startSignIn}>Sign in with Bungie</button> <span className="muted">{resume ? 'to restore your Guardian in one press (optional).' : 'to use your real Vault (optional).'}</span></p>
 }
 
 /** How to prepare in Destiny 2, and the run's rules in plain words, using the chosen protocol's numbers. */
-function SetupGuide({ lobby }: { lobby: Lobby }) {
+function SetupGuide({ lobby, resume }: { lobby: Lobby; resume?: boolean }) {
   const r = lobby.ruleset
   const i = r.integrity
   const tu = r.tradeUp
   return (
     <section id="setup" className="panel setup-guide section-anchor" aria-labelledby="setup-guide-title">
+      {resume ? (
+      <div className="guide-part">
+        <div className="eyebrow">Before play continues</div>
+        <h2 id="setup-guide-title">Restore your Guardian</h2>
+        <p className="section-note">Put your character back the way the run left it. Gear picked up while the run was paused doesn&rsquo;t count as a drop.</p>
+        <ul className="guide-list">
+          <li><strong>Run gear equipped</strong><span className="muted">The run setup shown on your seat, slot by slot.</span></li>
+          <li><strong>Everything else in the Vault</strong><span className="muted">Weapons and armor on your character that aren&rsquo;t part of the run.</span></li>
+          <li><strong>Your run subclass and artifact</strong><span className="muted">Only what you&rsquo;ve unlocked in the run.</span></li>
+        </ul>
+        <p className="small muted">Signed in with Bungie? Restore my Guardian does all of this for you, in orbit or a social space.</p>
+      </div>
+      ) : (
       <div className="guide-part">
         <div className="eyebrow">Before the first encounter</div>
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
@@ -577,6 +594,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
           <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
         </ul>
       </div>
+      )}
       <div className="guide-part" aria-labelledby="rules-title">
         <div className="eyebrow">{r.name}</div>
         <h2 id="rules-title">How the run works</h2>
@@ -806,5 +824,161 @@ function ReadyRow({ lobby, isOnline, me }: { lobby: Lobby; isOnline: (cid: strin
         )
       })}
     </ul>
+  )
+}
+
+/** A run's Guardian as a lobby seat, for the read-only resume screen: its equipped (else first unlocked) ability of each kind. */
+function seatFromPlayer(p: Player, ready: boolean): Seat {
+  const abil = subclassAbilities(p.cls, p.element)
+  const always = baseKit(p.cls, p.element)
+  const def = defaultStarter(p.cls, p.element)
+  const pick = (k: StarterKind) => {
+    const of = (ids: string[]) => ids.find((id) => !always.includes(id) && abil.some((a) => a.id === id && a.kind === k))
+    return of(p.configured) ?? of(p.unlocked) ?? def[k]!
+  }
+  return {
+    id: p.id, clientId: p.clientId, name: p.name, cls: p.cls, element: p.element, isHost: p.isHost, ready,
+    starter: { super: pick('super'), class: pick('class'), melee: pick('melee'), grenade: pick('grenade') },
+    checklist: p.checklist, artifact: p.artifactName ?? '', emblem: p.bungie?.emblem,
+  }
+}
+
+/**
+ * A reopened run waits here until every Guardian has put their character back the way the run
+ * left it. It's the lobby, read-only: a player's only button is Restore my Guardian. The host can
+ * mark Guardians restored (for anyone restoring by hand) and carry on without everyone.
+ */
+export function ResumeLobby({ run }: { run: Run }) {
+  const { role, me, online, host, toast } = useGD()
+  const [confirm, setConfirm] = useState(false)
+  const ready = run.resume?.ready ?? []
+  const isOnline = (cid: string | null) => !!cid && online.includes(cid)
+  const lobby: Lobby = { code: run.code, name: run.name, protocolId: '', ruleset: run.ruleset, expedition: run.expedition, route: run.route, seats: run.players.map((p) => seatFromPlayer(p, ready.includes(p.id))) }
+  const waiting = run.players.filter((p) => !ready.includes(p.id))
+  const mine = run.players.find((p) => p.clientId === me)
+  const chips = (
+    <ul className="ready-row" aria-label="Who is restored">
+      {run.players.map((p) => {
+        const state = ready.includes(p.id) ? 'ready' : p.clientId !== null && !p.isHost && !isOnline(p.clientId) ? 'offline' : 'waiting'
+        return (
+          <li key={p.id} className={`ready-chip is-${state}`}>
+            <span className="ready-dot" aria-hidden="true" />{p.name}{p.clientId === me ? ' (you)' : ''}<span className="ready-state">{{ ready: 'Restored', offline: 'Offline', waiting: 'Waiting' }[state]}</span>
+          </li>
+        )
+      })}
+    </ul>
+  )
+  return (
+    <div className="lobby resume-lobby">
+      <header className="page-head">
+        <div>
+          <div className="eyebrow">Resuming run</div>
+          <h1>{run.name}</h1>
+          <p className="section-note">Every Guardian restores their character before play continues. Nothing about the run can change here.</p>
+        </div>
+        {role === 'host' && <CodeCard code={run.code} />}
+      </header>
+
+      <SetupGuide lobby={lobby} resume />
+
+      <SwipeCols
+        id="seats"
+        className={`section-anchor seats guardian-cols players-${Math.min(3, run.players.length)}`}
+        tabs={run.players.map((p) => ({ key: p.id, label: <>{p.name}{p.clientId === me ? <span className="swipe-you">You</span> : null}</> }))}
+      >
+        {run.players.map((p, i) => (
+          <SeatCard
+            key={p.id}
+            seat={lobby.seats[i]}
+            you={p.clientId === me}
+            connected={p.clientId === null ? null : isOnline(p.clientId)}
+            editable={false}
+            onPatch={() => {}}
+            statusLabel={ready.includes(p.id) ? 'Restored' : 'Waiting'}
+            resume
+            equipped={<ResumeSetup run={run} p={p} ready={ready.includes(p.id)} />}
+          />
+        ))}
+      </SwipeCols>
+
+      <RouteAndProtocol lobby={lobby} readOnly />
+
+      {role === 'host' ? (
+        <div className="panel begin-bar">
+          <div>
+            <strong>{ready.length}/{run.players.length} restored</strong>
+            <span className="muted"> &middot; {run.route.length} dungeon{run.route.length === 1 ? '' : 's'} &middot; {run.ruleset.name}</span>
+            {chips}
+          </div>
+          <div className="begin-acts">
+            <button className="btn btn-light" disabled>{`Waiting on ${waiting.length} Guardian${waiting.length === 1 ? '' : 's'}`}</button>
+            {confirm ? (
+              <div className="override">
+                <p className="small tone-warn">{waiting.map((p) => p.name).join(', ')} {waiting.length === 1 ? 'isn’t' : 'aren’t'} restored. Their characters may not match the run.</p>
+                <div className="row-acts"><button className="btn btn-ghost btn-sm" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-danger btn-sm" onClick={() => { host!.updateRun((r) => endResume(r, true)); toast('Run continued.') }}>Continue anyway</button></div>
+              </div>
+            ) : <button className="link small" onClick={() => setConfirm(true)}>Host override</button>}
+          </div>
+        </div>
+      ) : (
+        <div className="panel waiting-bar">
+          <div className="waiting-text">
+            <span>{mine && ready.includes(mine.id) ? <><span className="scanner small" aria-hidden="true" /> You&rsquo;re restored. The run continues once everyone is, or when the host carries on.</> : 'Restore your Guardian. The run continues once everyone is restored.'}</span>
+            {chips}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** On each resume seat: the run setup to put back, and the way to do it. */
+function ResumeSetup({ run, p, ready }: { run: Run; p: Player; ready: boolean }) {
+  const { me, role, host, dispatch, toast } = useGD()
+  const { signedIn } = useBungie()
+  const icons = useIcons()
+  const own = p.clientId === me
+  // The last clean run setup, if one was recorded; a sync during the break marks whatever the game has on.
+  const point = p.bungie?.restore?.equipped
+  const atPoint = point?.length ? p.inventory.filter((i) => i.instanceId && point.includes(i.instanceId)) : []
+  const setup = atPoint.length ? atPoint : p.inventory.filter((i) => i.equipped)
+  const extra = p.bungie?.untracked.length ?? 0
+  const mark = (on: boolean) => host!.updateRun((r) => markRestored(r, p.id, on))
+  return (
+    <section className="g-sec resume-setup" aria-label="Run setup to restore">
+      <header className="g-sec-head"><span className="eyebrow">Run setup</span>{ready && <span className="small tone-ok">&#10003; Restored</span>}</header>
+      {setup.length === 0 ? <p className="small muted">No gear recorded as equipped in the run inventory.</p> : (
+      <div className="tiles" style={{ ['--n' as string]: 5 }}>
+        {GEAR_SLOTS.map((slot) => {
+          const i = setup.find((x) => x.slot === slot)
+          if (!i) return <span key={slot} className="tile tile-empty" title={`${slot}: nothing recorded`} aria-label={`${slot}: nothing recorded`} />
+          return (
+            <span key={slot} className={`tile item ${rarityClass(i.rarity)}`} title={`${slot}: ${i.name} · ${i.rarity}`} aria-label={`${slot}: ${i.name}, ${i.rarity}`}>
+              {icons.gear(i.name) ? <img src={icons.gear(i.name)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+            </span>
+          )
+        })}
+      </div>
+      )}
+      {!ready && extra > 0 && <p className="small tone-warn">Last sync: {extra} item{extra === 1 ? '' : 's'} on the character that {extra === 1 ? 'isn’t' : 'aren’t'} in the run.</p>}
+      {!ready && own && p.bungie && signedIn && (
+        <RestoreGuardian
+          run={run}
+          p={p}
+          className="btn btn-light"
+          onRestored={(r) => {
+            if (r.problems.length === 0 && r.equip !== 'partial' && r.equip !== 'location') {
+              dispatch({ type: 'resume-ready', ready: true }, p.id)
+              toast(`${p.name} restored${r.vaulted.length ? `; sent to the Vault: ${r.vaulted.join(', ')}` : ''}.`)
+            } else toast('Not fully restored yet. Fix what the report lists, then restore again.')
+          }}
+        />
+      )}
+      {!ready && own && !(p.bungie && signedIn) && <p className="small muted">{role === 'host' ? 'Restore your Guardian in game, then mark yourself restored below.' : 'Restore your Guardian in game; the host marks you restored. Signed in with Bungie, Restore my Guardian does it for you.'}</p>}
+      {!ready && !own && <p className="small muted">{p.clientId === null ? 'No device: the host restores this Guardian.' : 'Restoring on their own device.'}</p>}
+      {role === 'host' && (ready
+        ? <button className="link small" onClick={() => mark(false)}>Not restored yet</button>
+        : <button className="link small" onClick={() => mark(true)}>Mark restored</button>)}
+    </section>
   )
 }

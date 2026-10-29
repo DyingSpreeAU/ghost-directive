@@ -376,6 +376,17 @@ export function startResume(run: Run) {
   log(run, 'run', 'Run reopened. Every Guardian restores their character before play continues.')
 }
 
+/** Marks one Guardian restored (or not) on the resume screen; the run continues once all are. */
+export function markRestored(run: Run, playerId: string, ready: boolean) {
+  const p = run.players.find((x) => x.id === playerId)
+  if (!run.resume || !p) return
+  run.resume.ready = run.resume.ready.filter((x) => x !== p.id)
+  if (!ready) return
+  run.resume.ready.push(p.id)
+  log(run, 'run', `${p.name} restored their Guardian.`)
+  if (run.players.every((x) => run.resume!.ready.includes(x.id))) endResume(run)
+}
+
 /** Ends the resume ready-up; `forced` when the host continued without everyone. */
 export function endResume(run: Run, forced = false) {
   if (!run.resume) return
@@ -941,12 +952,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     case 'resume-ready': {
       if (!run.resume) return 'The run is already under way.'
-      run.resume.ready = run.resume.ready.filter((x) => x !== p.id)
-      if (it.ready) {
-        run.resume.ready.push(p.id)
-        log(run, 'run', `${p.name} restored their Guardian.`)
-        if (run.players.every((x) => run.resume!.ready.includes(x.id))) endResume(run)
-      }
+      markRestored(run, p.id, !!it.ready)
       return null
     }
     case 'bungie-unlink': {
