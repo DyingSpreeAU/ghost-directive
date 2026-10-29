@@ -65,7 +65,6 @@ export function Protocols() {
                 <div><dt>Starting Item Slots</dt><dd>{p.inventory.capacity}</dd></div>
                 <div><dt>Trade-up</dt><dd>{p.tradeUp.enabled ? `${p.tradeUp.inputs}→${p.tradeUp.options}` : 'Off'}</dd></div>
                 <div><dt>Progression</dt><dd>{p.progression ? 'On' : 'Off'}</dd></div>
-                <div><dt>Overflow</dt><dd>{p.overflow === 'guided' ? 'Swap' : 'Warn'}</dd></div>
               </dl>
               <div className="row-acts">
                 {p.preset

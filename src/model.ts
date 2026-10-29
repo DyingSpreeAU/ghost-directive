@@ -29,7 +29,8 @@ export type Ruleset = {
   tradeUp: { enabled: boolean; inputs: number; options: number; sameRarity: boolean }
   /** Gear progression: each slot climbs Common > Uncommon > Rare > Legendary. Off for rulesets from before it existed. */
   progression?: boolean
-  overflow: 'guided' | 'warn'
+  /** No longer used: the over-capacity prompt is an app setting and always on. Kept so older protocols still load. */
+  overflow?: 'guided' | 'warn'
   loadouts: { baseSlots: number }
   /** The protocol this one was made from, for the editor's comparison. */
   basedOn?: string
@@ -61,8 +62,6 @@ export type Sandbox = {
   exoticChoices: number
   legendaryChoices: number
   artifactChoices: number
-  /** Signed-in players are only offered Exotics unlocked in their Collections. */
-  collectionsOnly: boolean
   /** Prismatic Guardians can be offered their Exotic class item (one rolled copy from their Vault). */
   exoticClassItems: boolean
   /** Chance (%) that a secret chest offers an Arsenal Expansion (with "chests can offer upgrades"). */
@@ -71,19 +70,14 @@ export type Sandbox = {
   tradeUpNeedsLegendary: boolean
   /** Exotics can be traded in. */
   tradeUpExotics: boolean
-  /** A reopened run waits for every Guardian to restore their character. */
-  resumeGate: boolean
-  /** The run can't begin until every connected Guardian is ready (the host can override). */
-  readyGate: boolean
 }
 
 export const SANDBOX_DEFAULTS: Sandbox = {
   finalClear: 0, chestFound: 0, secretChests: true,
   startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
   bonusChance: 10, exoticsAnyTime: true,
-  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, collectionsOnly: true, exoticClassItems: true, expansionChance: 28,
+  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true,
-  resumeGate: true, readyGate: true,
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -107,7 +101,6 @@ export const PRESETS: Ruleset[] = [
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
     progression: true,
-    overflow: 'guided',
     loadouts: { baseSlots: 2 },
   },
   {
@@ -118,7 +111,6 @@ export const PRESETS: Ruleset[] = [
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
     progression: true,
-    overflow: 'guided',
     loadouts: { baseSlots: 1 },
   },
   {
@@ -129,7 +121,6 @@ export const PRESETS: Ruleset[] = [
     rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
     progression: true,
-    overflow: 'warn',
     loadouts: { baseSlots: 0 },
   },
 ]
@@ -450,7 +441,6 @@ export function startResume(run: Run) {
   if (run.status !== 'active' || run.example) return
   const at = Date.now()
   run.rebaseAt = at
-  if (!sandbox(run.ruleset).resumeGate) { log(run, 'run', 'Run reopened.'); return }
   run.resume = { at, ready: [] }
   log(run, 'run', 'Run reopened. Every Guardian restores their character before play continues.')
 }
@@ -587,7 +577,7 @@ export function exoticChoices(p: Player, r: Ruleset = STANDARD): VaultEntry[] {
   const sb = sandbox(r)
   const owned = new Set(p.inventory.map((i) => i.name))
   // Signed in with Bungie: only Exotics unlocked in their Collections, which they can pull in game.
-  const unlocked = p.bungie?.exotics && sb.collectionsOnly ? new Set(p.bungie.exotics.unlocked) : null
+  const unlocked = p.bungie?.exotics ? new Set(p.bungie.exotics.unlocked) : null
   const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name) && (!unlocked || unlocked.has(e.name)))
   // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
   const picks = favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))

@@ -549,7 +549,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   useAutoSync(run, me, base.dispatch, setToastMsg)
   const myPending = run && me ? run.pending.filter((x) => x.playerId === me.id) : []
   const autoReward = myPending.find((x) => !deferred.includes(x.id))
-  const swapSlot = run && me && run.ruleset.overflow === 'guided'
+  const swapSlot = run && me
     ? run.ruleset.inventory.slots.find((s) => itemsIn(me, s).length > capacityOf(run, me) && !dismissedSwaps.includes(`${s}:${itemsIn(me, s).length}`))
     : undefined
   // A trade-up in progress reopens until a pick is made: its options are already fixed. The host

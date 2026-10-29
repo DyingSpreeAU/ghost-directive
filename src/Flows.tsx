@@ -486,7 +486,7 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
       </form>
       {exoticClass && <p className="small tone-danger">Exotic class items aren&rsquo;t part of runs yet.</p>}
       <p className={`small ${n >= cap ? 'tone-warn' : 'muted'}`}>
-        Your {s} slot holds {n} of {cap}.{n >= cap && (run.ruleset.overflow === 'guided' ? ' You will choose an item to move to the Vault.' : ' This will show an over-capacity warning.')}
+        Your {s} slot holds {n} of {cap}.{n >= cap && ' You will choose an item to move to the Vault.'}
       </p>
     </Modal>
   )

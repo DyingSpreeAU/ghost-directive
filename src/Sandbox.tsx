@@ -24,14 +24,13 @@ type Field = {
   group?: string
 }
 
-type SectionId = 'integrity' | 'start' | 'progression' | 'inventory' | 'rewards' | 'session'
+type SectionId = 'integrity' | 'start' | 'progression' | 'inventory' | 'rewards'
 const SECTIONS: { id: SectionId; title: string; note: string }[] = [
   { id: 'integrity', title: 'Integrity', note: 'The fireteam’s shared life: what it starts at, what fills it and what drains it.' },
   { id: 'start', title: 'Starting setup', note: 'What every Guardian brings into the first encounter.' },
   { id: 'progression', title: 'Gear progression', note: 'Slots climbing from their starting tier to Legendary.' },
   { id: 'inventory', title: 'Inventory and trade-ups', note: 'How much each slot holds, and trading surplus for a Vault Legendary.' },
   { id: 'rewards', title: 'Rewards', note: 'What clears, final bosses and secret chests hand out.' },
-  { id: 'session', title: 'Lobby and sessions', note: 'Gates before a run starts or picks back up.' },
 ]
 
 const TIERS: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary']
@@ -55,7 +54,6 @@ const FIELDS: Field[] = [
   { path: 'sandbox.exoticsAnyTime', label: 'Exotics can be used at any time', section: 'progression', kind: 'toggle', when: prog, hint: 'Off: an Exotic drop raises the tier like any other drop.' },
 
   { path: 'inventory.capacity', label: 'Starting item slots', section: 'inventory', kind: 'num', min: 1, max: 12, hint: 'Per gear slot, including the equipped item', group: 'Inventory' },
-  { path: 'overflow', label: 'When a slot overflows', section: 'inventory', kind: 'select', group: 'Inventory', options: [{ value: 'guided', label: 'Prompt: trade up or remove items' }, { value: 'warn', label: 'Warn only' }] },
   { path: 'tradeUp.enabled', label: 'Trade-ups', section: 'inventory', kind: 'toggle', group: 'Trade-ups' },
   { path: 'tradeUp.inputs', label: 'Items traded in', section: 'inventory', kind: 'num', min: 2, max: 8, group: 'Trade-ups', when: (r) => r.tradeUp.enabled },
   { path: 'tradeUp.options', label: 'Vault options offered', section: 'inventory', kind: 'num', min: 1, max: 8, group: 'Trade-ups', when: (r) => r.tradeUp.enabled },
@@ -68,7 +66,6 @@ const FIELDS: Field[] = [
   { path: 'rewards.finalBossGear', label: 'Exotic armor or a Vault Legendary', section: 'rewards', kind: 'toggle', group: 'Final bosses' },
   { path: 'sandbox.exoticChoices', label: 'Exotic armor options', section: 'rewards', kind: 'num', min: 1, max: 6, group: 'Final bosses', when: (r) => r.rewards.finalBossGear },
   { path: 'sandbox.legendaryChoices', label: 'Vault Legendary options', section: 'rewards', kind: 'num', min: 1, max: 6, group: 'Final bosses', when: (r) => r.rewards.finalBossGear },
-  { path: 'sandbox.collectionsOnly', label: 'Only Exotics unlocked in Collections', section: 'rewards', kind: 'toggle', group: 'Final bosses', when: (r) => r.rewards.finalBossGear, hint: 'For signed-in players' },
   { path: 'sandbox.exoticClassItems', label: 'Prismatic Exotic class items', section: 'rewards', kind: 'toggle', group: 'Final bosses', when: (r) => r.rewards.finalBossGear, hint: 'A rolled copy from the Vault' },
   { path: 'rewards.revealCategories', label: 'Show the items in each category before picking', section: 'rewards', kind: 'toggle', group: 'Final bosses', hint: 'Easier' },
   { path: 'rewards.finalBossArtifact', label: 'Artifact research', section: 'rewards', kind: 'toggle', group: 'Final bosses' },
@@ -78,8 +75,6 @@ const FIELDS: Field[] = [
   { path: 'rewards.chestUpgrades', label: 'Chests can offer an Arsenal Expansion', section: 'rewards', kind: 'toggle', group: 'Secret chests', when: (r) => sandbox(r).secretChests },
   { path: 'sandbox.expansionChance', label: 'Arsenal Expansion chance', section: 'rewards', kind: 'pct', group: 'Secret chests', when: (r) => sandbox(r).secretChests && r.rewards.chestUpgrades },
 
-  { path: 'sandbox.readyGate', label: 'Every Guardian must ready up before the run begins', section: 'session', kind: 'toggle', hint: 'The host can always override' },
-  { path: 'sandbox.resumeGate', label: 'Restore every Guardian when a run is reopened', section: 'session', kind: 'toggle', hint: 'Gear picked up during a break never counts as a drop either way' },
 ]
 
 /** A setting's value, with sandbox defaults filled in. */

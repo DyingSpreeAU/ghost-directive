@@ -531,8 +531,7 @@ function RouteTiles({ route, onChange }: { route: string[]; onChange: (next: str
 
 function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby; isOnline: (cid: string | null) => boolean; onBegin: () => void; notice?: React.ReactNode; readyRow?: React.ReactNode }) {
   const [confirm, setConfirm] = useState(false)
-  // A protocol can drop the ready-up rule: then the host can begin whenever.
-  const notReady = sandbox(lobby.ruleset).readyGate ? lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId))) : []
+  const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
   const noRoute = lobby.route.length === 0
   const { host } = useGD()
