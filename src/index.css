@@ -1114,3 +1114,9 @@ button.ab-chip:hover { border-color: var(--dim); }
 .resume-setup .tiles { margin-bottom: 4px; }
 .resume-setup > .btn { justify-self: start; }
 .resume-setup > .link { justify-self: start; }
+.resume-guide { display: grid; gap: 6px; padding: 12px 16px; }
+.resume-guide-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.resume-guide-head h2 { margin: 0; font-size: 1.05rem; }
+.resume-guide-list { list-style: none; margin: 0 0 4px; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 0.88rem; }
+.resume-guide-list li::before { content: "\25C6"; color: var(--light); font-size: 0.6rem; margin-right: 6px; vertical-align: 2px; }
+.resume-guide p { margin: 0; }

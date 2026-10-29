@@ -321,8 +321,8 @@ moving works anywhere, and the result says which happened. Postmaster items and 
 another character are reported, not moved. Needs the app scope below.
 
 **Resuming a run.** Reopening a run from the start screen (a saved run, or the one this browser
-was hosting) shows the lobby again, read-only (`ResumeLobby`, while `Run.resume` is set): the rules,
-each Guardian's seat with their current class, subclass, abilities and artifact, the run setup to
+was hosting) shows the lobby again, read-only (`ResumeLobby`, while `Run.resume` is set): a short
+"Restore your Guardian" strip (no rules recap; it collapses, remembered per device), each Guardian's seat with their current class, subclass, abilities and artifact, the run setup to
 put back (equipped: last restore point, else items marked equipped; plus every other run item, carried
 in the inventory), and the route. Restore pulls every run item back, equipped or carried, from the
 Vault or other characters. A player's only button is

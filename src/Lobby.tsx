@@ -566,25 +566,12 @@ function SeatBungie({ resume }: { resume?: boolean }) {
 }
 
 /** How to prepare in Destiny 2, and the run's rules in plain words, using the chosen protocol's numbers. */
-function SetupGuide({ lobby, resume }: { lobby: Lobby; resume?: boolean }) {
+function SetupGuide({ lobby }: { lobby: Lobby }) {
   const r = lobby.ruleset
   const i = r.integrity
   const tu = r.tradeUp
   return (
     <section id="setup" className="panel setup-guide section-anchor" aria-labelledby="setup-guide-title">
-      {resume ? (
-      <div className="guide-part">
-        <div className="eyebrow">Before play continues</div>
-        <h2 id="setup-guide-title">Restore your Guardian</h2>
-        <p className="section-note">Put your character back the way the run left it. Gear picked up while the run was paused doesn&rsquo;t count as a drop.</p>
-        <ul className="guide-list">
-          <li><strong>Run gear equipped</strong><span className="muted">The run setup shown on your seat, slot by slot.</span></li>
-          <li><strong>Everything else in the Vault</strong><span className="muted">Weapons and armor on your character that aren&rsquo;t part of the run.</span></li>
-          <li><strong>Your run subclass and artifact</strong><span className="muted">Only what you&rsquo;ve unlocked in the run.</span></li>
-        </ul>
-        <p className="small muted">Signed in with Bungie? Restore my Guardian does all of this for you, in orbit or a social space.</p>
-      </div>
-      ) : (
       <div className="guide-part">
         <div className="eyebrow">Before the first encounter</div>
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
@@ -594,7 +581,6 @@ function SetupGuide({ lobby, resume }: { lobby: Lobby; resume?: boolean }) {
           <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
         </ul>
       </div>
-      )}
       <div className="guide-part" aria-labelledby="rules-title">
         <div className="eyebrow">{r.name}</div>
         <h2 id="rules-title">How the run works</h2>
@@ -879,7 +865,7 @@ export function ResumeLobby({ run }: { run: Run }) {
         {role === 'host' && <CodeCard code={run.code} />}
       </header>
 
-      <SetupGuide lobby={lobby} resume />
+      <ResumeGuide />
 
       <SwipeCols
         id="seats"
@@ -929,6 +915,32 @@ export function ResumeLobby({ run }: { run: Run }) {
         </div>
       )}
     </div>
+  )
+}
+
+const GUIDE_KEY = 'ghost-directive:resume-guide-hidden'
+
+/** The resume screen's short how-to; collapses to one line, remembered on this device. */
+function ResumeGuide() {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(GUIDE_KEY) === '1' } catch { return false } })
+  const toggle = () => { const next = !hidden; setHidden(next); try { localStorage.setItem(GUIDE_KEY, next ? '1' : '0') } catch { /* this visit only */ } }
+  return (
+    <section id="setup" className={`panel resume-guide section-anchor ${hidden ? 'is-hidden' : ''}`} aria-labelledby="resume-guide-title">
+      <header className="resume-guide-head">
+        <h2 id="resume-guide-title">Restore your Guardian</h2>
+        <button className="link small" aria-expanded={!hidden} aria-controls="resume-guide-body" onClick={toggle}>{hidden ? 'Show' : 'Hide'}</button>
+      </header>
+      {!hidden && (
+        <div id="resume-guide-body">
+          <ul className="resume-guide-list">
+            <li><strong>Run gear equipped</strong>, as shown on your seat</li>
+            <li><strong>Everything else in the Vault</strong></li>
+            <li><strong>Run subclass and artifact</strong>, only what you&rsquo;ve unlocked</li>
+          </ul>
+          <p className="small muted">Gear picked up while the run was paused doesn&rsquo;t count as a drop. Signed in with Bungie? Restore my Guardian does all of this, in orbit or a social space.</p>
+        </div>
+      )}
+    </section>
   )
 }
 
