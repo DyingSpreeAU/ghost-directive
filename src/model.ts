@@ -160,6 +160,8 @@ export type Player = {
   bungie?: BungieLink
   /** Individual deaths recorded this run. */
   deaths?: number
+  /** Items that left the run, with what happened to them (newest first), so a sync can tell what's allowed. */
+  retired?: (Item & { fate: Fate; at: number })[]
   /** Gear progression: each slot's tier (missing on runs from before progression: no limits). */
   tiers?: Partial<Record<Slot, Rarity>>
   /** Slots that just went up a tier, waiting for the player to swap their gear in game. */
@@ -176,6 +178,10 @@ export type Player = {
 export type DetectedDrop = { name: string; slot: Slot; rarity: Rarity; instanceId: string; starting?: boolean }
 
 /** What a player's device reports after reading their Destiny profile. Tokens never leave that device. */
+export type Fate = 'traded' | 'vaulted' | 'dismantled' | 'removed'
+export const FATE_LABEL: Record<Fate, string> = { traded: 'traded in', vaulted: 'vaulted', dismantled: 'dismantled', removed: 'removed from the run' }
+export type Untracked = { slot: Slot; name: string; equipped?: boolean; fate?: Fate }
+
 export type BungieLink = {
   name: string
   character: string
@@ -183,8 +189,10 @@ export type BungieLink = {
   vaultItems: number
   /** Tracked run items not found anywhere in their Destiny inventory or Vault. */
   missing: string[]
-  /** Equipped in game on the synced character but not in the run inventory. */
-  untracked: { slot: Slot; name: string }[]
+  /** On the synced character (equipped or carried) but not in the run inventory; `fate` when it left the run earlier. */
+  untracked: Untracked[]
+  /** Items the run says were dismantled that are still on the account. */
+  undismantled?: string[]
   /** The subclass equipped in game at the last sync; while set, `configured` comes from Bungie. */
   subclass?: { name: string; element: Element }
   /** The artifact equipped in game at the last sync and the perks switched on in it. */
@@ -415,18 +423,21 @@ export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipp
   if (item.rarity === 'Exotic' || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
   const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })
   if (up?.to === 'Legendary' && item.rarity === 'Legendary') return addItem(run, p, item)
+  // Below Legendary the drop is dismantled; remembering it keeps a sync from counting it again.
+  if (reason === 'drop') dismiss(p, [{ ...item, id: uid(), equipped: false }], 'dismantled')
   return null
 }
 
 /** Items leaving the run; detected ones are remembered so a Bungie sync doesn't add them back. */
-function dismiss(p: Player, items: Item[]) {
+function dismiss(p: Player, items: Item[], fate: Fate) {
   const ids = items.map((i) => i.instanceId).filter((x): x is string => !!x)
   if (ids.length) p.dismissed = [...(p.dismissed ?? []), ...ids].slice(-500)
+  if (items.length) p.retired = [...items.map((i) => ({ ...i, equipped: false, fate, at: Date.now() })), ...(p.retired ?? [])].slice(0, 300)
 }
 
 export function sendToVault(run: Run, p: Player, itemIds: string[], why: string) {
   const gone = p.inventory.filter((i) => itemIds.includes(i.id))
-  dismiss(p, gone)
+  dismiss(p, gone, 'vaulted')
   p.inventory = p.inventory.filter((i) => !itemIds.includes(i.id))
   if (gone.length) log(run, 'vault', `${p.name} moved ${gone.map((g) => g.name).join(', ')} to the Vault (${why}).`)
 }
@@ -547,7 +558,18 @@ export function computeWarnings(run: Run): Warning[] {
       }
     }
     if (p.bungie?.missing.length) out.push({ flash: p.bungie.missing.map((n) => `item:${p.id}:${n}`), discrepancy: true, id: `bm-${p.id}`, severity: 'warn', playerId: p.id, title: `${p.bungie.missing.length} tracked item${p.bungie.missing.length === 1 ? '' : 's'} not found in Destiny`, rule: `Not in your characters or Vault at the last Bungie sync: ${p.bungie.missing.join(', ')}.`, where: 'arsenal' })
-    if (p.bungie?.untracked.length) out.push({ flash: p.bungie.untracked.map((u) => `slot:${p.id}:${u.slot}`), discrepancy: true, id: `bu-${p.id}`, severity: 'critical', playerId: p.id, title: `Equipped in game but not in the run (${p.bungie.untracked.length})`, rule: `${p.bungie.untracked.map((u) => `${u.name} (${u.slot})`).join(', ')}. Register it if you earned it this run, or swap it out in Destiny 2.`, where: 'arsenal' })
+    const un = p.bungie?.untracked ?? []
+    if (un.length) {
+      const back = un.filter((u) => u.fate)
+      const what = (u: Untracked) => `${u.name} (${u.slot}${u.equipped ? ', equipped' : ''}${u.fate ? `, ${FATE_LABEL[u.fate]}` : ''})`
+      out.push({
+        flash: un.map((u) => `slot:${p.id}:${u.slot}`), discrepancy: true, id: `bu-${p.id}`, severity: un.some((u) => u.equipped || u.fate) ? 'critical' : 'warn', playerId: p.id,
+        title: back.length ? `${back.length} item${back.length === 1 ? '' : 's'} that left the run ${back.length === 1 ? 'is' : 'are'} back on your character` + (un.length > back.length ? `, and ${un.length - back.length} more not in the run` : '') : `On your character but not in the run (${un.length})`,
+        rule: `${un.map(what).join(', ')}. Only run gear may be on your character: move ${un.length === 1 ? 'it' : 'them'} to the Vault, or register ${un.length === 1 ? 'it' : 'them'} if earned this run.`,
+        where: 'arsenal',
+      })
+    }
+    if (p.bungie?.undismantled?.length) out.push({ flash: p.bungie.undismantled.map((n) => `item:${p.id}:${n}`), discrepancy: true, id: `bd-${p.id}`, severity: 'warn', playerId: p.id, title: `Marked dismantled but still on your account: ${p.bungie.undismantled.join(', ')}`, rule: 'Dismantle them in Destiny 2.', where: 'arsenal' })
   }
   return out
 }
@@ -655,7 +677,7 @@ export type Intent =
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[]; bonusSlot?: Slot }
   | { type: 'upgrade-pick'; upgradeId: string; item: string }
   | { type: 'upgrade-done'; upgradeId: string }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: { slot: Slot; name: string }[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
 
@@ -738,7 +760,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
-      dismiss(p, inputs)
+      dismiss(p, inputs, 'traded')
       p.inventory = p.inventory.filter((i) => !ids.includes(i.id))
       p.trade = { slot, inputs: inputs.map((i) => i.name), options }
       log(run, 'trade', `${p.name} traded in ${inputs.map((i) => i.name).join(', ')}.`)
@@ -805,8 +827,10 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         vault.push({ name, slot: e.slot as Slot, rarity: e.rarity as Rarity, element: DAMAGE_ELEMENTS.includes(e.element as never) ? e.element : undefined, archetype: str(e.archetype, 40) || undefined })
       }
       const strs = (v: unknown, n: number) => (Array.isArray(v) ? v.slice(0, n).map((x) => str(x)).filter(Boolean) : [])
-      const untracked = (Array.isArray(it.untracked) ? it.untracked.slice(0, 8) : [])
-        .map((u) => ({ slot: (u as { slot: Slot }).slot, name: str((u as { name: unknown }).name) }))
+      const FATES: Fate[] = ['traded', 'vaulted', 'dismantled', 'removed']
+      const untracked: Untracked[] = (Array.isArray(it.untracked) ? it.untracked.slice(0, 40) : [])
+        .map((raw) => (raw ?? {}) as { slot?: unknown; name?: unknown; equipped?: unknown; fate?: unknown })
+        .map((u) => ({ slot: u.slot as Slot, name: str(u.name), equipped: !!u.equipped, fate: FATES.includes(u.fate as Fate) ? u.fate as Fate : undefined }))
         .filter((u) => ALL_SLOTS.includes(u.slot) && u.name)
       const first = !p.bungie
       const prevRestore = p.bungie?.restore
@@ -819,7 +843,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         ? { name: str((it.subclass as { name: unknown }).name, 40), element: (it.subclass as { element: Element }).element } : undefined
       p.bungie = {
         name: str(it.name, 40) || 'Guardian', character: str(it.character, 40), syncedAt: Date.now(),
-        vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked, subclass: sub,
+        vaultItems: Math.max(0, Math.floor(Number(it.vaultItems) || 0)), missing: strs(it.missing, 30), untracked, undismantled: strs(it.undismantled, 30), subclass: sub,
       }
       const art = it.artifact && typeof it.artifact === 'object' ? it.artifact as { name?: unknown; matched?: unknown; activePerks?: unknown } : null
       if (art && str(art.name)) {
@@ -839,7 +863,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
           .filter((c) => c.instanceId && c.perks.length)
       } else if (prevClassItems) p.bungie.classItems = prevClassItems
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
-      p.bungie.restore = (untracked.length === 0 && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
+      p.bungie.restore = (!untracked.some((u) => u.equipped) && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
       if (sub && Array.isArray(it.configured)) {
         const valid = new Set(subclassAbilities(p.cls, p.element).map((a) => a.id))
@@ -873,7 +897,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const item = p.inventory.find((x) => x.id === it.itemId)
       if (!item) return 'Item not in your run inventory.'
       p.inventory = p.inventory.filter((x) => x !== item)
-      dismiss(p, [item])
+      dismiss(p, [item], it.dismantled ? 'dismantled' : 'removed')
       log(run, 'vault', it.dismantled ? `${p.name} dismantled ${item.name}.` : `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
       return null
     }

@@ -207,6 +207,8 @@ export type BungieSnapshot = {
   owned: Set<string>
   /** What the synced character has equipped. */
   equipped: { slot: Slot; name: string; rarity: Rarity; instanceId?: string }[]
+  /** Every weapon and armor piece on the synced character, equipped or carried. */
+  carried: { slot: Slot; name: string; rarity: Rarity; instanceId?: string; equipped: boolean }[]
   /** Every weapon and armor instance on the account (Vault, characters, Postmaster), for drop detection. */
   instances: { instanceId: string; name: string; slot: Slot; rarity: Rarity }[]
   /** The synced character's equipped subclass and what's slotted in it, or null if unreadable. */
@@ -289,6 +291,11 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     .filter((x): x is { i: ItemComponent; r: ItemRow } => !!x.r)
     .map(({ i, r }) => ({ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]], instanceId: i.itemInstanceId }))
 
+  const carried: BungieSnapshot['carried'] = charId ? [
+    ...(p.characterEquipment?.data?.[charId]?.items ?? []).map((i) => ({ i, equipped: true })),
+    ...(p.characterInventories?.data?.[charId]?.items ?? []).map((i) => ({ i, equipped: false })),
+  ].flatMap(({ i, equipped }) => { const r = items[i.itemHash]; return r ? [{ slot: ALL_SLOTS[r[1]], name: r[0], rarity: TIERS[r[2]], instanceId: i.itemInstanceId, equipped }] : [] }) : []
+
   const instances: BungieSnapshot['instances'] = []
   const collect = (list: ItemComponent[] | undefined) => list?.forEach((i) => {
     const r = items[i.itemHash]
@@ -301,7 +308,7 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
   return {
     name,
     character: char ? `${cls}, ${char.light} Power` : `No ${cls} on this account`,
-    vault, vaultItems: vaultItems.length, owned, equipped, instances,
+    vault, vaultItems: vaultItems.length, owned, equipped, carried, instances,
     subclass: charId ? await readSubclass(p, charId, cls).catch(() => null) : null,
     artifact: charId ? await readArtifact(p, charId).catch(() => null) : null,
     mintedAt: mintedAt(p),
@@ -371,11 +378,22 @@ function restorePoint(p: ProfileResponse, charId: string, items: Record<string, 
 }
 
 /** Compares the run's tracked items with what the account actually holds. */
+/**
+ * Compares the run with the account: run items not on the account, gear on the character that isn't
+ * in the run (with what happened to it, if it left the run earlier), and items the run says were
+ * dismantled that still exist.
+ */
 export function reconcile(snap: BungieSnapshot, p: Player) {
-  const tracked = new Set(p.inventory.map((i) => i.name))
+  const ids = new Set(snap.instances.map((i) => i.instanceId))
+  const runIds = new Set(p.inventory.map((i) => i.instanceId).filter(Boolean))
+  const runNames = new Set(p.inventory.filter((i) => !i.instanceId).map((i) => `${i.slot}|${i.name}`))
+  const fates = new Map((p.retired ?? []).filter((r) => r.instanceId).map((r) => [r.instanceId!, r.fate]))
   return {
-    missing: p.inventory.filter((i) => !snap.owned.has(i.name)).map((i) => i.name),
-    untracked: snap.equipped.filter((e) => !tracked.has(e.name)).map(({ slot, name }) => ({ slot, name })),
+    missing: p.inventory.filter((i) => (i.instanceId ? !ids.has(i.instanceId) : !snap.owned.has(i.name))).map((i) => i.name),
+    untracked: snap.carried
+      .filter((c) => !(c.instanceId && runIds.has(c.instanceId)) && !runNames.has(`${c.slot}|${c.name}`))
+      .map((c) => ({ slot: c.slot, name: c.name, equipped: c.equipped, fate: c.instanceId ? fates.get(c.instanceId) : undefined })),
+    undismantled: (p.retired ?? []).filter((r) => r.fate === 'dismantled' && r.instanceId && ids.has(r.instanceId)).map((r) => r.name),
   }
 }
 

@@ -41,11 +41,11 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
     reportLink({ ok: true })
     const drops = run.status === 'active' ? detectDrops(run.id, p, snap) : []
     // Check mismatches as if the detected drops were already registered.
-    const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
-    const { missing, untracked } = reconcile(snap, withDrops)
+    const withDrops = { ...p, inventory: [...p.inventory, ...drops.map((d) => ({ id: d.instanceId, instanceId: d.instanceId, name: d.name, slot: d.slot, rarity: d.rarity, equipped: false, source: '' }))] }
+    const { missing, untracked, undismantled } = reconcile(snap, withDrops)
     const sub = snap.subclass
     dispatch({
-      type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, drops,
+      type: 'bungie-sync', name: snap.name, character: snap.character, vault: snap.vault, vaultItems: snap.vaultItems, missing, untracked, undismantled, drops,
       subclass: sub ? { name: sub.name, element: sub.element } : null,
       configured: sub && sub.element === p.element ? sub.abilityIds : [],
       artifact: snap.artifact,

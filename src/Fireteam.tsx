@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
-import { capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
+import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, slotTier, tradeable, recordDeath, removePlayer, undoDeath, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -203,6 +203,20 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
           )
         })}
       </div>
+      {(p.retired?.length ?? 0) > 0 && (
+        <details className="retired">
+          <summary>Left the run ({p.retired!.length})</summary>
+          <ul>
+            {p.retired!.map((r, k) => (
+              <li key={`${r.id}-${k}`}>
+                <span className={`retired-name ${rarityClass(r.rarity)}`}>{r.name}</span>
+                <span className="muted small">{r.slot}</span>
+                <span className={`fate fate-${r.fate}`}>{FATE_LABEL[r.fate]}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </section>
   )
 }
