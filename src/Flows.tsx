@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
+import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type AbilityKind, type Element, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, raisesTier, recordClear, sandbox, slotTier, tradeBlock, tradeTierOk, tradeableFor,
+  capacityOf, current, itemsIn, wipeCount, log, raisesTier, sandbox, slotTier, tradeBlock, tradeTierOk, tradeableFor,
   type ChestReward, type Intent, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -24,7 +24,82 @@ export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose
     case 'tradeup': return <TradeUpFlow run={run} onClose={onClose} playerId={flow.playerId} slot={flow.slot} />
     case 'swap': return <SwapFlow run={run} onClose={onClose} playerId={flow.playerId} slot={flow.slot} />
     case 'abandon': return <AbandonFlow onClose={onClose} />
+    case 'missing': return <MissingFlow run={run} onClose={onClose} playerId={flow.playerId} names={flow.names} wanted={flow.wanted} />
   }
+}
+
+/** One in this many missing-gear pop-ups is drawn as a wanted poster. */
+const WANTED_ODDS = 10000
+
+/**
+ * Tracked run items a Bungie sync can't find on any character or in the Vault: asks whether they
+ * were dismantled. Marked ones leave the run as dismantled; the rest stay tracked (and flagged).
+ */
+function MissingFlow({ run, playerId, names, wanted, onClose }: { run: Run; playerId: string; names: string[]; wanted?: boolean; onClose: () => void }) {
+  const { dispatch, toast } = useGD()
+  const icons = useIcons()
+  const [poster] = useState(() => wanted ?? Math.random() < 1 / WANTED_ODDS)
+  const [gone, setGone] = useState<Record<string, boolean>>({})
+  const p = run.players.find((x) => x.id === playerId)
+  const items = p ? p.inventory.filter((i, n, all) => names.includes(i.name) && all.findIndex((x) => x.name === i.name) === n) : []
+  if (!p || items.length === 0) return null
+  const marked = items.filter((i) => gone[i.id])
+  const done = () => {
+    for (const i of marked) dispatch({ type: 'remove-item', itemId: i.id, dismantled: true }, p.id)
+    if (marked.length) toast(`${marked.length === 1 ? marked[0].name : `${marked.length} items`} recorded as dismantled.`)
+    onClose()
+  }
+  const choice = (i: (typeof items)[number]) => (
+    <div className="miss-choice" role="group" aria-label={i.name}>
+      <button className={`chip ${gone[i.id] ? 'is-on' : ''}`} aria-pressed={!!gone[i.id]} onClick={() => setGone({ ...gone, [i.id]: true })}>Dismantled</button>
+      <button className={`chip ${gone[i.id] === false ? 'is-on' : ''}`} aria-pressed={gone[i.id] === false} onClick={() => setGone({ ...gone, [i.id]: false })}>Still have it</button>
+    </div>
+  )
+  const footer = <>
+    <button className="btn btn-ghost" onClick={onClose}>Ask me later</button>
+    <button className="btn btn-light" onClick={done}>{marked.length ? `Record ${marked.length} dismantled` : 'Done'}</button>
+  </>
+  if (poster) {
+    return (
+      <Modal className="modal-wanted" kicker="By order of the Vanguard" title="Have you seen these items?!" onClose={onClose} footer={footer} wide>
+        <div className="wanted">
+          <p className="wanted-lede">Last seen in {p.name}&rsquo;s run inventory. Not on any character. Not in the Vault. If you dismantled them, confess below.</p>
+          <ul className="wanted-grid">
+            {items.map((i) => (
+              <li key={i.id} className={`wanted-card ${rarityClass(i.rarity)}`}>
+                <span className="wanted-head">Wanted</span>
+                {icons.gear(i.name, i.slot, i.rarity) ? <img src={icons.gear(i.name, i.slot, i.rarity)} alt="" /> : <span className="wanted-blank" aria-hidden="true">?</span>}
+                <strong>{i.name}</strong>
+                <span className="wanted-meta">{i.rarity} {i.slot}</span>
+                <span className="wanted-reward">Reward: 5 Glimmer</span>
+                {choice(i)}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </Modal>
+    )
+  }
+  return (
+    <Modal kicker="Bungie sync" title={items.length === 1 ? 'Run item not found' : `${items.length} run items not found`} onClose={onClose} footer={footer}>
+      <div className="stack">
+        <p>{items.length === 1 ? 'This item isn\u2019t' : 'These items aren\u2019t'} on any of {p.name}&rsquo;s characters or in the Vault. Did you dismantle {items.length === 1 ? 'it' : 'them'}?</p>
+        <ul className="pick-list miss-list">
+          {items.map((i) => (
+            <li key={i.id} className={`item ${rarityClass(i.rarity)}`}>
+              {icons.gear(i.name, i.slot, i.rarity) && <img className="miss-icon" src={icons.gear(i.name, i.slot, i.rarity)} alt="" loading="lazy" />}
+              <div className="item-main">
+                <span className="item-name">{i.name}</span>
+                <span className="item-meta">{i.rarity} {i.slot}</span>
+              </div>
+              {choice(i)}
+            </li>
+          ))}
+        </ul>
+        <p className="small muted">Dismantled items leave the run. One you still have may be at the Postmaster; it stays tracked, and the warning clears once a sync finds it.</p>
+      </div>
+    </Modal>
+  )
 }
 
 const SOURCES = ['encounter drop', 'secret chest', 'world drop', 'final-boss reward', 'starting gear']
@@ -42,14 +117,25 @@ function ExpansionGlyph() {
   )
 }
 
+/** The strip across the top of a subclass reward card: Ability, Aspect or Fragment, each drawn differently. */
+function TypeBanner({ kind, element }: { kind: AbilityKind; element: Element }) {
+  const type = kind === 'aspect' ? 'aspect' : kind === 'fragment' ? 'fragment' : 'ability'
+  return (
+    <span className={`type-banner tb-${type}`}>
+      <span className="tb-type"><span className="tb-glyph" aria-hidden="true" />{type}</span>
+      <span className="tb-kind"><ElementMark element={element} /> {element}{type === 'ability' ? ` ${KIND_LABEL[kind]}` : ''}</span>
+    </span>
+  )
+}
+
 function ChoiceGrid({ children, five }: { children: ReactNode; five?: boolean }) {
   return <div className={`choices ${five ? 'five' : ''}`}>{children}</div>
 }
 
-// ------------------------------------------------------------------ Host: record clear
+// ------------------------------------------------------------------ Any Guardian: record clear
 
 function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
-  const { host, toast, online } = useGD()
+  const { dispatch, toast, online } = useGD()
   const { dungeon, encounter } = current(run)
   const rr = run.ruleset
   const final = encounter.type === 'final'
@@ -57,8 +143,7 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
   const after = Math.min(rr.integrity.max, run.integrity + gain)
   const dup = run.claimed.includes(encounter.id)
   const commit = () => {
-    host!.updateRun((r) => recordClear(r))
-    toast(`${encounter.name} cleared. Reward screens sent.`)
+    if (dispatch({ type: 'clear', encounterId: encounter.id }) !== false) toast(`${encounter.name} cleared. Reward screens sent.`)
     onClose()
   }
   return (
@@ -191,9 +276,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
             {pend.unlock.map((id) => {
               const a = abilityById(id)
               return (
-                <button key={id} className={`choice el-${a.element.toLowerCase()} ${icons.plug(a.name) ? 'choice-item' : ''} ${unlock === id ? 'is-on' : ''}`} onClick={() => setUnlock(id)}>
+                <button key={id} className={`choice has-banner el-${a.element.toLowerCase()} ${icons.plug(a.name) ? 'choice-item' : ''} ${unlock === id ? 'is-on' : ''}`} onClick={() => setUnlock(id)}>
+                  <TypeBanner kind={a.kind} element={a.element} />
                   {icons.plug(a.name) && <img className="choice-icon" src={icons.plug(a.name)} alt="" loading="lazy" />}
-                  <span className="choice-kind"><ElementMark element={a.element} /> {a.element} {KIND_LABEL[a.kind]}</span>
                   <strong>{a.name}</strong>
                   {abilityDesc(id) && <span className="choice-desc">{abilityDesc(id)}</span>}
                 </button>
@@ -415,18 +500,20 @@ function DropsEditor({ run, playerId, drops, setDrops, source }: { run: Run; pla
   )
 }
 
-// ------------------------------------------------------------------ Host: wipe
+// ------------------------------------------------------------------ Any Guardian: wipe
 
 function WipeFlow({ run, onClose }: { run: Run; onClose: () => void }) {
-  const { host, toast } = useGD()
+  const { dispatch, toast } = useGD()
   const { encounter } = current(run)
+  // The wipes this screen opened on: if another Guardian records this wipe first, ours is turned down.
+  const [seen] = useState(() => wipeCount(run))
   const cost = run.ruleset.integrity.wipe
   const after = Math.max(0, run.integrity - cost)
   return (
     <Modal kicker={encounter.name} title="Record team wipe" onClose={onClose}
       footer={<>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-danger" onClick={() => { host!.updateRun((r) => changeIntegrity(r, -cost, 'Team wipe recorded.', 'wipe')); toast(after === 0 ? 'Run failed' : `Wipe recorded, ${after} Integrity left`); onClose() }}>
+        <button className="btn btn-danger" onClick={() => { if (dispatch({ type: 'wipe', seen }) !== false) toast(after === 0 ? 'Run failed' : `Wipe recorded, ${after} Integrity left`); onClose() }}>
           Apply &minus;{cost} Integrity
         </button>
       </>}

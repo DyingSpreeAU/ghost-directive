@@ -3,7 +3,7 @@ import {
   ALL_SLOTS, DAMAGE_ELEMENTS, WEAPON_SLOTS, dungeonById, type Element, type Rarity, type Slot,
 } from './data'
 import {
-  createLobby, current, pendingChest, recordChest, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
+  createLobby, current, pendingChest, sandbox, loadoutSlotsOf, loadoutValid, nextEncounter, vaultPool,
   type LogKind, type Player, type Run, type Warning,
 } from './model'
 import { makeLobbyCode } from './net'
@@ -24,6 +24,8 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
   const claimed = run.claimed.includes(encounter.id)
   const wipes = run.log.filter((l) => l.kind === 'wipe').length
   const tone = run.integrity <= r.wipe ? 'danger' : run.integrity <= r.wipe * 2 ? 'warn' : 'light'
+  // Every Guardian with a seat records run progress, not only the host.
+  const canRecord = active && (isHost || !!myPlayerId)
 
   // Archive the run and reopen the lobby on the same code so the fireteam stays connected.
   const nextLobby = (keepCode: boolean) => {
@@ -44,10 +46,10 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
   const command = useRef<HTMLElement>(null)
   return (
     <div className="briefing">
-      {isHost && active && <MiniCommand run={run} target={command} />}
+      {canRecord && <MiniCommand run={run} target={command} />}
       {run.example && isHost && (
         <div className="example-banner">
-          <strong>Example run.</strong> Sample data so you can try every flow. The other two Guardians have no device linked, so their pending rewards wait for a player, or you can resolve them.
+          <strong>Example run.</strong> Sample data partway through The Shattered Throne, so you can try every flow. The other two Guardians have no device linked: you act for them, and Threadrunner is still choosing a reward (Resolve for them).
           <button className="btn btn-ghost btn-sm" onClick={() => nextLobby(false)}>Open a real lobby</button>
         </div>
       )}
@@ -70,6 +72,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
             <span>{run.ruleset.name}</span>
             <span>{run.expedition === 'chronological' ? 'Chronological Expedition' : 'Custom Expedition'}</span>
             <span>{run.route.length} dungeon{run.route.length > 1 ? 's' : ''}, route locked</span>
+            {sandbox(run.ruleset).noRallyBanners && <span className="honour-tag" title="Honour rule: don’t place a Rally Banner to restock ammo or heal during the run.">No Rally Banners</span>}
           </div>
         </div>
         <div className="head-side">
@@ -137,23 +140,18 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
         </div>
 
         <div className="panel actions">
-          <div className="eyebrow">{isHost ? 'Host actions' : `${hostName} records encounters`}</div>
-          {!isHost ? (
-            <div className="guest-actions">
-              <p className="muted small">When the host records a clear, your reward screen opens here.</p>
-              {waitingOn.length > 0 && <p className="small">Still choosing: {waitingOn.map((p) => p.name).join(', ')}</p>}
-              {myPlayerId && active && (run.players.find((x) => x.id === myPlayerId)?.bungie
-                ? <p className="small"><span className="tag tag-bungie">Bungie</span> Your drops are detected automatically.</p>
-                : <button className="btn btn-ghost btn-big" onClick={() => openFlow({ type: 'register', playerId: myPlayerId })}>Register my drop<small>Weapons and armor you earned</small></button>)}
-            </div>
-          ) : <>
-          <ProgressControl run={run} disabled={!active || claimed} />
-          <button className="btn btn-danger btn-big" disabled={!active} onClick={() => openFlow({ type: 'wipe' })}>
+          <div className="eyebrow">Run controls</div>
+          {canRecord ? <>
+          <ProgressControl run={run} disabled={claimed} />
+          <button className="btn btn-danger btn-big" onClick={() => openFlow({ type: 'wipe' })}>
             Record Wipe
             <small>&minus;{r.wipe} Integrity</small>
           </button>
+          </> : <p className="muted small">{active ? 'Pick your Guardian to record clears, chests and wipes.' : 'The run has ended.'}</p>}
           {waitingOn.length > 0 && <p className="small muted">Still choosing rewards: {waitingOn.map((p) => p.name).join(', ')}</p>}
-          </>}
+          {!isHost && myPlayerId && active && (run.players.find((x) => x.id === myPlayerId)?.bungie
+            ? <p className="small"><span className="tag tag-bungie">Bungie</span> Your drops are detected automatically.</p>
+            : <button className="btn btn-ghost" onClick={() => openFlow({ type: 'register', playerId: myPlayerId })}>Register my drop</button>)}
         </div>
       </section>
 
@@ -182,29 +180,33 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
 }
 
 /**
- * The host's command panel, shrunk into a bar at the top of the page once the full panel starts to
+ * The command panel, shrunk into a bar at the top of the page once the full panel starts to
  * scroll off screen: Integrity, the current encounter, and the clear and wipe buttons.
  */
 function MiniCommand({ run, target }: { run: Run; target: React.RefObject<HTMLElement | null> }) {
-  const { openFlow, host, toast } = useGD()
+  const { openFlow } = useGD()
   const [on, setOn] = useState(false)
   useEffect(() => {
     const el = target.current
     if (!el) return
-    // On once the panel's top has gone above the window and part of it is hidden.
-    const io = new IntersectionObserver(([e]) => setOn(e.intersectionRatio < 0.98 && e.boundingClientRect.top < 0), { threshold: [0, 0.25, 0.5, 0.75, 0.98, 1] })
-    io.observe(el)
-    return () => io.disconnect()
+    // On once the panel's top has scrolled above the window (a few pixels, to ignore sub-pixel
+    // rounding). Checked on every scroll: a smooth scroll can come to rest between observer thresholds.
+    let frame = 0
+    const check = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => setOn(el.getBoundingClientRect().top < -4))
+    }
+    check()
+    addEventListener('scroll', check, { passive: true })
+    addEventListener('resize', check)
+    return () => { cancelAnimationFrame(frame); removeEventListener('scroll', check); removeEventListener('resize', check) }
   }, [target])
   const { dungeon, encounter, done, total } = current(run)
   const r = run.ruleset.integrity
   const tone = run.integrity <= r.wipe ? 'danger' : run.integrity <= r.wipe * 2 ? 'warn' : 'light'
   const claimed = run.claimed.includes(encounter.id)
   const chest = pendingChest(run)
-  const answer = (found: boolean) => {
-    host!.updateRun((x) => recordChest(x, found))
-    toast(found ? `Secret Chest ${chest!.number} found. Chest rewards sent.` : `Secret Chest ${chest!.number} skipped.`)
-  }
+  const answer = useChestAnswer(chest)
   const top = () => target.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   return (
     <div className="mini-dock" aria-hidden={!on}>
@@ -421,21 +423,87 @@ function ClaimBanner({ run }: { run: Run }) {
 }
 
 /**
- * The host's one forward button. Clearing an encounter records it and sends rewards at once.
+ * The run as a small media player in the sidebar's spare space (desktop): the encounter is the
+ * track, the route is the scrubber, Integrity is the level, and the buttons record progress.
+ * Any Guardian with a seat can use it; someone without one sees it read-only.
+ */
+export function SidePlayer({ run }: { run: Run }) {
+  const { openFlow, dispatch, toast, myPlayerId, role, go } = useGD()
+  const { dungeon, encounter, done, total } = current(run)
+  const chest = pendingChest(run)
+  const answer = useChestAnswer(chest)
+  const r = run.ruleset.integrity
+  const tone = run.integrity <= r.wipe ? 'danger' : run.integrity <= r.wipe * 2 ? 'warn' : 'light'
+  const can = role === 'host' || !!myPlayerId
+  const claimed = run.claimed.includes(encounter.id)
+  const final = encounter.type === 'final'
+  const top = () => go('briefing', 'top')
+  const dIdx = run.route.indexOf(dungeon.id)
+  return (
+    <section className="side-player" aria-label="Now playing">
+      <button className="sp-cover" onClick={top} title="Back to the run controls">
+        <EncounterArt dungeon={dungeon} encounter={encounter} compact />
+        <span className="sp-badge">{chest ? `Secret Chest ${chest.number}` : final ? 'Final boss' : 'Now playing'}</span>
+      </button>
+      <div className="sp-track">
+        <strong className="sp-title" title={encounter.name}>{encounter.name}</strong>
+        <span className="sp-artist" title={dungeon.name}>{dungeon.name}{run.route.length > 1 && <> &middot; {dIdx + 1}/{run.route.length}</>}</span>
+      </div>
+      <div className="sp-scrub" aria-label={`${done} of ${total} encounters complete`}>
+        <div className="sp-segs">
+          {dungeon.encounters.map((e, i) => (
+            <span key={e.id} className={`sp-seg ${run.claimed.includes(e.id) ? 'is-done' : i === run.eIdx ? 'is-now' : ''} ${e.type === 'final' ? 'is-final' : ''}`} />
+          ))}
+        </div>
+        <div className="sp-time"><span>{done}</span><span>{total}</span></div>
+      </div>
+      <div className="sp-level" title={`Fireteam Integrity ${run.integrity} of ${r.max}`}>
+        <span className="sp-lbl">Integrity</span>
+        <Meter value={run.integrity} max={r.max} tone={tone} />
+        <span className={`sp-num tone-${tone}`}>{run.integrity}</span>
+      </div>
+      {can && (chest ? (
+        <div className="sp-deck sp-chest" role="group" aria-label={`Secret Chest ${chest.number}`}>
+          <span className="sp-q">Got Secret Chest {chest.number}?</span>
+          <button className="sp-btn" onClick={() => answer(false)} aria-label="Missed it"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg><small>Missed</small></button>
+          <button className="sp-btn sp-main" onClick={() => answer(true)} aria-label="Got it"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" /></svg></button>
+          <button className="sp-btn sp-danger" onClick={() => openFlow({ type: 'wipe' })} aria-label="Record wipe"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" /></svg><small>Wipe</small></button>
+        </div>
+      ) : (
+        <div className="sp-deck" role="group" aria-label="Run controls">
+          {myPlayerId
+            ? <button className="sp-btn" onClick={() => { if (dispatch({ type: 'death', target: myPlayerId, seen: run.players.find((x) => x.id === myPlayerId)?.deaths ?? 0 }) !== false) toast('Your death recorded.') }} aria-label="Record my death" title="Record my death"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2C5 2 3 4 3 6.7c0 1.5.7 2.7 1.8 3.4V12.5h6.4v-2.4C12.3 9.4 13 8.2 13 6.7 13 4 11 2 8 2z" /><circle cx="6" cy="7" r=".9" /><circle cx="10" cy="7" r=".9" /></svg><small>Death</small></button>
+            : <span />}
+          <button className="sp-btn sp-main" disabled={claimed} onClick={() => openFlow({ type: 'clear' })} aria-label={final ? 'Clear final boss' : 'Clear encounter'} title={`${final ? 'Clear final boss' : 'Clear encounter'} (+${r.clear} Integrity)`}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3v10l7-5zM12.5 3v10" /></svg></button>
+          <button className="sp-btn sp-danger" onClick={() => openFlow({ type: 'wipe' })} aria-label="Record wipe" title={`Record wipe (\u2212${r.wipe} Integrity)`}><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" /></svg><small>Wipe</small></button>
+        </div>
+      ))}
+    </section>
+  )
+}
+
+/** Answers the pending Secret Chest question (any Guardian can). */
+function useChestAnswer(chest: { number: number } | null) {
+  const { dispatch, toast } = useGD()
+  return (found: boolean) => {
+    if (!chest) return
+    if (dispatch({ type: 'chest', number: chest.number, found }) !== false) toast(found ? `Secret Chest ${chest.number} found. Chest rewards sent.` : `Secret Chest ${chest.number} skipped.`)
+  }
+}
+
+/**
+ * The run's one forward button. Clearing an encounter records it and sends rewards at once.
  * Then, for each secret chest before the next encounter, it splits into "got it" / "missed it".
  */
 function ProgressControl({ run, disabled }: { run: Run; disabled: boolean }) {
-  const { openFlow, host, toast } = useGD()
+  const { openFlow } = useGD()
   const { encounter } = current(run)
   const next = nextEncounter(run)
   const chest = pendingChest(run)
+  const answer = useChestAnswer(chest)
   const r = run.ruleset.integrity
 
   if (chest) {
-    const answer = (found: boolean) => {
-      host!.updateRun((x) => recordChest(x, found))
-      toast(found ? `Secret Chest ${chest.number} found. Chest rewards sent.` : `Secret Chest ${chest.number} skipped.`)
-    }
     return (
       <div className="progress-split" role="group" aria-label={`Secret Chest ${chest.number}`}>
         <p className="split-q">Did you get <strong>Secret Chest {chest.number}</strong>?</p>

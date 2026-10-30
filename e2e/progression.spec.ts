@@ -12,7 +12,8 @@ test('a drop below Legendary raises the tier, names the piece, and is recorded a
   expect(fates).toContain('tiered')
   await page.click('.modal-foot .btn-light')
   await later(page)
-  await expect(page.locator('.guardian').first().locator('.g-slot').first().locator('.g-slot-head')).toContainText('Uncommon')
+  // The example's Kinetic is already Uncommon, so this drop takes it to Rare.
+  await expect(page.locator('.guardian').first().locator('.g-slot').first().locator('.g-slot-head')).toContainText('Rare')
 })
 
 test('armor tier pieces are named by piece', async ({ page }) => {

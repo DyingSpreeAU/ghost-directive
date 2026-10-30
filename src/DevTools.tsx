@@ -86,7 +86,7 @@ function grant(run: Run, kind: Kind, who: Player[]) {
 }
 
 export default function DevTools() {
-  const { host, run, toast, myPlayerId } = useGD()
+  const { host, run, toast, myPlayerId, openFlow } = useGD()
   // Starts open on wide screens; on a phone it would cover the page, so it starts as the tab.
   const [open, setOpen] = useState(() => {
     try { const v = localStorage.getItem(OPEN_KEY); if (v) return v !== 'closed' } catch { /* fine */ }
@@ -108,6 +108,12 @@ export default function DevTools() {
   }
   const players = (r: Run) => (target === 'all' ? r.players : r.players.filter((p) => p.id === target))
   const one = (r: Run) => r.players.find((p) => p.id === (target === 'all' ? myPlayerId ?? r.players[0].id : target))!
+  // The missing-gear pop-up for up to three of the Guardian's run items, as if a sync couldn't find them.
+  const missing = (wanted: boolean) => {
+    const p = one(run)
+    if (!p.inventory.length) return toast('Test tools: add a drop first; the pop-up needs run items.')
+    openFlow({ type: 'missing', playerId: p.id, names: p.inventory.slice(0, 3).map((i) => i.name), wanted })
+  }
   const encounters = run ? run.route.flatMap((id, di) => dungeonById(id).encounters.map((e, ei) => ({ di, ei, label: `${dungeonById(id).name} · ${e.name}${e.type === 'final' ? ' (final)' : ''}` }))) : []
 
   return (
@@ -168,6 +174,10 @@ export default function DevTools() {
               <button onClick={() => act('perk researched', (r) => { const p = one(r); const m = pick((artifactByName(p.artifactName)?.perks ?? []).map((x) => x.name).filter((x) => !p.artifact.includes(x))); if (m) p.artifact.push(m) })}>Research perk</button>
               <button onClick={() => act('inventory emptied', (r) => { one(r).inventory = [] })}>Empty inventory</button>
               <button onClick={() => act('every slot Legendary', (r) => { const p = one(r); if (p.tiers) for (const k of Object.keys(p.tiers)) p.tiers[k as Slot] = 'Legendary'; p.upgrades = [] })}>All slots Legendary</button>
+            </div>
+            <div className="devtools-grid">
+              <button onClick={() => missing(false)}>Missing gear wizard</button>
+              <button onClick={() => missing(true)}>Wanted poster</button>
             </div>
             <button className="devtools-wide" onClick={() => act('gear outside the run', (r) => {
               const p = one(r)

@@ -1,4 +1,4 @@
-import { test, expect, exampleRun, editStore, startRun, fresh, layoutProblems } from './helpers'
+import { test, expect, exampleRun, editStore, startRun, fresh, layoutProblems, store, tools, toolsForMe } from './helpers'
 
 test('wipe and death change Integrity', async ({ page }) => {
   await exampleRun(page)
@@ -7,11 +7,13 @@ test('wipe and death change Integrity', async ({ page }) => {
   await expect(page.locator('.int-value .num')).toHaveText(String(before - 5))
   await page.click('.command button:has-text("Record Wipe")')
   await page.click('.modal-foot .btn-danger')
-  await expect(page.locator('.int-value .num')).toHaveText('0')
+  await expect(page.locator('.int-value .num')).toHaveText(String(Math.max(0, before - 5 - 20)))
 })
 
-test('host mini bar appears once the panel scrolls off, and works', async ({ page }) => {
+test('host mini bar appears once the panel scrolls off, and works (phones)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
   await exampleRun(page)
+  await page.evaluate(() => window.scrollTo(0, 0))
   const bar = page.locator('.mini-command')
   await expect(bar).not.toHaveClass(/is-on/)
   await page.locator('.guardian').first().scrollIntoViewIfNeeded()
@@ -104,4 +106,73 @@ test('artifact perks use the game’s own description', async ({ page }) => {
   await editStore(page, "s.active.players[0].artifact = ['Dielectric']")
   await expect(page.locator('.mod-list li', { hasText: 'Dielectric' }).first()).toHaveAttribute('title',
     'Defeating Arc debuffed targets grants Bolt Charge.\n\nRapidly defeating Arc debuffed targets spawns an Orb of Power and heals a small portion of health.')
+})
+
+test('the sidebar player answers a chest, records a death and a wipe, then a clear', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await fresh(page)
+  await startRun(page)
+  // On to Vorgeth, with The Shattered Throne's first secret chest (after Erebus) still to answer.
+  await editStore(page, 's.active.eIdx = 1; s.active.chestsDone = 0')
+  const sp = page.locator('.side-player')
+  await expect(page.locator('.mini-dock')).toBeHidden() // the top bar is for phones
+  await expect(sp.locator('.sp-q')).toHaveText('Got Secret Chest 1?')
+  await sp.locator('button[aria-label="Missed it"]').click()
+  await expect(sp.locator('.sp-q')).toHaveCount(0)
+  await expect(sp.locator('.sp-title')).toHaveText('Vorgeth, The Boundless Hunger')
+  const num = async () => Number(await page.textContent('.int-value .num'))
+  const start = await num()
+  await sp.locator('button[aria-label="Record my death"]').click()
+  await expect(page.locator('.guardian').first().locator('.death-count strong')).toHaveText('1')
+  const afterDeath = await num()
+  expect(afterDeath).toBeLessThan(start)
+  await sp.locator('button[aria-label="Record wipe"]').click()
+  await page.click('.modal-foot .btn-danger')
+  await expect(page.locator('.int-value .num')).not.toHaveText(String(afterDeath))
+  await expect(sp.locator('.sp-num')).toHaveText(String(await num()))
+  await sp.locator('.sp-main').click()
+  await page.click('.modal-foot button:has-text("Record clear and advance")')
+  // Two chests follow Vorgeth.
+  await expect(sp.locator('.sp-q')).toHaveText('Got Secret Chest 2?')
+})
+
+test('a sync that can’t find run items asks once whether they were dismantled', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await editStore(page, `const p = s.active.players[0]
+    p.inventory.push({ id: 'a1', name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary', equipped: false, source: 'test' },
+      { id: 'a2', name: 'Funnelweb', slot: 'Energy', rarity: 'Legendary', equipped: false, source: 'test' })
+    p.bungie = { name: 'Tester#0001', character: 'Hunter', syncedAt: Date.now(), vaultItems: 0, missing: ['Fatebringer', 'Funnelweb'], untracked: [] }`)
+  const modal = page.locator('.modal')
+  await expect(modal.locator('h2')).toHaveText('2 run items not found')
+  await modal.locator('[role=group][aria-label="Fatebringer"] button:has-text("Dismantled")').click()
+  await modal.locator('[role=group][aria-label="Funnelweb"] button:has-text("Still have it")').click()
+  await modal.locator('button:has-text("Record 1 dismantled")').click()
+  await expect(modal).toHaveCount(0)
+  const names = (await store(page)).active.players[0].inventory.map((i: { name: string }) => i.name)
+  expect(names).not.toContain('Fatebringer')
+  expect(names).toContain('Funnelweb')
+  await page.reload()
+  await expect(page.locator('.guardian').first()).toBeVisible()
+  await expect(page.locator('.modal')).toHaveCount(0)
+})
+
+test('test tools open the missing-gear pop-up as a wanted poster', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await editStore(page, "s.active.players[0].inventory.push({ id: 'a1', name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary', equipped: false, source: 'test' })")
+  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Wanted poster")') })
+  await expect(page.locator('.modal-wanted h2')).toHaveText('Have you seen these items?!')
+  await expect(page.locator('.wanted-card')).toContainText('Fatebringer')
+})
+
+test('subclass reward choices carry an Ability, Aspect or Fragment banner', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Encounter")') })
+  const cards = page.locator('.modal .choice')
+  await expect(cards.first()).toBeVisible()
+  const n = await cards.count()
+  expect(n).toBeGreaterThan(0)
+  for (let i = 0; i < n; i++) await expect(cards.nth(i).locator('.type-banner .tb-type')).toHaveText(/^(ability|aspect|fragment)$/)
 })

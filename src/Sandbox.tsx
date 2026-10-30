@@ -24,13 +24,14 @@ type Field = {
   group?: string
 }
 
-type SectionId = 'integrity' | 'start' | 'progression' | 'inventory' | 'rewards'
+type SectionId = 'integrity' | 'start' | 'progression' | 'inventory' | 'rewards' | 'honour'
 const SECTIONS: { id: SectionId; title: string; note: string }[] = [
   { id: 'integrity', title: 'Integrity', note: 'The fireteam’s shared life: what it starts at, what fills it and what drains it.' },
   { id: 'start', title: 'Starting setup', note: 'What every Guardian brings into the first encounter.' },
   { id: 'progression', title: 'Gear progression', note: 'Slots climbing from their starting tier to Legendary.' },
   { id: 'inventory', title: 'Inventory and trade-ups', note: 'How much each slot holds, and trading surplus for a Vault Legendary.' },
   { id: 'rewards', title: 'Rewards', note: 'What clears, final bosses and secret chests hand out.' },
+  { id: 'honour', title: 'Honour rules', note: 'Rules the app can’t see or check: the fireteam agrees to play by them. They’re listed in the lobby and on the run page.' },
 ]
 
 const TIERS: Rarity[] = ['Common', 'Uncommon', 'Rare', 'Legendary']
@@ -76,7 +77,7 @@ const FIELDS: Field[] = [
   { path: 'rewards.chestArtifact', label: 'Chests offer Artifact research', section: 'rewards', kind: 'toggle', group: 'Secret chests', when: (r) => sandbox(r).secretChests },
   { path: 'rewards.chestUpgrades', label: 'Chests can offer an Arsenal Expansion', section: 'rewards', kind: 'toggle', group: 'Secret chests', when: (r) => sandbox(r).secretChests },
   { path: 'sandbox.expansionChance', label: 'Arsenal Expansion chance', section: 'rewards', kind: 'pct', group: 'Secret chests', when: (r) => sandbox(r).secretChests && r.rewards.chestUpgrades },
-
+  { path: 'sandbox.noRallyBanners', label: 'No Rally Banners', section: 'honour', kind: 'toggle', hint: 'Don’t place a Rally Banner to restock ammo or heal during the run.' },
 ]
 
 /** A setting's value, with sandbox defaults filled in. */

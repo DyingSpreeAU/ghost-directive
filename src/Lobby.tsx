@@ -588,7 +588,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
       <div className="guide-part">
         <div className="eyebrow">Before the first encounter</div>
         <h2 id="setup-guide-title">Set up in Destiny 2</h2>
-        <p className="section-note">Every Guardian starts the run under-geared. Do this in game before the host records anything.</p>
+        <p className="section-note">Every Guardian starts the run under-geared. Do this in game before anyone records a clear.</p>
         <ul className="guide-list">
           {CHECKLIST.filter((c) => sb.startAbilities !== 'all' || (c.key !== 'noAspects' && c.key !== 'noFragments')).map((c) => { const l = gearLine(c.key, c.label, c.hint); return <li key={c.key}><strong>{l.label.replace(/ equipped$/, '')}</strong><span className="muted">{l.hint}</span></li> })}
           {sb.startAbilities === 'all' && <li><strong>Every ability unlocked</strong><span className="muted">This Directive starts each Guardian with their whole subclass: use any Super, ability, aspect or fragment.</span></li>}
@@ -610,6 +610,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
           )}
           <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> {sb.tradeUpExotics ? 'Legendary or Exotic' : 'Legendary'} items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression && sb.tradeUpNeedsLegendary ? ' that\u2019s reached Legendary' : ''}{sb.tradeUpNeedsRoom && r.inventory.capacity < tu.inputs ? `, once your slots can hold ${tu.inputs} (an Arsenal Expansion adds one)` : ''} for a Legendary from your Vault.</> : null}</li>
           <li><strong>{sb.startAbilities === 'all' ? 'Artifact perks' : 'Abilities and artifact perks'}</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>
+          {sb.noRallyBanners && <li><strong>No Rally Banners:</strong> don&rsquo;t place a Rally Banner to restock ammo or heal during the run. The app can&rsquo;t see banners, so this one is on your honour.</li>}
           <li><strong>Honour system:</strong> the app tracks the run; it doesn&rsquo;t police it. Play it straight.</li>
         </ul>
       </div>

@@ -74,6 +74,8 @@ export type Sandbox = {
   tierUpDrops: 'legendary' | 'any'
   /** A slot must be able to hold every traded-in item (capacity, with Arsenal Expansions) before it can trade up. */
   tradeUpNeedsRoom: boolean
+  /** Honour rule (the app can't see it): no Rally Banners during the run. */
+  noRallyBanners: boolean
 }
 
 export const SANDBOX_DEFAULTS: Sandbox = {
@@ -82,7 +84,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   bonusChance: 10, exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
-  tierUpDrops: 'legendary',
+  tierUpDrops: 'legendary', noRallyBanners: false,
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -814,7 +816,10 @@ export type Intent =
   | { type: 'vault-clear' }
   | { type: 'artifact-remove'; mod: string }
   | { type: 'sync-request' }
-  | { type: 'death' }
+  | { type: 'death'; target?: string; seen?: number }
+  | { type: 'clear'; encounterId: string }
+  | { type: 'wipe'; seen: number }
+  | { type: 'chest'; number: number; found: boolean }
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[]; bonusSlot?: Slot }
   | { type: 'upgrade-pick'; upgradeId: string; item: string }
   | { type: 'upgrade-done'; upgradeId: string }
@@ -834,6 +839,15 @@ function cleanItem(raw: unknown): NewItem | string {
   if (!RARITIES.includes(it.rarity as Rarity)) return 'Unknown rarity.'
   if (it.rarity === 'Exotic' && it.slot === 'Class Item') return 'Exotic class items aren\u2019t part of runs yet.'
   return { name, slot: it.slot as Slot, rarity: it.rarity as Rarity, source: str(it.source, 30) || 'world drop' }
+}
+
+/** Wipes recorded so far; a wipe intent names the count its sender saw, so one wipe isn't recorded twice. */
+export const wipeCount = (run: Run) => run.log.filter((l) => l.kind === 'wipe').length
+
+/** Names who recorded the newest log entry of this kind, when it wasn't the host. */
+function credit(run: Run, p: Player, kind: LogKind) {
+  const e = run.log.find((l) => l.kind === kind)
+  if (e && !p.isHost) e.text += ` Recorded by ${p.name}.`
 }
 
 /** Applies one player's intent to the run. Returns an error message, or null on success. */
@@ -1060,9 +1074,37 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       log(run, 'vault', it.dismantled ? `${p.name} dismantled ${item.name}.` : `${p.name} removed ${item.name} from the run (app only; it\u2019s still in Destiny 2).`)
       return null
     }
+    // Run progress: any Guardian may record these, not only the host. Each names what its sender saw
+    // (encounter, chest, wipe or death count), so two players recording the same thing count it once.
     case 'death': {
       if (run.status !== 'active') return 'The run has ended.'
-      recordDeath(run, p)
+      const t = it.target ? run.players.find((x) => x.id === it.target) : p
+      if (!t) return 'Guardian not found.'
+      if (it.seen !== undefined && it.seen !== (t.deaths ?? 0)) return `${t.name}\u2019s death was just recorded by someone else.`
+      recordDeath(run, t)
+      credit(run, p, 'death')
+      return null
+    }
+    case 'clear': {
+      if (run.status !== 'active') return 'The run has ended.'
+      if (pendingChest(run)) return 'Answer the Secret Chest first.'
+      if (it.encounterId !== current(run).encounter.id) return 'That encounter has already been recorded.'
+      recordClear(run)
+      credit(run, p, 'clear')
+      return null
+    }
+    case 'wipe': {
+      if (run.status !== 'active') return 'The run has ended.'
+      if (it.seen !== wipeCount(run)) return 'Someone else just recorded this wipe.'
+      changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+      credit(run, p, 'wipe')
+      return null
+    }
+    case 'chest': {
+      if (run.status !== 'active') return 'The run has ended.'
+      if (pendingChest(run)?.number !== it.number) return 'That Secret Chest has already been answered.'
+      recordChest(run, !!it.found)
+      credit(run, p, 'chest')
       return null
     }
     case 'sync-request': {
@@ -1344,30 +1386,44 @@ export function exampleRun(code: string, hostCid: string): Run {
   const run = createRun({ ruleset, players: [a, b, c], expedition: 'chronological', route: CHRONOLOGICAL_ROUTE.slice(0, 3), code, name: 'Example run' })
   run.example = true
   const [pa, pb, pc] = run.players
+  // Starting gear at each slot's starting tier.
   const gear: [Player, string, Slot, Rarity][] = [
-    [pa, 'Prosecutor', 'Energy', 'Common'], [pa, 'Pillager', 'Kinetic', 'Common'], [pa, 'Tarantula', 'Power', 'Uncommon'],
+    [pa, 'Pillager', 'Kinetic', 'Common'], [pa, 'Prosecutor', 'Energy', 'Common'], [pa, 'Tarantula', 'Power', 'Uncommon'],
     [pb, 'Bad Neighbors', 'Kinetic', 'Common'], [pb, 'Chain of Command', 'Energy', 'Common'], [pb, 'Pentatonic-48', 'Power', 'Uncommon'],
     [pc, 'Nightshade', 'Kinetic', 'Common'], [pc, 'Dead-Eye', 'Energy', 'Common'], [pc, 'Pentatonic-48', 'Power', 'Uncommon'],
   ]
   for (const [p, name, slot, rarity] of gear) addItem(run, p, { name, slot, rarity, source: 'starting gear' }).equipped = true
-  const resolveFirst = (picks: string[]) => {
-    run.players.forEach((p, i) => {
-      const pend = run.pending.find((x) => x.playerId === p.id && x.kind === 'clear')!
-      pend.unlock = [picks[i], ...pend.unlock.filter((x) => x !== picks[i])].slice(0, 3)
-      applyIntent(run, p.id, { type: 'resolve', pendingId: pend.id, unlock: picks[i], drops: [] })
-    })
+  // Each reward resolved the way a player would: the first unlock offered (or the one named), the first chest reward.
+  const resolveAll = (picks: Record<string, string> = {}, skip?: Player) => {
+    for (const pend of [...run.pending]) {
+      if (pend.playerId === skip?.id) continue
+      const unlock = picks[pend.playerId] ?? pend.unlock[0]
+      if (unlock && !pend.unlock.includes(unlock)) pend.unlock = [unlock, ...pend.unlock].slice(0, 3)
+      pend.bonus = false
+      applyIntent(run, pend.playerId, { type: 'resolve', pendingId: pend.id, unlock, chest: pend.chest.length ? 0 : undefined, drops: [] })
+    }
   }
-  changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+  // A tier-up from a drop, with its in-game swap already done.
+  const tierUp = (p: Player, item: { name: string; slot: Slot; rarity: Rarity }, piece: string) => {
+    receiveGear(run, p, { ...item, source: 'encounter drop' })
+    const up = p.upgrades?.at(-1)
+    if (!up) return
+    applyIntent(run, p.id, { type: 'upgrade-pick', upgradeId: up.id, item: piece })
+    applyIntent(run, p.id, { type: 'upgrade-done', upgradeId: up.id })
+  }
+
+  // The Shattered Throne so far: Erebus cleared, the first chest found, a death and a wipe at Vorgeth, then its clear.
   recordClear(run)
+  resolveAll({ [pa.id]: 'Solar|aspect|Touch of Flame', [pb.id]: 'Void|aspect|Controlled Demolition', [pc.id]: 'Strand|aspect|Whirling Maelstrom' })
+  tierUp(pb, { name: 'Funnelweb', slot: 'Energy', rarity: 'Legendary' }, 'Cadenza-11')
   recordChest(run, true)
-  resolveFirst(['Solar|aspect|Touch of Flame', 'Void|aspect|Controlled Demolition', 'Strand|aspect|Whirling Maelstrom'])
-  addItem(run, pb, { name: 'Dreaded Venture', slot: 'Energy', rarity: 'Rare', source: 'encounter drop' })
-  recordClear(run)
-  // The host resolves their own reward; the other two are still choosing.
-  const mine = run.pending.filter((x) => x.playerId === pa.id && x.kind === 'clear').pop()!
-  applyIntent(run, pa.id, { type: 'resolve', pendingId: mine.id, unlock: mine.unlock[0], drops: [] })
+  resolveAll()
+  recordDeath(run, pc)
   changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
-  // Left on the chests between Vorgeth and D\u00fbl Incaru, so the chest prompt shows.
-  pc.configured.push("Strand|aspect|Widow's Silk")
+  recordClear(run)
+  tierUp(pa, { name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary' }, 'Home Again')
+  // Everyone has chosen except Threadrunner, who has no device: the host can resolve it for them.
+  resolveAll({}, pc)
+  // Left on the first of the two chests between Vorgeth and D\u00fbl Incaru, so the chest prompt shows.
   return run
 }

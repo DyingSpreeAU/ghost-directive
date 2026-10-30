@@ -124,6 +124,8 @@ export type Flow =
   | { type: 'reward'; pendingId: string }
   | { type: 'upgrade'; playerId: string; upgradeId: string }
   | { type: 'abandon' }
+  /** Tracked items a Bungie sync can't find anywhere; `wanted` forces the rare wanted-poster look. */
+  | { type: 'missing'; playerId: string; names: string[]; wanted?: boolean }
 
 export type View = 'briefing' | 'protocols' | 'history'
 
@@ -145,7 +147,8 @@ export type Ctx = {
   myPlayerId: string | null
   /** Your own Guardian, or (host only) a Guardian with no device linked. */
   canControl: (playerId: string) => boolean
-  dispatch: (intent: Intent, playerId?: string) => void
+  /** Returns false when the host turned the intent down on the spot (a guest's answer comes later). */
+  dispatch: (intent: Intent, playerId?: string) => boolean | void
   lobbyAct: (intent: LobbyIntent) => void
   claimSeat: (playerId: string) => void
   host: HostApi | null

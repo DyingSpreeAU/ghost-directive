@@ -30,3 +30,4 @@ dist-*
 .e2e
 test-results
 playwright-report
+tools/__pycache__/

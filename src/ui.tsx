@@ -7,7 +7,7 @@ import stasisIcon from './assets/elements/stasis.png'
 import strandIcon from './assets/elements/strand.png'
 import { dungeonArt, type DungeonDef, type EncounterDef, type Element, type Rarity } from './data'
 
-export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; xwide?: boolean; footer?: ReactNode }) {
+export function Modal(props: { title: string; kicker?: string; onClose?: () => void; children: ReactNode; wide?: boolean; xwide?: boolean; footer?: ReactNode; className?: string }) {
   const { onClose } = props
   useEffect(() => {
     if (!onClose) return
@@ -18,7 +18,7 @@ export function Modal(props: { title: string; kicker?: string; onClose?: () => v
   // Drawn at the top of the page, so nothing in the layout (the sticky sidebar, raised tiles) can cover it.
   return createPortal(
     <div className="scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className={`modal ${props.wide ? 'modal-wide' : ''} ${props.xwide ? 'modal-xwide' : ''}`} role="dialog" aria-modal="true" aria-label={props.title}>
+      <div className={`modal ${props.wide ? 'modal-wide' : ''} ${props.xwide ? 'modal-xwide' : ''} ${props.className ?? ''}`} role="dialog" aria-modal="true" aria-label={props.title}>
         <header className="modal-head">
           <div>
             {props.kicker && <div className="eyebrow">{props.kicker}</div>}

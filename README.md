@@ -20,8 +20,9 @@ It never enforces rules inside the game.
 - **Test tools** (nightly only): a hazard-striped panel at the bottom right of the run screen, in the
   host's browser. Queue an encounter, final-boss, chest or chest-with-Expansion reward for everyone or
   one Guardian without clearing anything; change Integrity; jump to any encounter; add drops, Arsenal
-  Expansions, abilities and artifact perks; clear waiting rewards; copy the run's data for a bug
-  report. `src/DevTools.tsx` is loaded only when the build has a channel; production builds swap in
+  Expansions, abilities and artifact perks; clear waiting rewards; open the missing-gear pop-up
+  (**Missing gear wizard**) or its rare **Wanted poster** look for up to three run items; copy the
+  run's data for a bug report. `src/DevTools.tsx` is loaded only when the build has a channel; production builds swap in
   `src/DevToolsOff.tsx` (an empty component, see `vite.config.ts`), so none of it ships.
 - Releasing: merge `nightly` into `main` and push; Netlify deploys it.
 
@@ -108,12 +109,26 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume
   and run pages (first on phones), for everyone, with a copy icon button.
-- **Mini command bar** (host, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's
-  top scrolls above the window, a compact bar shrinks into place at the top of the main column with
-  Integrity, the current dungeon, encounter and progress, and Clear / Record wipe (or the secret chest
-  question). Clicking Integrity or the encounter scrolls back to the full panel. On phones it keeps
-  Integrity and the buttons, and the Guardian name tabs stick below it.
-- **Host actions are two buttons.** Progress records an encounter clear: Integrity changes and
+- **Sidebar player** (desktop, active run; `SidePlayer` in `src/Briefing.tsx`): a small media player in
+  the sidebar's spare space. The encounter is the track (dungeon banner as cover art, dungeon and
+  route position underneath), the current dungeon's encounters are the scrubber (done / total
+  encounters), and Integrity is the level meter. Its buttons: **Death** (record my death), a large
+  **Clear** (opens the clear screen), and **Wipe**. While a secret chest is waiting, it asks
+  "Got Secret Chest N?" with Missed / Got it instead. Clicking the cover goes back to the top of the
+  run page. A Guardian without a seat sees it without buttons.
+- **Mini command bar** (phones, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's
+  top scrolls above the window, a compact bar shrinks into place at the top of the page with
+  Integrity and Clear / Record wipe (or the secret chest question). Clicking Integrity scrolls back
+  to the full panel, and the Guardian name tabs stick below it. On desktop the sidebar player does
+  this job instead.
+- **Run controls are for everyone.** Any Guardian with a seat (host or player) can record a clear,
+  answer a secret chest, record a wipe, and record a death for any Guardian; the host applies each
+  one (`clear`, `chest`, `wipe` and `death` intents in `applyIntent`). Each names what its sender
+  saw (the encounter, the chest number, the wipe count when the wipe screen opened, the Guardian's
+  death count), so when two players record the same thing at once, the second is turned down
+  ("Someone else just recorded this wipe."). Entries recorded by a player say "Recorded by <name>"
+  in the Combat Report. Undo last death, ending the run and resolving rewards for Guardians with no
+  device stay with the host. Progress records an encounter clear: Integrity changes and
   every player's reward screen opens straight away. Then, for each secret chest before the next
   encounter (positions from `DUNGEONS` in `src/data.ts`), Progress asks "Did you get Secret Chest N?"
   with Got it / Missed it, one chest at a time. Chests at the start of a dungeon are asked before
@@ -158,6 +173,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   It's a Cape, Shadow Specter). The previous tier's item stays as a spare. Every encounter, final-boss
   and chest reward has a 1 in 10 BONUS step: raise any slot below Legendary one tier. Tier names are
   coloured grey, green, blue, purple. Moves match same-named set pieces by slot and class (`MoveOp.slot`).
+- **Subclass reward cards** carry a type banner across the top (`TypeBanner` in `src/Flows.tsx`), so
+  the three kinds are told apart at a glance: **Ability** (Super, class ability, grenade, melee) is
+  a solid bar in the element's colour, **Aspect** a dark bar lit from the left with a double rule
+  and a notched end, and **Fragment** a thin striped bar. Each names the element (and, for abilities,
+  the kind) on the right.
 - **Ability text** (`src/abilityText.ts`) is the exact in-game description of every Super, class ability,
   melee, grenade, aspect and fragment, from each subclass's plugs in Bungie's manifest (aspects and
   fragments from their perk definitions). It shows on reward cards and as hover text on ability chips.
@@ -241,8 +261,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   stays in `src/Briefing.tsx`); the Vault pool still feeds reward choices. With loadouts hidden, the
   Loadout Archive chest reward, loadout warnings and the protocol's loadout-slot setting are off too.
 - **Subclass Archive** separates unlocked from equipped-in-game and flags out-of-order abilities.
-- **Player deaths**: each Guardian column has a death counter. The host can **Record death** on any
-  Guardian and **Undo last** (restores the Integrity); each player has **Record my death** on their own.
+- **Player deaths**: each Guardian column has a death counter. Anyone with a seat can **Record death**
+  on any Guardian (**Record my death** on their own); the host can **Undo last** (restores the Integrity).
   The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
 - **Saved runs**: one unfinished run is kept in the host's browser (`saved` in the host store,
@@ -258,8 +278,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Combat Report**, **Run History**, and a **Directive editor** (customize, duplicate,
   export/import JSON) with validation.
 - **Sandbox editor** (`src/Sandbox.tsx`, opened by Customize or Edit on Directives): every rule of a
-  protocol in five sections (Integrity, Starting setup, Gear progression, Inventory and trade-ups,
-  Rewards). One list (`FIELDS`) describes each setting and drives its control, a
+  protocol in six sections (Integrity, Starting setup, Gear progression, Inventory and trade-ups,
+  Rewards, Honour rules). One list (`FIELDS`) describes each setting and drives its control, a
   "changed" marker with reset, per-section change counts, and the "How this plays" summary of changes
   from the protocol it's compared with (`Ruleset.basedOn`, else Standard). Sub-options hide while their
   parent is off. Settings added for it live in `Ruleset.sandbox` (`Sandbox`, defaults in
@@ -273,7 +293,18 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   settings stay out of it and always on: the ready-up gate, the resume gate, Collections-only Exotics
   and the over-capacity prompt (`Ruleset.overflow` is ignored). The lobby's setup guide, rules and
   starting-gear checks follow these settings. Protocol cards show how many changes a custom one has.
+- **Honour rules** (editor section): rules the app can't see or check, so they're listed for the
+  fireteam rather than tracked. **No Rally Banners** (`Sandbox.noRallyBanners`, off by default):
+  don't place a Rally Banner to restock ammo or heal. When on, it's in the lobby's "How the run works"
+  and on the run page under the run name ("No Rally Banners (honour rule)").
 - State persists in `localStorage`. First launch loads a clearly marked example run.
+- **Example run** (`exampleRun` in `src/model.ts`): built by playing the real rules forward, so it
+  keeps up with them. Three Guardians (the host's Warlock, plus a Titan and Hunter with no device) on
+  Standard Directive, partway through The Shattered Throne: Erebus cleared and every reward chosen,
+  Secret Chest 1 found (artifact perks researched), a death and a wipe at Vorgeth, then its clear.
+  Two drops went through gear progression (Kinetic and Energy up to Uncommon, with their tier pieces
+  in the inventory). Threadrunner is still choosing a reward (the host's **Resolve for them**), and
+  the next secret chest question is waiting. Nothing pops up on load.
 
 ## Not yet built (per spec roadmap / open questions)
 
@@ -311,7 +342,13 @@ that browser. The player's device reads their profile and sends the host:
 - tracked run items not found anywhere on the account;
 - items equipped on their character that aren't in the run inventory.
 
-The host turns the last two into warnings.
+The host turns the last two into warnings. Items not found anywhere also open a pop-up on that
+player's device (`MissingFlow` in `src/Flows.tsx`): "N run items not found ... Did you dismantle
+them?", with **Dismantled** / **Still have it** for each. Dismantled items leave the run as
+dismantled; the rest stay tracked and flagged until a sync finds them. Each item is asked about once
+per run on that device (`ghost-directive:missing-asked` in localStorage), whether answered or closed
+with **Ask me later**. One pop-up in 10,000 is drawn as a sepia wanted poster ("Have you seen these
+items?!", a WANTED card per item, "Reward: 5 Glimmer").
 
 **Lobby: Equipped now.** Signed-in players see their active character (the one in game now, or else the most recently
 played) with its equipped weapons, armor and subclass, checked against the starting rules
@@ -458,7 +495,7 @@ chromium`.
 
 - `start` – start screen, explainer, first-visit intro, the Integrity gauge animation.
 - `lobby` – code card and copy, artifact gate, custom route, rules text per Directive.
-- `run` – deaths and wipes, the host mini bar, pop-ups above the page, final boss bonus, resume lobby.
+- `run` – deaths and wipes, the phone mini bar, the sidebar player, the missing-gear pop-up and wanted poster, reward type banners, pop-ups above the page, final boss bonus, resume lobby.
 - `progression` – tier-ups (piece named by type), the "used for a tier-up" record, BONUS.
 - `tradeup` – locked options across a reload, the room rule and Arsenal Expansions.
 - `sandbox` – the editor end to end (changes, reset, save, Use in lobby, the run following the rules),
@@ -467,6 +504,6 @@ chromium`.
 - `submission-created` – the Netlify function that files GitHub issues (no browser).
 - `bungie` – against a simulated account (`stubBungie` in `e2e/helpers.ts`): restore, resume without
   false drops, duplicate copies and the swap, trade-ups taking the Vault copy, seat class preference.
-- `multiplayer` – host and guest browsers: join, ready up, guest restore on a reopened run.
+- `multiplayer` – host and guest browsers: join, ready up, guest restore on a reopened run, a guest recording a clear, a wipe (a second copy turned down) and the host's death.
 - `layout` – main screens and pop-ups at 360–3440 px: no overlaps, spilled text or sideways scroll
   (`layoutProblems` in `e2e/helpers.ts`).

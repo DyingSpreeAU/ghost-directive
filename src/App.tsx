@@ -1,7 +1,7 @@
 import { BugReport } from './BugReport'
 import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Briefing } from './Briefing'
+import { Briefing, SidePlayer } from './Briefing'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
 import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
@@ -22,6 +22,7 @@ import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, no
 type Mode = { kind: 'landing' } | { kind: 'host' } | { kind: 'guest'; code: string }
 
 // Test tools exist only in test builds: in production CHANNEL is '' at build time, so this is never loaded.
+const MISSING_KEY = 'ghost-directive:missing-asked'
 const DevTools = CHANNEL ? lazy(() => import('./DevTools')) : null
 
 /** A corner badge on test deploys so nobody mistakes them for the real app. */
@@ -331,11 +332,12 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
     dispatch: (intent, pid) => {
       const target = pid ?? myPlayerId
       const p = ref.current.active?.players.find((x) => x.id === target)
-      if (!p || !(p.clientId === store.hostCid || p.clientId === null)) return toastRef.current('Only that Guardian’s player can do this.')
+      if (!p || !(p.clientId === store.hostCid || p.clientId === null)) { toastRef.current('Only that Guardian’s player can do this.'); return false }
       let err: string | null = null
       const before = ref.current
       mutate((s) => { err = applyIntent(s.active!, p.id, intent) })
-      if (err) { ref.current = before; setStore(before); toastRef.current(err) }
+      if (err) { ref.current = before; setStore(before); toastRef.current(err); return false }
+      return true
     },
     lobbyAct: (intent) => {
       let err: string | null = null
@@ -517,6 +519,8 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [deferred, setDeferred] = useState<string[]>([])
   const [dismissedSwaps, setDismissedSwaps] = useState<string[]>([])
+  // Missing items already asked about ("run id|name"), kept on this device so they aren't asked again.
+  const [askedMissing, setAskedMissing] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(MISSING_KEY) ?? '[]') } catch { return [] } })
   toastRef.current = setToastMsg
 
   // Report the result of returning from Bungie's sign-in page, once.
@@ -557,17 +561,27 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   // Slots that went up a tier: walk the player (or the host, for a Guardian with no device) through the swap.
   const upgradeFor = run?.players.find((x) => x.upgrades?.length && (x.id === me?.id || (role === 'host' && x.clientId === null)))
   const tradeFor = run?.players.find((x) => x.trade && (x.id === me?.id || (role === 'host' && x.clientId === null)))
+  // Tracked items the last Bungie sync couldn't find anywhere: ask once whether they were dismantled.
+  const missingNames = run && me?.bungie && run.status === 'active'
+    ? me.bungie.missing.filter((n) => me.inventory.some((i) => i.name === n) && !askedMissing.includes(`${run.id}|${n}`))
+    : []
   // A reopened run waiting for everyone to restore holds back the automatic prompts.
   const paused = !!run?.resume && run.status === 'active'
   const activeFlow: Flow | null = flow ?? (paused ? null
     : (tradeFor && run?.status === 'active' ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } : null)
     ?? (upgradeFor && run?.status === 'active' ? { type: 'upgrade', playerId: upgradeFor.id, upgradeId: upgradeFor.upgrades![0].id } : null)
     ?? (autoReward ? { type: 'reward', pendingId: autoReward.id } : null)
-    ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null))
+    ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null)
+    ?? (missingNames.length && me ? { type: 'missing', playerId: me.id, names: missingNames } : null))
   const closeFlow = () => {
     if (flow) setFlow(null)
     else if (activeFlow?.type === 'reward') setDeferred((d) => [...d, activeFlow.pendingId])
     else if (activeFlow?.type === 'swap' && me) setDismissedSwaps((d) => [...d, `${activeFlow.slot}:${itemsIn(me, activeFlow.slot).length}`])
+    if (!flow && activeFlow?.type === 'missing' && run) {
+      const next = [...askedMissing, ...activeFlow.names.map((n) => `${run.id}|${n}`)].slice(-200)
+      setAskedMissing(next)
+      try { localStorage.setItem(MISSING_KEY, JSON.stringify(next)) } catch { /* fine */ }
+    }
   }
   // A flow whose subject vanished (reward resolved elsewhere) closes itself.
   useEffect(() => {
@@ -601,6 +615,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
             onGo={(n) => { if (n.anchor) setSection(n.anchor); go(n.view, n.anchor) }}
             badge={(n) => (n.anchor === 'top' && crit > 0 ? <span className="badge-crit">{crit}</span> : null)}
           />
+          {run && !paused && run.status === 'active' && <SidePlayer run={run} />}
           <div className="sidebar-foot">
             <button className="link" onClick={base.leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
             <p>{role === 'host' ? 'The run lives in this browser. Close the window any time; it resumes here.' : 'The host’s browser keeps the run. You control your own Guardian.'}</p>
