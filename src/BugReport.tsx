@@ -83,7 +83,7 @@ export function BugReport({ run, lobby, role }: { run?: Run | null; lobby?: Lobb
               {(run || lobby) && (
                 <label className="switch"><input type="checkbox" checked={withData} onChange={(e) => setWithData(e.target.checked)} /> Include this {run ? 'run' : 'lobby'}&rsquo;s data (Guardian names, gear, unlocks, log) so the problem can be reproduced</label>
               )}
-              <p className="small muted">Your browser, screen size and the page you&rsquo;re on are included.</p>
+              <p className="small muted">Your browser, screen size, app version, Bungie sign-in status and the page you&rsquo;re on are included.</p>
               {state.error && <p className="small tone-danger">{state.error}</p>}
             </div>
           )}

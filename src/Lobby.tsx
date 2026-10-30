@@ -581,7 +581,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
   const pct = (n: number) => (n === 10 ? '1 in 10' : `${n}%`)
   // The two gear checklist lines follow the protocol's starting rarities.
   const gearLine = (key: string, label: string, hint: string) => key === 'weapons'
-    ? { label: `${colorsOf(startRarities(r, 'Kinetic'))} weapons, heavy ${colorsOf(startRarities(r, 'Power'))}`.replace(/^./, (c) => c.toUpperCase()), hint: `Kinetic and energy weapons up to ${g.weapons}; the heavy weapon up to ${g.heavy}.` }
+    ? { label: `${colorsOf(startRarities(r, 'Kinetic'))} weapons, heavy ${colorsOf(startRarities(r, 'Power'))}`.replace(/^./, (c) => c.toUpperCase()), hint: `Kinetic and energy weapons up to ${g.weapons}; the heavy weapon up to ${g.heavy}. Pull them from Collections where available.` }
     : key === 'greyArmor' ? { label: `${colorsOf(startRarities(r, 'Helmet'))} armor on every slot`.replace(/^./, (c) => c.toUpperCase()), hint: `Armor up to ${g.armor}, in all five slots.` } : { label, hint }
   return (
     <section id="setup" className="panel setup-guide section-anchor" aria-labelledby="setup-guide-title">
@@ -751,7 +751,7 @@ function EquippedNow({ eq, seat, ruleset, onApply }: { eq: Equipped; seat?: Seat
         <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
       </div>
       {eq.error && <p className="small tone-danger">{eq.error}</p>}
-      {!data && !eq.error && <p className="muted small">Reading your character from Bungie\u2026</p>}
+      {!data && !eq.error && <p className="muted small">Reading your character from Bungie&hellip;</p>}
       {data && <SyncNotice eq={eq} compact />}
       {data && (
         <>

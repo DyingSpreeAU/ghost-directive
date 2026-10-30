@@ -126,7 +126,7 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
           <section className="panel landing-card">
             <div className="eyebrow">Player</div>
             <h2>Join a lobby</h2>
-            <p className="muted">Enter the code from your host. Nothing about the run is stored on your device.</p>
+            <p className="muted">Enter the code from your host. The run itself lives in the host&rsquo;s browser.</p>
             <form className="join-form" onSubmit={(e) => { e.preventDefault(); join() }}>
               <label htmlFor="join-code" className="sr-only">Lobby code</label>
               <input id="join-code" className="code-input" value={code} onChange={(e) => { setCode(normalizeCode(e.target.value)); setErr('') }} placeholder="K7QM2X" autoComplete="off" spellCheck={false} />
@@ -135,7 +135,7 @@ function Landing({ onHost, onJoin }: { onHost: () => void; onJoin: (code: string
             {err && <p className="small tone-danger">{err}</p>}
           </section>
         </div>
-        {!inClaudeViewer() && <p className="small muted">Outside claude.ai, lobbies connect browsers directly (WebRTC) through the public PeerJS broker.</p>}
+        {!inClaudeViewer() && <p className="small muted">Lobbies connect your browsers directly, with a relay as a fallback when a network blocks that.</p>}
         <BugReport />
       </div>
     </div>

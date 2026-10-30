@@ -270,11 +270,11 @@ export function Explainer({ onDone, intro }: { onDone: () => void; intro?: boole
       </Section>
 
       <Section n="03" kicker="Earn your kit" title="Start with a bare subclass" art={<KitArt />}>
-        <p>Each Guardian commits to one subclass and starts with just a Super, a class ability, a melee and a grenade. Aspects, fragments and the rest of your kit are unlocked one at a time: every clear offers a choice of three, and you keep one.</p>
+        <p>Each Guardian commits to one subclass and starts with just a Super, a class ability, a melee and a grenade. Aspects, fragments and the rest of your kit are unlocked one at a time: every clear offers a choice of {STANDARD.rewards.unlockChoices}, and you keep one.</p>
       </Section>
 
       <Section n="04" kicker="Gear progression" title="Climb from grey to Legendary" art={<TierArt />}>
-        <p>You start in grey gear, with a green heavy weapon. Each slot climbs <span className="tier-word t-uncommon">Uncommon</span> &rarr; <span className="tier-word t-rare">Rare</span> &rarr; <span className="tier-word t-legendary">Legendary</span>: every drop in a slot moves it up one tier. Dismantle or vault the drop, and the app hands you that tier&rsquo;s weapon or armor piece. Exotics can be used at any time.</p>
+        <p>You start in grey gear, with a green heavy weapon. Each slot climbs <span className="tier-word t-uncommon">Uncommon</span> &rarr; <span className="tier-word t-rare">Rare</span> &rarr; <span className="tier-word t-legendary">Legendary</span>: every non-Exotic drop in a slot below Legendary moves it up one tier. Dismantle or vault the drop, and the app hands you that tier&rsquo;s weapon or armor piece. Exotics can be used at any time.</p>
       </Section>
 
       <Section n="05" kicker="Rewards" title="Choose one. Commit." art={<RewardArt />}>
@@ -282,7 +282,7 @@ export function Explainer({ onDone, intro }: { onDone: () => void; intro?: boole
       </Section>
 
       <Section n="06" kicker="Field Arsenal" title="Every slot has a limit" art={<ArsenalArt />}>
-        <p>Each slot holds {STANDARD.inventory.capacity} items. When it&rsquo;s full, trade four Legendaries or Exotics for one fresh Legendary from your Vault, or let something go. Once you trade in, the options are locked: pick one.</p>
+        <p>Each slot holds {STANDARD.inventory.capacity} items, and an Arsenal Expansion adds one. Once a slot reaches Legendary, trade {STANDARD.tradeUp.inputs} Legendaries or Exotics from it for your pick of {STANDARD.tradeUp.options} Legendaries from your Vault. When a slot overflows, trade up or let something go. Once you trade in, the options are locked: pick one.</p>
       </Section>
 
       <Section n="07" kicker="The fireteam" title="One run, every device" art={<FireteamArt />}>

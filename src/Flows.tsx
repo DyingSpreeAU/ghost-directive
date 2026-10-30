@@ -52,9 +52,10 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
   const { host, toast, online } = useGD()
   const { dungeon, encounter } = current(run)
   const rr = run.ruleset
-  const after = Math.min(rr.integrity.max, run.integrity + rr.integrity.clear)
-  const dup = run.claimed.includes(encounter.id)
   const final = encounter.type === 'final'
+  const gain = rr.integrity.clear + (final ? sandbox(rr).finalClear : 0)
+  const after = Math.min(rr.integrity.max, run.integrity + gain)
+  const dup = run.claimed.includes(encounter.id)
   const commit = () => {
     host!.updateRun((r) => recordClear(r))
     toast(`${encounter.name} cleared. Reward screens sent.`)
@@ -68,9 +69,9 @@ function ClearFlow({ run, onClose }: { run: Run; onClose: () => void }) {
       </>}
     >
       <div className="stack">
-        {dup && <div className="warn warn-critical static"><span className="warn-sev">Duplicate</span><span className="warn-title">This encounter&rsquo;s reward was already claimed this run.</span><span className="warn-rule">Standard mode allows one completion reward per encounter. Continue only if the earlier record was a mistake.</span></div>}
+        {dup && <div className="warn warn-critical static"><span className="warn-sev">Duplicate</span><span className="warn-title">This encounter&rsquo;s reward was already claimed this run.</span><span className="warn-rule">Each encounter gives one set of rewards per run. Continue only if the earlier record was a mistake.</span></div>}
         <div className="delta-row">
-          <div><div className="eyebrow">Integrity</div><span className="big mono">{run.integrity} &rarr; {after}</span>{after - run.integrity < rr.integrity.clear && <span className="muted small"> capped at {rr.integrity.max}</span>}</div>
+          <div><div className="eyebrow">Integrity</div><span className="big mono">{run.integrity} &rarr; {after}</span>{after - run.integrity < gain && <span className="muted small"> capped at {rr.integrity.max}</span>}</div>
           <div><div className="eyebrow">Each Guardian gets</div><span>1 of {rr.rewards.unlockChoices} unlocks{final && rr.rewards.finalBossGear ? ', a final-boss item' : ''}{final && rr.rewards.finalBossArtifact ? ', Artifact research' : ''}, and their own drops</span></div>
         </div>
         <p>Every player gets their own reward screen on their own device. The run moves on to the next encounter right away; rewards can be chosen while you play.</p>
@@ -484,9 +485,9 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
           {SOURCES.map((x) => <option key={x}>{x}</option>)}
         </select>
       </form>
-      {exoticClass && <p className="small tone-danger">Exotic class items aren&rsquo;t part of runs yet.</p>}
+      {exoticClass && <p className="small tone-danger">Exotic class items only come from final boss rewards, for Prismatic Guardians.</p>}
       <p className={`small ${n >= cap ? 'tone-warn' : 'muted'}`}>
-        Your {s} slot holds {n} of {cap}.{n >= cap && ' You will choose an item to move to the Vault.'}
+        Your {s} slot holds {n} of {cap}.{slotTier(run, p, s) !== 'Legendary' && !(rarity === 'Exotic' && sandbox(run.ruleset).exoticsAnyTime) ? ` It\u2019s at ${slotTier(run, p, s)}: this drop moves it up a tier instead of joining the inventory.` : n >= cap ? ' You\u2019ll be asked to trade up or let an item go.' : ''}
       </p>
     </Modal>
   )

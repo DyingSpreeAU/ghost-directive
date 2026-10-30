@@ -188,7 +188,7 @@ export function BungieStart() {
         {signedIn ? (
           <>
             <h2 id="bungie-start-title">Signed in{name ? <> as <span className="bungie-name">{name}</span></> : null}</h2>
-            <p className="muted">Once you&rsquo;re in a run, new drops are tracked automatically and your Vault fills your reward choices. Nothing in your game is moved or equipped unless you ask for it with Restore my Guardian.</p>
+            <p className="muted">Once you&rsquo;re in a run, new drops are tracked automatically and your Vault fills your reward choices. The app only moves or equips items when you press a button for it, like Send to, To Vault or Restore my Guardian.</p>
           </>
         ) : (
           <>
@@ -232,7 +232,7 @@ export function SynapticLink({ onSignOut }: { onSignOut?: () => void }) {
       </span>
       <div className="synaptic-tip" id="synaptic-tip" role="tooltip">
         <strong>Synaptic Link</strong>
-        <p>Your Ghost&rsquo;s link to Bungie&rsquo;s servers. While it&rsquo;s green, the app reads what you have equipped, your subclass and artifact, and new drops during a run. It only moves or equips items when you use Restore my Guardian.</p>
+        <p>Your Ghost&rsquo;s link to Bungie&rsquo;s servers. While it&rsquo;s green, the app reads what you have equipped, your subclass and artifact, and new drops during a run. It only moves or equips items when you press a button for it, like Send to, To Vault or Restore my Guardian.</p>
         <p className={ok ? 'tone-ok' : 'tone-danger'}>{state}</p>
         {signedIn
           ? onSignOut && <button className="link" onClick={onSignOut}>Sign out of Bungie</button>

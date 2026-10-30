@@ -472,6 +472,8 @@ legend { font-family: var(--f-display); text-transform: uppercase; letter-spacin
   }
   .tabbar button { background: none; border: 0; border-top: 2px solid transparent; padding: 12px 2px; font-family: var(--f-display); font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); }
   .tabbar button.is-on { color: var(--light); border-top-color: var(--light); }
+  /* Six tabs on a small phone: tighter type so long labels (Protocols, Guardians) keep a gap between them. */
+  @media (max-width: 420px) { .tabbar button { font-size: 0.7rem; letter-spacing: 0.02em; padding-inline: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
   .command { grid-template-columns: minmax(0, 1fr); }
   .encounter { grid-template-columns: minmax(0, 1fr); }
   .art { min-height: 120px; }
