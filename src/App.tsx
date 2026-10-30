@@ -447,10 +447,10 @@ const LOBBY_NAV: NavItem[] = [
   { view: 'briefing', anchor: 'top', label: 'Lobby', short: 'Lobby' },
   { view: 'briefing', anchor: 'setup', label: 'Setup and rules', short: 'Rules' },
   { view: 'briefing', anchor: 'seats', label: 'Guardians', short: 'Guardians' },
-  { view: 'briefing', anchor: 'route', label: 'Protocol and route', short: 'Route' },
+  { view: 'briefing', anchor: 'route', label: 'Directive and route', short: 'Route' },
 ]
 const PAGE_NAV: NavItem[] = [
-  { view: 'protocols', label: 'Protocol Rulesets', short: 'Protocols', hostOnly: true },
+  { view: 'protocols', label: 'Directives', short: 'Directives', hostOnly: true },
   { view: 'history', label: 'Run History', short: 'History', hostOnly: true },
 ]
 

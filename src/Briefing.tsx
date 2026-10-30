@@ -276,7 +276,7 @@ export function Loadouts({ run, p }: { run: Run; p: Player }) {
         <input id={`lo-name-${p.id}`} placeholder="Loadout name" value={name} onChange={(e) => setName(e.target.value)} />
         <button className="btn btn-ghost btn-sm" disabled={p.loadouts.length >= slots} onClick={save}>Save current</button>
       </div>}
-      {control && p.loadouts.length >= slots && <p className="muted small">{slots === 0 ? 'This protocol starts with no loadout slots. Loadout Archive rewards add one.' : 'All loadout slots used. Loadout Archive rewards add one.'}</p>}
+      {control && p.loadouts.length >= slots && <p className="muted small">{slots === 0 ? 'This Directive starts with no loadout slots. Loadout Archive rewards add one.' : 'All loadout slots used. Loadout Archive rewards add one.'}</p>}
     </div>
   )
 }

@@ -141,7 +141,7 @@ export function equippedNotUnlocked(p: Player): string[] {
 export function validateRuleset(r: Ruleset): string[] {
   const errs: string[] = []
   const { start, max, clear, wipe } = r.integrity
-  if (!r.name.trim()) errs.push('Give the protocol a name.')
+  if (!r.name.trim()) errs.push('Give the Directive a name.')
   if (max < 1) errs.push('Maximum Integrity must be at least 1.')
   if (start < 1 || start > max) errs.push('Starting Integrity must be between 1 and the maximum.')
   if (clear < 0) errs.push('Clear reward cannot be negative.')
@@ -874,7 +874,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (!active) return 'The run has ended.'
       if (p.trade) return 'Finish your current trade-up first.'
       const tu = run.ruleset.tradeUp
-      if (!tu.enabled) return 'Trade-ups are off in this protocol.'
+      if (!tu.enabled) return 'Trade-ups are off in this Directive.'
       const ids = Array.isArray(it.inputIds) ? [...new Set(it.inputIds)] : []
       const inputs = p.inventory.filter((i) => ids.includes(i.id))
       if (inputs.length !== tu.inputs || ids.length !== tu.inputs) return `Pick exactly ${tu.inputs} items.`
@@ -882,7 +882,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (inputs.some((i) => i.slot !== slot || !tradeableFor(run.ruleset)(i))) return sandbox(run.ruleset).tradeUpExotics ? 'Inputs must share a slot and be Legendary or Exotic.' : 'Inputs must share a slot and be Legendary.'
       const blocked = tradeBlock(run, p, slot)
       if (blocked) return blocked
-      if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This protocol needs inputs of one rarity.'
+      if (tu.sameRarity && inputs.some((i) => i.rarity !== inputs[0].rarity)) return 'This Directive needs inputs of one rarity.'
       const options = tradeUpChoices(run, p, slot)
       if (!options.length) return `No eligible Legendary ${slot} items in your Vault pool.`
       dismiss(p, inputs, 'traded')

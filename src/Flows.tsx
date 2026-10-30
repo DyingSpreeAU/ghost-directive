@@ -530,7 +530,7 @@ function SwapFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () => v
             <button className="choice" disabled={!canTrade} onClick={() => openFlow({ type: 'tradeup', playerId, slot })}>
               <span className="choice-kind">Trade up</span>
               <strong>Trade {tu.inputs} for 1 Legendary</strong>
-              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this protocol.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : tradeBlock(run, p, slot) ? tradeBlock(run, p, slot) : `Needs ${tu.inputs} Legendary or Exotic ${slot} items${tu.sameRarity ? ' of one rarity' : ''}.`}</span>
+              <span className="muted">{canTrade ? `Give up ${tu.inputs} ${slot} items${tu.sameRarity ? ' of the same rarity' : ''} and pick a Legendary from your Vault.` : !tu.enabled ? 'Trade-ups are off in this Directive.' : !canControl(p.id) ? 'Only this Guardian\u2019s player can trade up.' : tradeBlock(run, p, slot) ? tradeBlock(run, p, slot) : `Needs ${tu.inputs} Legendary or Exotic ${slot} items${tu.sameRarity ? ' of one rarity' : ''}.`}</span>
             </button>
             <button className="choice" onClick={() => setStage('remove')}>
               <span className="choice-kind">Remove items</span>

@@ -89,6 +89,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
   final-boss category-first reward (Exotic armor or Vault Legendary weapon), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
+- **Naming**: rulesets are called **Directives** everywhere players see them (the Directives page, "Custom
+  Directive", "Save Directive", "Import Directive", the lobby's Directive section). In code they're still
+  `Ruleset` / protocols (`Protocols.tsx`, `allProtocols`, `protocolId`).
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume
   and run pages (first on phones), for everyone, with a copy icon button.
 - **Mini command bar** (host, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's
@@ -108,7 +111,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   remove), then unlocked subclass abilities, then artifact perks. The section notes sit in a
   collapsible "How these columns work" panel. **Sync all** (beside End run) asks every signed-in
   Guardian's device to re-read Bungie (`run.syncRequest`).
-- **Sidebar** lists the sections of the current page (lobby: Setup and rules, Guardians, Protocol and
+- **Sidebar** lists the sections of the current page (lobby: Setup and rules, Guardians, Directive and
   route; run: Mission Briefing, Fireteam, Combat Report) then the host's pages. The section in view is
   highlighted by a marker that slides between entries; clicking glides the page there.
 - **Phones** (900px and narrower): the Guardian columns in the lobby and the run show one Guardian per
@@ -119,7 +122,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   floating button: tap to open them as a sheet above the tab bar, drag it anywhere (the spot is remembered).
 - **Tooltips**: every `title` hover shows at once in the app's style (`src/Tooltips.tsx`, one listener
   for the page; the title is lifted off while hovered so the browser's own doesn't appear).
-- **Protocol Rulesets** marks the protocol the current run or lobby uses; in a lobby, **Use in lobby**
+- **Directives** marks the protocol the current run or lobby uses; in a lobby, **Use in lobby**
   switches to another one.
 - **Exotic class items**: on Prismatic, a final-boss Exotic reward sometimes includes the class's Exotic
   class item (Stoicism, Relativism, Solipsism), only when a copy is in the player's Vault. The offer is one
@@ -235,9 +238,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   lobby messages; the host stores it on the seat and the Guardian (`bungieId`). A signed-in player
   coming back on a new device or session is put back on their Guardian automatically once the old
   device has been gone ~15 s. No claim screen.
-- **Combat Report**, **Run History**, and a **Protocol editor** (customize, duplicate,
+- **Combat Report**, **Run History**, and a **Directive editor** (customize, duplicate,
   export/import JSON) with validation.
-- **Sandbox editor** (`src/Sandbox.tsx`, opened by Customize or Edit on Protocol Rulesets): every rule of a
+- **Sandbox editor** (`src/Sandbox.tsx`, opened by Customize or Edit on Directives): every rule of a
   protocol in five sections (Integrity, Starting setup, Gear progression, Inventory and trade-ups,
   Rewards). One list (`FIELDS`) describes each setting and drives its control, a
   "changed" marker with reset, per-section change counts, and the "How this plays" summary of changes

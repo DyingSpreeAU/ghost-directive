@@ -168,7 +168,7 @@ export function SandboxEditor({ value, all, onSave, onCancel }: { value: Ruleset
     <div className="panel sandbox">
       <div className="sb-head">
         <div className="field">
-          <label htmlFor="sb-name">Protocol name</label>
+          <label htmlFor="sb-name">Directive name</label>
           <input id="sb-name" value={r.name} maxLength={40} onChange={(e) => change((d) => { d.name = e.target.value })} />
         </div>
         <div className="field">
@@ -238,7 +238,7 @@ export function SandboxEditor({ value, all, onSave, onCancel }: { value: Ruleset
       {errs.length > 0 && <ul className="errs">{errs.map((e) => <li key={e}>{e}</li>)}</ul>}
       <div className="row-acts end sb-foot">
         <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
-        <button className="btn btn-light" disabled={errs.length > 0} onClick={() => onSave(r)}>Save protocol</button>
+        <button className="btn btn-light" disabled={errs.length > 0} onClick={() => onSave(r)}>Save Directive</button>
       </div>
     </div>
   )

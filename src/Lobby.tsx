@@ -97,8 +97,8 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
           <h1>{lobby.name.trim() || 'Prepare the Directive'}</h1>
           <p className="section-note">
             {role === 'host'
-              ? 'Share the code. Each Guardian joins from their own device and sets up their own subclass and starting gear. You choose the protocol and route.'
-              : 'Set up your Guardian, then mark yourself ready. The host chooses the protocol and route and starts the run.'}
+              ? 'Share the code. Each Guardian joins from their own device and sets up their own subclass and starting gear. You choose the Directive and route.'
+              : 'Set up your Guardian, then mark yourself ready. The host chooses the Directive and route and starts the run.'}
           </p>
         </div>
         <div className="head-side"><CodeCard code={lobby.code} /></div>
@@ -350,7 +350,7 @@ function RouteAndProtocol({ lobby, readOnly }: { lobby: Lobby; readOnly?: boolea
     return (
       <section id="route" className="panel route-summary section-anchor">
         <div>
-          <div className="eyebrow">Protocol</div>
+          <div className="eyebrow">Directive</div>
           <strong>{r.name}</strong>
           <p className="small muted">{r.integrity.start} Integrity, +{r.integrity.clear} per clear, &minus;{r.integrity.wipe} per wipe, {r.inventory.capacity} item slots per gear slot.</p>
         </div>
@@ -366,9 +366,9 @@ function RouteAndProtocol({ lobby, readOnly }: { lobby: Lobby; readOnly?: boolea
   return (
     <section id="route" className="panel host-setup section-anchor">
       <div className="host-setup-col">
-        <h2>Protocol</h2>
+        <h2>Directive</h2>
         <div className="field">
-          <label htmlFor="lobby-protocol">Ruleset</label>
+          <label htmlFor="lobby-protocol">Rules</label>
           <select id="lobby-protocol" value={lobby.protocolId} onChange={(e) => {
             const p = protocols.find((x) => x.id === e.target.value)!
             set((l) => { l.protocolId = p.id; l.ruleset = structuredClone(p) })
@@ -591,7 +591,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
         <p className="section-note">Every Guardian starts the run under-geared. Do this in game before the host records anything.</p>
         <ul className="guide-list">
           {CHECKLIST.filter((c) => sb.startAbilities !== 'all' || (c.key !== 'noAspects' && c.key !== 'noFragments')).map((c) => { const l = gearLine(c.key, c.label, c.hint); return <li key={c.key}><strong>{l.label.replace(/ equipped$/, '')}</strong><span className="muted">{l.hint}</span></li> })}
-          {sb.startAbilities === 'all' && <li><strong>Every ability unlocked</strong><span className="muted">This protocol starts each Guardian with their whole subclass: use any Super, ability, aspect or fragment.</span></li>}
+          {sb.startAbilities === 'all' && <li><strong>Every ability unlocked</strong><span className="muted">This Directive starts each Guardian with their whole subclass: use any Super, ability, aspect or fragment.</span></li>}
           <li><strong>Your run&rsquo;s artifact, no perks</strong><span className="muted">Equip the artifact you chose and switch every perk off. Perks come from run rewards.</span></li>
         </ul>
       </div>

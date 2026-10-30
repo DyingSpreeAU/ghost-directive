@@ -27,7 +27,7 @@ export function Protocols() {
       setIo(null)
       toast(`Imported ${r.name}`)
     } catch {
-      setIoErr('That text is not valid protocol JSON. Paste the full export, starting with {.')
+      setIoErr('That text is not valid Directive JSON. Paste the full export, starting with {.')
     }
   }
 
@@ -35,11 +35,11 @@ export function Protocols() {
     <div className="protocols">
       <header className="page-head">
         <div>
-          <div className="eyebrow">Protocol Rulesets</div>
+          <div className="eyebrow">Rulesets</div>
           <h1>Directives</h1>
-          <p className="section-note">Presets are fixed. Customize one to create your own protocol. Runs keep a snapshot of the protocol they started with.</p>
+          <p className="section-note">Presets are fixed. Customize one to create your own Directive. Runs keep a snapshot of the Directive they started with.</p>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={() => { setIo({ mode: 'import', text: '' }); setIoErr('') }}>Import protocol</button>
+        <button className="btn btn-ghost btn-sm" onClick={() => { setIo({ mode: 'import', text: '' }); setIoErr('') }}>Import Directive</button>
       </header>
 
       {editing ? (
@@ -53,7 +53,7 @@ export function Protocols() {
         <div className="proto-grid">
           {list.map((p) => (
             <article key={p.id} className={`proto static ${p.id === inUse ? 'is-in-use' : ''}`} aria-current={p.id === inUse ? 'true' : undefined}>
-              <span className="choice-kind">{p.preset ? 'Preset' : 'Custom protocol'}{p.id === inUse && <span className="in-use-tag">{run ? 'This run' : 'This lobby'}</span>}</span>
+              <span className="choice-kind">{p.preset ? 'Preset' : 'Custom Directive'}{p.id === inUse && <span className="in-use-tag">{run ? 'This run' : 'This lobby'}</span>}</span>
               <strong>{p.name}</strong>
               <span className="muted">{p.description}</span>
               {!p.preset && (() => { const b = basisOf(p, list); const n = differences(p, b).length; return <span className="small muted">{n ? `${n} change${n === 1 ? '' : 's'} from ${b.name}` : `Same rules as ${b.name}`}</span> })()}
@@ -82,8 +82,8 @@ export function Protocols() {
 
       {io && (
         <div className="panel io">
-          <h3>{io.mode === 'export' ? 'Export protocol' : 'Import protocol'}</h3>
-          <p className="section-note">{io.mode === 'export' ? 'Copy this JSON and share it. Anyone can import it as a custom protocol.' : 'Paste protocol JSON exported from Ghost Directive.'}</p>
+          <h3>{io.mode === 'export' ? 'Export Directive' : 'Import Directive'}</h3>
+          <p className="section-note">{io.mode === 'export' ? 'Copy this JSON and share it. Anyone can import it as a custom Directive.' : 'Paste Directive JSON exported from Ghost Directive.'}</p>
           <textarea id="proto-io" rows={10} value={io.text} readOnly={io.mode === 'export'} onChange={(e) => setIo({ ...io, text: e.target.value })} onFocus={(e) => io.mode === 'export' && e.target.select()} />
           {ioErr && <p className="tone-danger small">{ioErr}</p>}
           <div className="row-acts">
