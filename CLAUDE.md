@@ -33,4 +33,6 @@ warnings, save and resume, Bungie integration).
 - The app tracks the run; it doesn't enforce rules.
 - The host acts for Guardians with no device.
 - Keep `README.md` up to date with each feature.
+- `TODO.md` is the owner's to-do list: add to it when asked, tick items off as they're done, and don't
+  start anything on it without being asked.
 - Run `npm run test:e2e` before pushing, and add or update tests in `e2e/` for new features and fixes.
