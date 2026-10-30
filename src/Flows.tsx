@@ -211,13 +211,13 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               <span className="choice-kind r-exotic-text">Exotic armor</span>
               <strong>1 of 3 {p.cls} Exotics</strong>
               <span className="muted">{p.element} synergy favored where available.</span>
-              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot) && <img key={g.name} src={icons.gear(g.name, g.slot)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
               <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
               <strong>1 of 3 weapons from your Vault</strong>
               <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
-              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name) && <img key={g.name} src={icons.gear(g.name)} alt="" title={g.name} />)}</span>}
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name, g.slot) && <img key={g.name} src={icons.gear(g.name, g.slot)} alt="" title={g.name} />)}</span>}
             </button>
           </ChoiceGrid>
         </div>
@@ -305,7 +305,7 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
     <>
       <ChoiceGrid five={five}>
         {options.map((g) => {
-          const icon = icons.gear(g.name) ?? data?.[g.name]?.icon
+          const icon = icons.gear(g.name, g.slot) ?? data?.[g.name]?.icon
           const info = data?.[g.name]
           const pull = notHeld(p, g)
           return (
@@ -642,7 +642,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
           <ChoiceGrid five>
             {items.map((it) => {
               const on = sel.includes(it.id)
-              const icon = icons.gear(it.name)
+              const icon = icons.gear(it.name, it.slot)
               return (
                 <button key={it.id} className={`choice choice-item trade-in ${rarityClass(it.rarity)} ${on ? 'is-on' : ''}`} aria-pressed={on}
                   disabled={!canPick(it.id) || starting} onClick={() => setSel(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}>

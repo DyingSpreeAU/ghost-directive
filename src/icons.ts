@@ -6,6 +6,8 @@ import { useEffect, useState } from 'react'
 
 type IconTable = {
   gear: Record<string, string>; plugs: Record<string, string>; artifacts?: Record<string, string>
+  /** "name|slot" icons for names shared across slots (an armor set's pieces all share its name). */
+  gearBySlot?: Record<string, string>
   /** Each artifact's own perk icons: perk names repeat across seasons with different art. */
   artifactPerks?: Record<string, Record<string, string>>
 }
@@ -27,7 +29,8 @@ export function useIcons() {
   const [t, setT] = useState<IconTable | null>(loaded)
   useEffect(() => { if (!t) load().then(setT) }, [t])
   return {
-    gear: (name: string) => (t?.gear[name] ? ROOT + t.gear[name] : undefined),
+    /** Pass the slot wherever it's known: armor set pieces share a name, so the name alone may give another piece's icon. */
+    gear: (name: string, slot?: string) => { const hit = (slot && t?.gearBySlot?.[`${name}|${slot}`]) || t?.gear[name]; return hit ? ROOT + hit : undefined },
     plug: (name: string) => (t?.plugs[name] ? ROOT + t.plugs[name] : undefined),
     artifact: (name: string) => (t?.artifacts?.[name] ? ROOT + t.artifacts[name] : undefined),
     /** An artifact perk's icon as that artifact has it, else the icon for the name. */

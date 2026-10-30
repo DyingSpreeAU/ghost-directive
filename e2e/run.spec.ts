@@ -76,3 +76,14 @@ test('the equipped item sits first in its slot, a size up, with no border or dot
   expect(first.shadow).toBe('none')
   await expect(page.locator('.tile-eq')).toHaveCount(0)
 })
+
+test('armor set pieces that share a name show their own slot’s icon', async ({ page }) => {
+  await exampleRun(page)
+  await editStore(page, "const p = s.active.players[0]; p.inventory = p.inventory.filter((i) => !['Helmet', 'Gauntlets', 'Chest'].includes(i.slot)); for (const slot of ['Helmet', 'Gauntlets', 'Chest']) p.inventory.push({ id: 'cd' + slot, name: 'Cry Defiance', slot, rarity: 'Uncommon', source: 'Uncommon tier', equipped: true })")
+  await page.waitForSelector('.guardian')
+  const col = page.locator('.guardian').first()
+  const src = (slot: string) => col.locator('.g-slot', { has: page.locator('.g-slot-name', { hasText: new RegExp(`^${slot}$`) }) }).locator('.tile.item img').first().getAttribute('src')
+  await expect(col.locator('.tile.item img[src*="bungie.net"]').first()).toBeVisible()
+  const [helmet, gauntlets, chest] = await Promise.all([src('Helmet'), src('Gauntlets'), src('Chest')])
+  expect(new Set([helmet, gauntlets, chest]).size).toBe(3)
+})

@@ -89,10 +89,16 @@ if item_table:
 if item_table and icon_table:
     PRE = '/common/destiny2_content/icons/'
     gear, plugs = {}, {}
+    # An armor set's pieces share one name across slots: those also get an icon per "name|slot".
+    SLOTS = ['Kinetic', 'Energy', 'Power', 'Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
+    by_slot, slots_of = {}, collections.defaultdict(set)
     for h, row in rows.items():
         ic = items[h].get('displayProperties', {}).get('icon', '')
         if ic.startswith(PRE):
             gear.setdefault(row[0], ic[len(PRE):])
+            by_slot.setdefault(f'{row[0]}|{SLOTS[row[1]]}', ic[len(PRE):])
+            slots_of[row[0]].add(row[1])
+    gear_by_slot = {k: v for k, v in by_slot.items() if len(slots_of[k.split('|')[0]]) > 1}
     KINDS = ('.supers', '.grenades', '.melee', '.aspects', '.fragments', '.class_abilities', '.movement')
     for it in items.values():
         pc = it.get('plug', {}).get('plugCategoryIdentifier', '')
@@ -122,7 +128,7 @@ if item_table and icon_table:
                     perks.setdefault(name, ic[len(PRE):])
         if perks:
             artifact_perks.setdefault(it['displayProperties']['name'].strip(), perks)
-    json.dump({'gear': gear, 'plugs': plugs, 'artifacts': artifacts, 'artifactPerks': artifact_perks}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    json.dump({'gear': gear, 'gearBySlot': gear_by_slot, 'plugs': plugs, 'artifacts': artifacts, 'artifactPerks': artifact_perks}, open(icon_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', icon_table, len(gear), 'gear', len(plugs), 'plugs')
 
 # Exotic armor Collections entries (collectible hash -> [name, classType]), so a signed-in player's
