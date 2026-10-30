@@ -8,7 +8,9 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "build:nightly": "SINGLE=1 VITE_CHANNEL=nightly vite build --outDir dist-nightly"
+    "build:nightly": "SINGLE=1 VITE_CHANNEL=nightly vite build --outDir dist-nightly",
+    "test:e2e": "playwright test",
+    "test:e2e:fast": "playwright test --grep-invert @layout"
   },
   "dependencies": {
     "peerjs": "^1.5.4",
@@ -16,11 +18,13 @@
     "react-dom": "^19.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
     "oxlint": "^1.88.0",
+    "peer": "1.0.2",
     "typescript": "~6.0.3",
     "vite": "^8.3.4",
     "vite-plugin-singlefile": "^2.3.4"

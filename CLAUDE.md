@@ -33,3 +33,4 @@ warnings, save and resume, Bungie integration).
 - The app tracks the run; it doesn't enforce rules.
 - The host acts for Guardians with no device.
 - Keep `README.md` up to date with each feature.
+- Run `npm run test:e2e` before pushing, and add or update tests in `e2e/` for new features and fixes.

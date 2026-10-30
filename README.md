@@ -424,3 +424,32 @@ Dungeon layouts (`DUNGEONS` in `src/data.ts`) are written in play order, for exa
 - `src/App.tsx` – landing, host and player apps, shell, automatic reward/swap prompts.
 - `src/Lobby.tsx` – lobby screen.
 - `src/Briefing.tsx`, `src/Flows.tsx`, `src/Protocols.tsx`, `src/History.tsx` – screens.
+
+## Tests
+
+End-to-end tests live in `e2e/` and run with Playwright:
+
+```
+npm run test:e2e        # everything (about 1.5 minutes)
+npm run test:e2e:fast   # skips the multi-size layout sweep (@layout)
+```
+
+They build and serve two copies of the app (a nightly build with test tools, and the same build wired
+to a simulated Bungie account), plus a local lobby server for the two-device tests; all start and
+stop automatically (`playwright.config.ts`). First time on a new machine: `npx playwright install
+chromium`.
+
+- `start` – start screen, explainer, first-visit intro, the Integrity gauge animation.
+- `lobby` – code card and copy, artifact gate, custom route, rules text per Directive.
+- `run` – deaths and wipes, the host mini bar, pop-ups above the page, final boss bonus, resume lobby.
+- `progression` – tier-ups (piece named by type), the "used for a tier-up" record, BONUS.
+- `tradeup` – locked options across a reload, the room rule and Arsenal Expansions.
+- `sandbox` – the editor end to end (changes, reset, save, Use in lobby, the run following the rules),
+  app settings absent, Directive export and import.
+- `bugreport` – posted fields (version, Bungie status), the clipboard fallback.
+- `submission-created` – the Netlify function that files GitHub issues (no browser).
+- `bungie` – against a simulated account (`stubBungie` in `e2e/helpers.ts`): restore, resume without
+  false drops, duplicate copies and the swap, trade-ups taking the Vault copy, seat class preference.
+- `multiplayer` – host and guest browsers: join, ready up, guest restore on a reopened run.
+- `layout` – main screens and pop-ups at 360–3440 px: no overlaps, spilled text or sideways scroll
+  (`layoutProblems` in `e2e/helpers.ts`).

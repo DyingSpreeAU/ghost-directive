@@ -45,6 +45,8 @@ export function Tooltips() {
     const press = () => setTip(null)
     document.addEventListener('mousedown', press)
     window.addEventListener('blur', hide)
+    // The bubble is placed for the current layout: a resize (or phone rotation) drops it.
+    window.addEventListener('resize', hide)
     return () => {
       document.removeEventListener('mouseover', over)
       document.removeEventListener('focusin', focus)
@@ -52,6 +54,7 @@ export function Tooltips() {
       document.removeEventListener('scroll', hide, true)
       document.removeEventListener('mousedown', press)
       window.removeEventListener('blur', hide)
+      window.removeEventListener('resize', hide)
     }
   }, [])
 

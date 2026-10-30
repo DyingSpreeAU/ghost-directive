@@ -25,3 +25,8 @@ dist-ssr
 dist-single
 dist-nightly
 dist-*
+
+# end-to-end tests
+.e2e
+test-results
+playwright-report
