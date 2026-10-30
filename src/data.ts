@@ -1,6 +1,7 @@
 import { COMPENDIUM } from './compendium'
 import { CLASS_ABILITIES, CLASS_ABILITY_DESC } from './classAbilities'
 import { ABILITY_TEXT } from './abilityText'
+import { ARTIFACT_TEXT } from './artifactText'
 
 // Static game content. Everything here is data-driven so it can be revised
 // when Destiny 2 content changes without touching run logic.
@@ -150,7 +151,12 @@ export function tierArmor(cls: ClassType, slot: Slot, tier: Rarity): string | nu
   return slot === 'Class Item' ? set.classItem : set.armor
 }
 
-export const ARTIFACTS: ArtifactDef[] = (COMPENDIUM as unknown as { artifacts: ArtifactDef[] }).artifacts
+// Perk text as the game words it (Bungie's manifest), over the compendium's summary where there is one.
+const GAME_TEXT = new Map(Object.entries(ARTIFACT_TEXT).map(([k, v]) => [k.toLowerCase(), v]))
+export const ARTIFACTS: ArtifactDef[] = (COMPENDIUM as unknown as { artifacts: ArtifactDef[] }).artifacts.map((a) => ({
+  ...a,
+  perks: a.perks.map((p) => ({ ...p, desc: GAME_TEXT.get(`${a.name}|${p.name}`.toLowerCase()) ?? p.desc })),
+}))
 export const artifactByName = (name: string | undefined) => ARTIFACTS.find((a) => a.name === name)
 export const artifactPerk = (artifact: string | undefined, perk: string) => artifactByName(artifact)?.perks.find((p) => p.name === perk)
 

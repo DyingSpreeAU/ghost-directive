@@ -161,6 +161,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Ability text** (`src/abilityText.ts`) is the exact in-game description of every Super, class ability,
   melee, grenade, aspect and fragment, from each subclass's plugs in Bungie's manifest (aspects and
   fragments from their perk definitions). It shows on reward cards and as hover text on ability chips.
+- **Artifact perk text** (`src/artifactText.ts`, keyed "Artifact|Perk") is each perk's in-game
+  description from its sandbox perk definitions, with the inline element and Champion glyph tokens
+  removed. It replaces the compendium's summary on research cards and the artifact list.
 - **Item ledger**: items that leave the run are kept on the player (`retired`, newest first) with their
   instance id and what happened: traded in, vaulted, dismantled or removed from the run. A drop that
   raised a slot's tier is recorded as used for a tier-up (`tiered`; dismantled or vaulted, so it's
@@ -423,7 +426,7 @@ artifacts with their perks.
 To regenerate after a game update (needs docs.google.com and *.bungie.net access):
 
 ```sh
-python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json
+python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json public/bungie-tiers.json src/artifactText.ts
 python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 ```
 

@@ -97,3 +97,11 @@ test('a grey and a Legendary with the same name show their own icons', async ({ 
   const srcs = await imgs.evaluateAll((x) => x.map((i) => i.getAttribute('src')))
   expect(new Set(srcs).size).toBe(2)
 })
+
+test('artifact perks use the game’s own description', async ({ page }) => {
+  await fresh(page)
+  await startRun(page, 'Tablet of Ruin')
+  await editStore(page, "s.active.players[0].artifact = ['Dielectric']")
+  await expect(page.locator('.mod-list li', { hasText: 'Dielectric' }).first()).toHaveAttribute('title',
+    'Defeating Arc debuffed targets grants Bolt Charge.\n\nRapidly defeating Arc debuffed targets spawns an Orb of Power and heals a small portion of health.')
+})
