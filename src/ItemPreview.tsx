@@ -3,18 +3,19 @@
 
 import { useEffect, useState } from 'react'
 import { bungieConfigured, fetchItemPreviews, isSignedIn, type AmmoType, type ItemPreview, type PreviewPlug } from './bungie'
-import { ELEMENT_COLOR, type ClassType } from './data'
+import { ELEMENT_COLOR, type ClassType, type Rarity } from './data'
 import { rarityClass } from './ui'
 
 /** Previews of the player's own copies of these items, read from Bungie on this device. */
-export function useItemPreviews(names: string[], enabled: boolean, cls?: ClassType, pinned?: Record<string, string>) {
+/** `rarities`: the rarity wanted per name, where a name exists at several (a grey and a Legendary Khvostov 7G-02). */
+export function useItemPreviews(names: string[], enabled: boolean, cls?: ClassType, pinned?: Record<string, string>, rarities?: Record<string, Rarity>) {
   const [data, setData] = useState<Record<string, ItemPreview> | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const key = names.join('|') + JSON.stringify(pinned ?? {})
+  const key = names.join('|') + JSON.stringify(pinned ?? {}) + JSON.stringify(rarities ?? {})
   useEffect(() => {
     if (!enabled || !bungieConfigured || !isSignedIn() || !names.length) return
     let live = true
-    fetchItemPreviews(names, cls, pinned).then((d) => live && setData(d), (e) => live && setError((e as Error).message))
+    fetchItemPreviews(names, cls, pinned, rarities).then((d) => live && setData(d), (e) => live && setError((e as Error).message))
     return () => { live = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, enabled])

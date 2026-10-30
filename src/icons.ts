@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react'
 
 type IconTable = {
   gear: Record<string, string>; plugs: Record<string, string>; artifacts?: Record<string, string>
-  /** "name|slot" icons for names shared across slots (an armor set's pieces all share its name). */
+  /** "name|slot" icons for names shared across slots (an armor set's pieces all share its name), and
+   *  "name|slot|Rarity" for names shared across rarities (a grey and a Legendary Khvostov 7G-02). */
   gearBySlot?: Record<string, string>
   /** Each artifact's own perk icons: perk names repeat across seasons with different art. */
   artifactPerks?: Record<string, Record<string, string>>
@@ -29,8 +30,12 @@ export function useIcons() {
   const [t, setT] = useState<IconTable | null>(loaded)
   useEffect(() => { if (!t) load().then(setT) }, [t])
   return {
-    /** Pass the slot wherever it's known: armor set pieces share a name, so the name alone may give another piece's icon. */
-    gear: (name: string, slot?: string) => { const hit = (slot && t?.gearBySlot?.[`${name}|${slot}`]) || t?.gear[name]; return hit ? ROOT + hit : undefined },
+    /** Pass the slot and rarity wherever they're known: set pieces share a name, and so do some grey and Legendary weapons. */
+    gear: (name: string, slot?: string, rarity?: string) => {
+      const s = t?.gearBySlot
+      const hit = (slot && rarity && s?.[`${name}|${slot}|${rarity}`]) || (slot && s?.[`${name}|${slot}`]) || t?.gear[name]
+      return hit ? ROOT + hit : undefined
+    },
     plug: (name: string) => (t?.plugs[name] ? ROOT + t.plugs[name] : undefined),
     artifact: (name: string) => (t?.artifacts?.[name] ? ROOT + t.artifacts[name] : undefined),
     /** An artifact perk's icon as that artifact has it, else the icon for the name. */

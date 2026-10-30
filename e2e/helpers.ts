@@ -85,7 +85,7 @@ export async function startRun(page: Page, artifact = 'Tablet of Ruin') {
 // ---------------------------------------------------------------- simulated Bungie account
 
 /** Real item hashes from the item table, and inventory buckets per slot. */
-export const I = { Pariah: 2209451511, StayAway: 2734369894, Hadrian: 3246523828, Helm: 997252576, Arms: 2899766705, Chest: 648507367, Legs: 2731019523, Cloak: 1364005110, Fatebringer: 2171478765, Funnelweb: 3341893443 }
+export const I = { KhvostovGrey: 1619016919, KhvostovLegendary: 4209476803, Pariah: 2209451511, StayAway: 2734369894, Hadrian: 3246523828, Helm: 997252576, Arms: 2899766705, Chest: 648507367, Legs: 2731019523, Cloak: 1364005110, Fatebringer: 2171478765, Funnelweb: 3341893443 }
 export const B = { k: 1498876634, e: 2465295065, p: 953998645, helm: 3448274439, arms: 3551918588, chest: 14239492, legs: 20886954, cls: 1585787867, sub: 3284755031, vault: 138197802 }
 const DEFS: Record<string, string> = { 900: 'Gunslinger', 11: 'Golden Gun: Marksman', 12: 'Knife Trick', 13: 'Swarm Grenade', 14: 'Gunpowder Gamble', 15: 'Acrobat’s Dodge', 16: 'Solar Grenade' }
 

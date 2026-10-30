@@ -168,7 +168,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               {/* Like Destiny's inventory: the first spot, a size up, is the equipped one (see .tiles.has-eq). */}
               <div className="tiles has-eq" style={{ ['--n' as string]: Math.max(cap, items.length, 4), ['--n1' as string]: Math.max(cap, items.length, 4) - 1 }}>
                 {[...items].sort((a, b) => Number(b.equipped) - Number(a.equipped)).map((it, i) => (
-                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} icon={icons.gear(it.name, it.slot)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
+                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} icon={icons.gear(it.name, it.slot, it.rarity)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
                 {Array.from({ length: Math.max(0, cap - items.length) }, (_, i) => (
                   control && !p.bungie
@@ -176,7 +176,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                     : <span key={i} className="tile tile-empty" aria-hidden="true" />
                 ))}
                 {outside.filter((u) => u.slot === slot).map((u) => (
-                  <OutsideTile key={u.key} u={u} icon={icons.gear(u.name, u.slot)} flash={`out:${p.id}:${u.slot}:${u.name}`} selected={selected === u.key} onSelect={() => select(u.key)} />
+                  <OutsideTile key={u.key} u={u} icon={icons.gear(u.name, u.slot, u.rarity)} flash={`out:${p.id}:${u.slot}:${u.name}`} selected={selected === u.key} onSelect={() => select(u.key)} />
                 ))}
               </div>
               {selOut && selOut.slot === slot && (

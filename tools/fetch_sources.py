@@ -91,14 +91,19 @@ if item_table and icon_table:
     gear, plugs = {}, {}
     # An armor set's pieces share one name across slots: those also get an icon per "name|slot".
     SLOTS = ['Kinetic', 'Energy', 'Power', 'Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
-    by_slot, slots_of = {}, collections.defaultdict(set)
+    # Some weapons share a name across rarities too (a grey and a Legendary Khvostov 7G-02): those get "name|slot|Rarity".
+    TIER_NAMES = ['Common', 'Uncommon', 'Rare', 'Legendary', 'Exotic']
+    by_slot, slots_of, by_tier, tiers_of = {}, collections.defaultdict(set), {}, collections.defaultdict(set)
     for h, row in rows.items():
         ic = items[h].get('displayProperties', {}).get('icon', '')
         if ic.startswith(PRE):
             gear.setdefault(row[0], ic[len(PRE):])
             by_slot.setdefault(f'{row[0]}|{SLOTS[row[1]]}', ic[len(PRE):])
             slots_of[row[0]].add(row[1])
+            by_tier.setdefault(f'{row[0]}|{SLOTS[row[1]]}|{TIER_NAMES[row[2]]}', ic[len(PRE):])
+            tiers_of[f'{row[0]}|{SLOTS[row[1]]}'].add(row[2])
     gear_by_slot = {k: v for k, v in by_slot.items() if len(slots_of[k.split('|')[0]]) > 1}
+    gear_by_slot.update({k: v for k, v in by_tier.items() if len(tiers_of[k.rsplit('|', 1)[0]]) > 1})
     KINDS = ('.supers', '.grenades', '.melee', '.aspects', '.fragments', '.class_abilities', '.movement')
     for it in items.values():
         pc = it.get('plug', {}).get('plugCategoryIdentifier', '')

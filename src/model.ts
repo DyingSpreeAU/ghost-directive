@@ -1009,7 +1009,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const instanceId = str(d.instanceId, 30)
         if (!instanceId || dismissed.has(instanceId) || p.inventory.some((x) => x.instanceId === instanceId)) continue
         // A reward pulled from Collections (or moved in by hand) is already tracked by name: link that copy instead.
-        const twin = !d.starting && p.inventory.find((x) => !x.instanceId && x.name === str(d.name) && x.slot === d.slot)
+        const twin = !d.starting && p.inventory.find((x) => !x.instanceId && x.name === str(d.name) && x.slot === d.slot && x.rarity === d.rarity)
         if (twin) { twin.instanceId = instanceId; continue }
         const item = cleanItem({ name: d.name, slot: d.slot, rarity: d.rarity, source: d.starting ? 'starting gear' : 'detected drop' })
         if (typeof item === 'string') continue

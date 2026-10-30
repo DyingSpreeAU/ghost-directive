@@ -133,7 +133,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
   // Reward items: the player's own copies (or Bungie's definition for Exotics not owned), with DIM-style cards.
   const pinned = cat ? Object.fromEntries(pend[cat].filter((g) => g.instanceId).map((g) => [g.name, g.instanceId!])) : undefined
-  const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls, pinned)
+  const previews = useItemPreviews(cat ? pend[cat].map((g) => g.name) : [], !!cat && !forSomeoneElse && !!p.bungie, p.cls, pinned, cat ? Object.fromEntries(pend[cat].map((g) => [g.name, g.rarity])) : undefined)
   const [compare, setCompare] = useState(false)
   const comparing = compare && step === 'gear' && cat === 'exotic' && !!previews.data
   // Expanded info needs the player's own Bungie account on this device.
@@ -151,7 +151,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
     if (gear && notHeld(p, gear)) toast(`Pull ${gear.name} from Collections in Destiny 2. The app links that copy to this reward on its next sync.`)
     else if (gear && canMoveInGame(p, me)) {
       const g = gear
-      moveInGame(p, [{ name: g.name, instanceId: g.instanceId, to: 'character' }], toast).then((r) => linkPulled(r, g.name, g.slot))
+      moveInGame(p, [{ name: g.name, instanceId: g.instanceId, slot: g.slot, rarity: g.rarity, to: 'character' }], toast).then((r) => linkPulled(r, g.name, g.slot))
     }
   }
   const chestLabel = (c: ChestReward) => c.kind === 'artifact' ? c.mod : c.kind === 'expansion' ? 'Arsenal Expansion' : 'Loadout Archive'
@@ -211,13 +211,13 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               <span className="choice-kind r-exotic-text">Exotic armor</span>
               <strong>1 of 3 {p.cls} Exotics</strong>
               <span className="muted">{p.element} synergy favored where available.</span>
-              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot) && <img key={g.name} src={icons.gear(g.name, g.slot)} alt="" title={g.name} />)}</span>}
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
               <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
               <strong>1 of 3 weapons from your Vault</strong>
               <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
-              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name, g.slot) && <img key={g.name} src={icons.gear(g.name, g.slot)} alt="" title={g.name} />)}</span>}
+              {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
           </ChoiceGrid>
         </div>
@@ -305,7 +305,7 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
     <>
       <ChoiceGrid five={five}>
         {options.map((g) => {
-          const icon = icons.gear(g.name, g.slot) ?? data?.[g.name]?.icon
+          const icon = icons.gear(g.name, g.slot, g.rarity) ?? data?.[g.name]?.icon
           const info = data?.[g.name]
           const pull = notHeld(p, g)
           return (
@@ -588,7 +588,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
     return !tu.sameRarity || !selRarity || items.find((i) => i.id === id)!.rarity === selRarity
   }
   const inGame = canMoveInGame(p, me)
-  const previews = useItemPreviews(trade ? options.map((o) => o.name) : [], !!trade && inGame, p.cls)
+  const previews = useItemPreviews(trade ? options.map((o) => o.name) : [], !!trade && inGame, p.cls, undefined, trade ? Object.fromEntries(options.map((o) => [o.name, o.rarity])) : undefined)
   const previewable = inGame && bungieConfigured && isSignedIn()
   const [compare, setCompare] = useState(false)
   // If the host refused the trade-in (shown as a toast), let the player try again.
@@ -610,7 +610,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
     if (!choice) return
     if (inGame) {
       setMoving(true)
-      const r = await moveInGame(p, [{ name: choice.name, to: 'character' }], toast)
+      const r = await moveInGame(p, [{ name: choice.name, slot: choice.slot, rarity: choice.rarity, to: 'character' }], toast)
       setMoving(false)
       if (!r) return
       dispatch({ type: 'tradeup', choice }, playerId)
@@ -642,7 +642,7 @@ function TradeUpFlow({ run, onClose, playerId, slot: asked }: { run: Run; onClos
           <ChoiceGrid five>
             {items.map((it) => {
               const on = sel.includes(it.id)
-              const icon = icons.gear(it.name, it.slot)
+              const icon = icons.gear(it.name, it.slot, it.rarity)
               return (
                 <button key={it.id} className={`choice choice-item trade-in ${rarityClass(it.rarity)} ${on ? 'is-on' : ''}`} aria-pressed={on}
                   disabled={!canPick(it.id) || starting} onClick={() => setSel(on ? sel.filter((x) => x !== it.id) : [...sel, it.id])}>
@@ -688,7 +688,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
     ;(async () => {
       const pool = (await tierWeapons())[up.slot]?.[up.to] ?? []
       if (!pool.length) return
-      const owned = inGame ? [...await ownedInSlot(pool, up.slot, p.cls).catch(() => new Set<string>())] : []
+      const owned = inGame ? [...await ownedInSlot(pool, up.slot, p.cls, up.to).catch(() => new Set<string>())] : []
       const from = owned.length ? owned : pool
       dispatch({ type: 'upgrade-pick', upgradeId: up.id, item: from[Math.floor(Math.random() * from.length)] }, p.id)
     })()
@@ -704,7 +704,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
   useEffect(() => {
     if (!up?.item || !inGame) return
     let live = true
-    ownedInSlot([up.item], up.slot, p.cls).then((s) => live && setHeld(s.has(up.item!)), () => live && setHeld(false))
+    ownedInSlot([up.item], up.slot, p.cls, up.to).then((s) => live && setHeld(s.has(up.item!)), () => live && setHeld(false))
     return () => { live = false }
   }, [up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!up || !canControl(p.id)) return null
@@ -713,7 +713,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
   const finish = async () => {
     if (!legendary && up.item && inGame && held) {
       setMoving(true)
-      const r = await moveInGame(p, [{ name: up.item, slot: up.slot, to: 'character' }], toast)
+      const r = await moveInGame(p, [{ name: up.item, slot: up.slot, rarity: up.to, to: 'character' }], toast)
       setMoving(false)
       if (!r) return
       dispatch({ type: 'upgrade-done', upgradeId: up.id }, p.id)

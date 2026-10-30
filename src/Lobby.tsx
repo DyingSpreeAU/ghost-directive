@@ -722,7 +722,7 @@ function EquippedNow({ eq, seat, ruleset, onApply }: { eq: Equipped; seat?: Seat
         const why = ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${colorsOf(allowed)}`
         return (
           <span key={slot} className={`tile item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`} title={`${slot}: ${i.name} \u00b7 ${why}`} aria-label={`${slot}: ${i.name}, ${why}`}>
-            {icons.gear(i.name, i.slot) ? <img src={icons.gear(i.name, i.slot)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+            {icons.gear(i.name, i.slot, i.rarity) ? <img src={icons.gear(i.name, i.slot, i.rarity)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
           </span>
         )
       })}
@@ -980,7 +980,7 @@ function ResumeSetup({ run, p, ready }: { run: Run; p: Player; ready: boolean })
           if (!i) return <span key={slot} className="tile tile-empty" title={`${slot}: nothing recorded`} aria-label={`${slot}: nothing recorded`} />
           return (
             <span key={slot} className={`tile item ${rarityClass(i.rarity)}`} title={`${slot}: ${i.name} · ${i.rarity}`} aria-label={`${slot}: ${i.name}, ${i.rarity}`}>
-              {icons.gear(i.name, i.slot) ? <img src={icons.gear(i.name, i.slot)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+              {icons.gear(i.name, i.slot, i.rarity) ? <img src={icons.gear(i.name, i.slot, i.rarity)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
             </span>
           )
         })}
@@ -992,7 +992,7 @@ function ResumeSetup({ run, p, ready }: { run: Run; p: Player; ready: boolean })
           <div className="tiles" style={{ ['--n' as string]: 5 }}>
             {carried.map((i) => (
               <span key={i.id} className={`tile item ${rarityClass(i.rarity)}`} title={`${i.slot}: ${i.name} \u00b7 ${i.rarity}`} aria-label={`In inventory: ${i.name}, ${i.slot}, ${i.rarity}`}>
-                {icons.gear(i.name, i.slot) ? <img src={icons.gear(i.name, i.slot)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
+                {icons.gear(i.name, i.slot, i.rarity) ? <img src={icons.gear(i.name, i.slot, i.rarity)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
               </span>
             ))}
           </div>

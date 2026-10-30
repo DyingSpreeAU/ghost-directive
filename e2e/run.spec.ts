@@ -87,3 +87,13 @@ test('armor set pieces that share a name show their own slot’s icon', async ({
   const [helmet, gauntlets, chest] = await Promise.all([src('Helmet'), src('Gauntlets'), src('Chest')])
   expect(new Set([helmet, gauntlets, chest]).size).toBe(3)
 })
+
+test('a grey and a Legendary with the same name show their own icons', async ({ page }) => {
+  await exampleRun(page)
+  await editStore(page, "const p = s.active.players[0]; p.inventory = p.inventory.filter((i) => i.slot !== 'Kinetic'); p.inventory.push({ id: 'kg', name: 'Khvostov 7G-02', slot: 'Kinetic', rarity: 'Common', source: 'starting gear', equipped: true }, { id: 'kl', name: 'Khvostov 7G-02', slot: 'Kinetic', rarity: 'Legendary', source: 'drop', equipped: false })")
+  await page.waitForSelector('.guardian')
+  const imgs = page.locator('.guardian').first().locator('.g-slot').first().locator('.tile.item img')
+  await expect(imgs).toHaveCount(2)
+  const srcs = await imgs.evaluateAll((x) => x.map((i) => i.getAttribute('src')))
+  expect(new Set(srcs).size).toBe(2)
+})

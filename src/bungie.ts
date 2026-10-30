@@ -390,7 +390,7 @@ export function linkByName(snap: BungieSnapshot, p: Player, fresh: Set<string>):
   const out: { itemId: string; instanceId: string }[] = []
   for (const it of p.inventory.filter((i) => !i.instanceId)) {
     const pick = snap.instances
-      .filter((x) => x.name === it.name && x.slot === it.slot && !taken.has(x.instanceId))
+      .filter((x) => x.name === it.name && x.slot === it.slot && x.rarity === it.rarity && !taken.has(x.instanceId))
       .sort((a, b) => rank(a.instanceId) - rank(b.instanceId))[0]
     if (!pick) continue
     taken.add(pick.instanceId)
@@ -408,12 +408,12 @@ export function linkByName(snap: BungieSnapshot, p: Player, fresh: Set<string>):
 export function reconcile(snap: BungieSnapshot, p: Player) {
   const ids = new Set(snap.instances.map((i) => i.instanceId))
   const runIds = new Set(p.inventory.map((i) => i.instanceId).filter(Boolean))
-  const runNames = new Set(p.inventory.filter((i) => !i.instanceId).map((i) => `${i.slot}|${i.name}`))
+  const runNames = new Set(p.inventory.filter((i) => !i.instanceId).map((i) => `${i.slot}|${i.name}|${i.rarity}`))
   const fates = new Map((p.retired ?? []).filter((r) => r.instanceId).map((r) => [r.instanceId!, r.fate]))
   return {
     missing: p.inventory.filter((i) => (i.instanceId ? !ids.has(i.instanceId) : !snap.owned.has(i.name))).map((i) => i.name),
     untracked: snap.carried
-      .filter((c) => !(c.instanceId && runIds.has(c.instanceId)) && !runNames.has(`${c.slot}|${c.name}`))
+      .filter((c) => !(c.instanceId && runIds.has(c.instanceId)) && !runNames.has(`${c.slot}|${c.name}|${c.rarity}`))
       .map((c) => ({ slot: c.slot, name: c.name, rarity: c.rarity, instanceId: c.instanceId, equipped: c.equipped, fate: c.instanceId ? fates.get(c.instanceId) : undefined })),
     undismantled: (p.retired ?? []).filter((r) => r.fate === 'dismantled' && r.instanceId && ids.has(r.instanceId)).map((r) => r.name),
   }
@@ -669,7 +669,7 @@ export type RestoreReport = {
   problems: string[]
 }
 
-type Held = { instanceId: string; itemHash: number; name: string; where: 'vault' | 'postmaster' | string; equipped: boolean; exotic: boolean }
+type Held = { instanceId: string; itemHash: number; name: string; tier: Rarity; where: 'vault' | 'postmaster' | string; equipped: boolean; exotic: boolean }
 
 /** Every weapon and armor instance on the account and where it is. */
 function holdings(p: ProfileResponse, items: Record<string, ItemRow>): Held[] {
@@ -677,7 +677,7 @@ function holdings(p: ProfileResponse, items: Record<string, ItemRow>): Held[] {
   const add = (list: ItemComponent[] | undefined, where: (i: ItemComponent) => Held['where'] | null, equipped: boolean) => list?.forEach((i) => {
     const r = items[i.itemHash]
     const w = where(i)
-    if (r && i.itemInstanceId && w) out.push({ instanceId: i.itemInstanceId, itemHash: i.itemHash, name: r[0], where: w, equipped, exotic: r[2] === 4 })
+    if (r && i.itemInstanceId && w) out.push({ instanceId: i.itemInstanceId, itemHash: i.itemHash, name: r[0], tier: TIERS[r[2]], where: w, equipped, exotic: r[2] === 4 })
   })
   add(p.profileInventory?.data?.items, (i) => (i.bucketHash === VAULT_BUCKET ? 'vault' : null), false)
   for (const [id, c] of Object.entries(p.characterInventories?.data ?? {})) add(c.items, (i) => (i.bucketHash === POSTMASTER_BUCKET ? 'postmaster' : id), false)
@@ -718,7 +718,7 @@ export async function restoreGuardian(player: Player, point: RestorePoint | unde
   for (const it of player.inventory) {
     const exact = it.instanceId ? held.find((h) => h.instanceId === it.instanceId) : undefined
     const byName = exact ?? held
-      .filter((h) => h.name === it.name && !tracked.has(h.instanceId) && h.where !== 'postmaster')
+      .filter((h) => h.name === it.name && h.tier === it.rarity && !tracked.has(h.instanceId) && h.where !== 'postmaster')
       .sort((a, b) => Number(b.where === charId) - Number(a.where === charId) || Number(b.where === 'vault') - Number(a.where === 'vault'))[0]
     if (byName) tracked.add(byName.instanceId)
     else report.problems.push(`${it.name}: not found on your account`)
@@ -1006,7 +1006,8 @@ async function plugInfo(hash?: number): Promise<PreviewPlug | null> {
  * Details of the player's own copies of these items (Vault first, then characters): the rolled
  * stats, intrinsic frame, selected perks and mods. Items not found are left out.
  */
-export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned: Record<string, string> = {}): Promise<Record<string, ItemPreview>> {
+/** `rarities`: the rarity wanted per name, where the same name exists at several (a grey and a Legendary Khvostov 7G-02). */
+export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned: Record<string, string> = {}, rarities: Record<string, Rarity> = {}): Promise<Record<string, ItemPreview>> {
   const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,300,304,305`)
   const all: ItemComponent[] = [
@@ -1017,12 +1018,13 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned
   const out: Record<string, ItemPreview> = {}
   await Promise.all(names.map(async (name) => {
     // The highest-power copy, as that's the one a player would pick.
-    const copies = all.filter((i) => i.itemInstanceId && items[i.itemHash]?.[0] === name)
+    const fits = (h: number | string) => items[h]?.[0] === name && (!rarities[name] || TIERS[items[h][2]] === rarities[name])
+    const copies = all.filter((i) => i.itemInstanceId && fits(i.itemHash))
     const power = (i: ItemComponent) => p.itemComponents?.instances?.data?.[i.itemInstanceId!]?.primaryStat?.value ?? 0
     // A pinned copy (an Exotic class item's offered roll) when there is one, else the highest power.
     const item = copies.find((i) => i.itemInstanceId === pinned[name]) ?? copies.sort((a, b) => power(b) - power(a))[0]
     // Not on the account (e.g. an Exotic only in Collections): describe it from its definition.
-    const hash = item?.itemHash ?? Number(Object.keys(items).find((h) => items[h][0] === name && (cls === undefined || items[h][3] === 3 || items[h][3] === CLASS_TYPE[cls])))
+    const hash = item?.itemHash ?? Number(Object.keys(items).find((h) => fits(h) && (cls === undefined || items[h][3] === 3 || items[h][3] === CLASS_TYPE[cls])))
     if (!hash || !items[hash]) return
     const id = item?.itemInstanceId
     const def = await itemDef(hash)
@@ -1065,14 +1067,15 @@ export async function fetchItemPreviews(names: string[], cls?: ClassType, pinned
 // ------------------------------------------------------------------ gear progression
 
 /** Which of these items (in this slot, usable by this class) are anywhere on the account. */
-export async function ownedInSlot(names: string[], slot: Slot, cls: ClassType): Promise<Set<string>> {
+/** Which of these names the account holds in a slot, of the given rarity when one is given. */
+export async function ownedInSlot(names: string[], slot: Slot, cls: ClassType, rarity?: Rarity): Promise<Set<string>> {
   const [{ mem }, items] = await Promise.all([membership(), itemTable()])
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205`)
   const want = new Set(names)
   const out = new Set<string>()
   for (const h of holdings(p, items)) {
     const row = items[h.itemHash]
-    if (row && want.has(row[0]) && ALL_SLOTS[row[1]] === slot && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) out.add(row[0])
+    if (row && want.has(row[0]) && ALL_SLOTS[row[1]] === slot && (!rarity || TIERS[row[2]] === rarity) && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) out.add(row[0])
   }
   return out
 }
@@ -1091,7 +1094,8 @@ export function tierWeaponType(name: string) {
 // ------------------------------------------------------------------ run inventory moves (Vault ⇄ run character)
 
 /** `slot` tells same-named pieces apart (an armor set's pieces share one name). */
-export type MoveOp = { name: string; instanceId?: string; slot?: Slot; to: 'vault' | 'character' }
+/** `rarity` tells same-named items apart (a grey and a Legendary Khvostov 7G-02). */
+export type MoveOp = { name: string; instanceId?: string; slot?: Slot; rarity?: Rarity; to: 'vault' | 'character' }
 export type MoveResult = {
   character: string
   /** Items moved, as "Name → Vault" / "Name → Hunter". */
@@ -1128,7 +1132,7 @@ export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResu
     }
     // A pull never takes a copy the run already tracks, or one that left the run.
     const claimed = op.to === 'character' && !op.instanceId ? taken : new Set<string>()
-    const copies = held.filter((h) => !used.has(h.instanceId) && !claimed.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : h.name === op.name && fits(h)))
+    const copies = held.filter((h) => !used.has(h.instanceId) && !claimed.has(h.instanceId) && (op.instanceId ? h.instanceId === op.instanceId : (!op.rarity || h.tier === op.rarity) && h.name === op.name && fits(h)))
     // Pulling: a reward comes from the Vault, so the Vault copy first, then another character's,
     // and a copy already on the run character only when there's no other. Vaulting: the copy on the character.
     const pick = op.to === 'character'

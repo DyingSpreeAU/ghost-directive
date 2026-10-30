@@ -92,8 +92,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Naming**: rulesets are called **Directives** everywhere players see them (the Directives page, "Custom
   Directive", "Save Directive", "Import Directive", the lobby's Directive section). In code they're still
   `Ruleset` / protocols (`Protocols.tsx`, `allProtocols`, `protocolId`).
-- **Item icons** come from `public/bungie-icons.json` by name, and by name and slot (`gearBySlot`) where a
-  name covers several slots: an armor set's pieces all share its name. Pass the slot to `icons.gear`.
+- **Same-named items**: an armor set's pieces share one name across slots, and a few weapons share a name
+  across rarities (a grey and a Legendary Khvostov 7G-02, Traitor's Fate, Origin Story…). Icons come
+  from `public/bungie-icons.json` by name, then `gearBySlot` ("name|slot", "name|slot|Rarity"): pass
+  slot and rarity to `icons.gear`. Previews, pulls (`MoveOp.rarity`), tier-piece ownership, restore and
+  copy matching all match on rarity as well as name.
 - **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the
   equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume
