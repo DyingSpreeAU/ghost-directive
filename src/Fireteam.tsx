@@ -161,7 +161,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
             <div key={slot} className={`g-slot ${over ? 'is-over' : ''}`} data-flash={`slot:${p.id}:${slot}`}>
               <div className="g-slot-head">
                 <span className="g-slot-name">{slot}</span>
-                {run.ruleset.progression && p.tiers && <span title={`Gear progression: your ${slot} is at ${slotTier(run, p, slot)}.${slotTier(run, p, slot) === 'Legendary' ? '' : (sandbox(run.ruleset).exoticsAnyTime ? ' A non-Exotic drop here moves it up a tier.' : ' A drop here moves it up a tier.')}`}><TierWord tier={slotTier(run, p, slot)} /></span>}
+                {run.ruleset.progression && p.tiers && <span title={`Gear progression: your ${slot} is at ${slotTier(run, p, slot)}.${slotTier(run, p, slot) === 'Legendary' ? '' : (sandbox(run.ruleset).tierUpDrops === 'legendary' ? ' A Legendary drop here moves it up a tier.' : sandbox(run.ruleset).exoticsAnyTime ? ' A non-Exotic drop here moves it up a tier.' : ' A drop here moves it up a tier.')}`}><TierWord tier={slotTier(run, p, slot)} /></span>}
                 <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
                 {control && tu.enabled && (p.trade?.slot === slot || (!p.trade && eligibleForTrade(slot))) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>{p.trade ? 'Finish trade-up' : <>Trade up {tu.inputs}&rarr;1</>}</button>}
               </div>

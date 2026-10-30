@@ -147,3 +147,58 @@ test('a name shared by a grey and a Legendary: the run takes the Legendary copy'
   await page.click('#arsenal button:has-text("Sync drops now")')
   await expect.poll(async () => (await store(page)).active.players[0].bungie?.untracked?.map((u: { instanceId?: string }) => u.instanceId)).toEqual([grey.id])
 })
+
+// Item table rows by name and rarity, for making copies of tier pieces the app picks at random.
+import { readFileSync } from 'node:fs'
+const TABLE = JSON.parse(readFileSync(new URL('../public/bungie-items.json', import.meta.url), 'utf8')).items as Record<string, [string, number, number, number, number]>
+const hashOf = (name: string, tier: number) => Number(Object.keys(TABLE).find((h) => TABLE[h][0] === name && TABLE[h][2] === tier))
+const anyOf = (slot: number, tier: number) => Number(Object.keys(TABLE).find((h) => TABLE[h][1] === slot && TABLE[h][2] === tier))
+
+async function progressionRun(page: import('@playwright/test').Page, a: ReturnType<typeof account>, baseURL: string) {
+  await stubBungie(page, a, baseURL)
+  await fresh(page)
+  await signIn(page)
+  await page.click('text=Create lobby')
+  await page.waitForSelector('.equipped-grid .item')
+  await collapseTools(page)
+  await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await page.click('button:has-text("Begin run and lock route")')
+  await page.waitForSelector('#arsenal'); await later(page)
+  await expect.poll(async () => (await store(page)).active.players[0].inventory.length).toBe(8)
+}
+const syncNow = (page: import('@playwright/test').Page) => page.evaluate(() => [...document.querySelectorAll('button')].find((b) => /Sync drops now/.test(b.textContent ?? ''))?.click())
+
+test('a tier piece pulled from Collections is the piece, not another drop, and is linked when Done', async ({ page, baseURL }) => {
+  const a = account()
+  await progressionRun(page, a, baseURL!)
+  const me = async () => (await store(page)).active.players[0]
+  // A Legendary Kinetic drop: Common -> Uncommon.
+  a.chars[HUNTER].inv.push(item(a, anyOf(0, 3), B.k))
+  await syncNow(page)
+  await expect(page.locator('.modal h2')).toContainText('Kinetic')
+  await expect.poll(async () => (await me()).upgrades?.[0]?.item).toBeTruthy()
+  const piece = (await me()).upgrades[0].item as string
+  // The player pulls it from Collections while the screen is open, and a sync happens.
+  const pulled = item(a, hashOf(piece, 1), B.k); a.chars[HUNTER].inv.push(pulled)
+  await syncNow(page)
+  await expect.poll(async () => (await me()).upgrades?.[0]?.instanceId).toBe(pulled.id)
+  expect((await me()).tiers.Kinetic).toBe('Uncommon')
+  await page.click('.modal-foot .btn-light')
+  await later(page)
+  const p = await me()
+  expect(p.tiers.Kinetic).toBe('Uncommon')
+  expect(p.upgrades ?? []).toHaveLength(0)
+  expect(p.inventory.find((i: { name: string }) => i.name === piece)?.instanceId).toBe(pulled.id)
+})
+
+test('below Legendary, a blue drop doesn’t raise the tier (Legendary drops only)', async ({ page, baseURL }) => {
+  const a = account()
+  await progressionRun(page, a, baseURL!)
+  const blue = item(a, anyOf(0, 2), B.k); a.chars[HUNTER].inv.push(blue)
+  await syncNow(page)
+  await expect.poll(async () => (await store(page)).active.players[0].dismissed ?? []).toContain(blue.id)
+  const p = (await store(page)).active.players[0]
+  expect(p.tiers.Kinetic).toBe('Common')
+  expect(p.upgrades ?? []).toHaveLength(0)
+  await expect(page.locator('.scrim')).toHaveCount(0)
+})

@@ -384,7 +384,9 @@ function restorePoint(p: ProfileResponse, charId: string, items: Record<string, 
  * the run, aren't used. Each copy goes to one run item.
  */
 export function linkByName(snap: BungieSnapshot, p: Player, fresh: Set<string>): { itemId: string; instanceId: string }[] {
-  const taken = new Set<string>([...p.inventory.map((i) => i.instanceId).filter((x): x is string => !!x), ...(p.dismissed ?? [])])
+  // A copy wrongly counted as a drop and used for a tier-up (an earlier bug with tier pieces) can still be claimed.
+  const reclaim = new Set((p.retired ?? []).filter((r) => r.fate === 'tiered' && r.instanceId).map((r) => r.instanceId!))
+  const taken = new Set<string>([...p.inventory.map((i) => i.instanceId).filter((x): x is string => !!x), ...(p.dismissed ?? []).filter((x) => !reclaim.has(x))])
   const carried = new Map(snap.carried.filter((c) => c.instanceId).map((c) => [c.instanceId!, c]))
   const rank = (id: string) => (fresh.has(id) ? 0 : carried.get(id)?.equipped ? 1 : carried.has(id) ? 2 : 3)
   const out: { itemId: string; instanceId: string }[] = []

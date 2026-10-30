@@ -97,6 +97,13 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   from `public/bungie-icons.json` by name, then `gearBySlot` ("name|slot", "name|slot|Rarity"): pass
   slot and rarity to `icons.gear`. Previews, pulls (`MoveOp.rarity`), tier-piece ownership, restore and
   copy matching all match on rarity as well as name.
+- **Tier pieces pulled from Collections**: a tier-up waiting for its piece claims the matching new copy
+  when a sync sees it (`Upgrade.instanceId`), so it never counts as a drop, and Done adds the piece linked
+  to that copy. Pieces left unlinked by the old behaviour reclaim their copy on the next sync. The
+  Directive rule **Drops that move a slot up a tier** (`Sandbox.tierUpDrops`, default Legendary only)
+  ignores other drops below Legendary, with no drop notice.
+- **Exotic offers** lean only slightly towards subclass synergy: a weighted draw (`favor`, a full match
+  1.5× as likely), so any Exotic in your Collections can come up. Exotic class items: Prismatic only.
 - **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the
   equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume

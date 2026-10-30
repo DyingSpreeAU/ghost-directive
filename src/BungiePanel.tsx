@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { accountName, bungieConfigured, detectDrops, fetchSnapshot, linkByName, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
 import { Modal } from './ui'
-import type { Intent, Player, Run } from './model'
+import { raisesTier, slotTier, type Intent, type Player, type Run } from './model'
 import { useGD } from './store'
 
 // Link status shared by every part of the app that talks to Bungie (run sync, lobby preview),
@@ -67,7 +67,9 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
       equipped: snap.equipped.map((e) => ({ slot: e.slot, name: e.name, instanceId: e.instanceId })),
       classItems: snap.classItems,
     }, p.id)
-    const found = drops.filter((d) => !d.starting)
+    // Only drops the run takes count as news: not a tier piece being waited for, nor (below Legendary) one that doesn't raise the tier.
+    const awaited = (d: (typeof drops)[number]) => p.upgrades?.some((u) => !u.instanceId && u.item === d.name && u.slot === d.slot && u.to === d.rarity)
+    const found = drops.filter((d) => !d.starting && !awaited(d) && (slotTier(run, p, d.slot) === 'Legendary' || raisesTier(run, d.rarity)))
     if (found.length) notify?.(`New drop${found.length > 1 ? 's' : ''} detected: ${found.map((d) => d.name).join(', ')}`)
     else if (drops.length) notify?.(`Starting gear registered from Bungie: ${drops.map((d) => d.name).join(', ')}`)
     setSync({ busy: false })

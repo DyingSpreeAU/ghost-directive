@@ -50,6 +50,7 @@ const FIELDS: Field[] = [
   { path: 'sandbox.startAbilities', label: 'Abilities at the start', section: 'start', kind: 'select', group: 'Subclass', options: [{ value: 'one', label: 'One Super, class ability, melee and grenade' }, { value: 'all', label: 'The whole subclass, unlocked' }] },
 
   { path: 'progression', label: 'Gear progression', section: 'progression', kind: 'toggle', hint: 'Each slot climbs from its starting tier to Legendary; drops below Legendary raise the tier instead of joining the inventory.' },
+  { path: 'sandbox.tierUpDrops', label: 'Drops that move a slot up a tier', section: 'progression', kind: 'select', when: prog, options: [{ value: 'legendary', label: 'Legendary drops only' }, { value: 'any', label: 'Any non-Exotic drop' }], hint: 'Tier pieces you pull from Collections never count either way.' },
   { path: 'sandbox.bonusChance', label: 'BONUS tier-up chance after a reward', section: 'progression', kind: 'pct', when: prog },
   { path: 'sandbox.exoticsAnyTime', label: 'Exotics can be used at any time', section: 'progression', kind: 'toggle', when: prog, hint: 'Off: an Exotic drop raises the tier like any other drop.' },
 

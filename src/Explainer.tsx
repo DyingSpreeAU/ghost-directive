@@ -274,7 +274,7 @@ export function Explainer({ onDone, intro }: { onDone: () => void; intro?: boole
       </Section>
 
       <Section n="04" kicker="Gear progression" title="Climb from grey to Legendary" art={<TierArt />}>
-        <p>You start in grey gear, with a green heavy weapon. Each slot climbs <span className="tier-word t-uncommon">Uncommon</span> &rarr; <span className="tier-word t-rare">Rare</span> &rarr; <span className="tier-word t-legendary">Legendary</span>: every non-Exotic drop in a slot below Legendary moves it up one tier. Dismantle or vault the drop, and the app hands you that tier&rsquo;s weapon or armor piece. Exotics can be used at any time.</p>
+        <p>You start in grey gear, with a green heavy weapon. Each slot climbs <span className="tier-word t-uncommon">Uncommon</span> &rarr; <span className="tier-word t-rare">Rare</span> &rarr; <span className="tier-word t-legendary">Legendary</span>: every Legendary drop in a slot below Legendary moves it up one tier. Dismantle or vault the drop, and the app hands you that tier&rsquo;s weapon or armor piece. Exotics can be used at any time.</p>
       </Section>
 
       <Section n="05" kicker="Rewards" title="Choose one. Commit." art={<RewardArt />}>

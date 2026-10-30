@@ -70,6 +70,8 @@ export type Sandbox = {
   tradeUpNeedsLegendary: boolean
   /** Exotics can be traded in. */
   tradeUpExotics: boolean
+  /** Which drops raise a slot below Legendary: only Legendaries, or any non-Exotic. Others don't count. */
+  tierUpDrops: 'legendary' | 'any'
   /** A slot must be able to hold every traded-in item (capacity, with Arsenal Expansions) before it can trade up. */
   tradeUpNeedsRoom: boolean
 }
@@ -80,6 +82,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   bonusChance: 10, exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
+  tierUpDrops: 'legendary',
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -199,6 +202,8 @@ export type Upgrade = {
   drop?: { name: string; instanceId?: string }
   /** The piece to use at the new tier; chosen once (weapons are any of the rarity, armor is a fixed set). */
   item?: string
+  /** The copy of that piece on the account, once it turns up (pulled from Collections or the Vault). */
+  instanceId?: string
 }
 
 export type Player = {
@@ -518,6 +523,9 @@ export function slotTier(run: Run, p: Player, slot: Slot): Rarity {
   return run.ruleset.progression && p.tiers ? p.tiers[slot] ?? 'Legendary' : 'Legendary'
 }
 
+/** Whether a drop of this rarity raises a slot below Legendary under the Directive. */
+export const raisesTier = (run: Run, rarity: Rarity) => rarity === 'Legendary' || rarity === 'Exotic' || sandbox(run.ruleset).tierUpDrops === 'any'
+
 /** Raises a slot one tier and queues the in-game swap for the player. */
 export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reason'], drop?: Upgrade['drop']): Upgrade | null {
   const from = slotTier(run, p, slot)
@@ -539,6 +547,11 @@ export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reas
  */
 export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipped'>, reason: 'drop' | 'reward' = 'drop'): Item | null {
   if ((item.rarity === 'Exotic' && sandbox(run.ruleset).exoticsAnyTime) || item.source === 'starting gear' || slotTier(run, p, item.slot) === 'Legendary') return addItem(run, p, item)
+  // Below Legendary, only drops that count raise the tier (by default Legendaries); others are ignored for good.
+  if (reason === 'drop' && !raisesTier(run, item.rarity)) {
+    if (item.instanceId) p.dismissed = [...(p.dismissed ?? []), item.instanceId].slice(-500)
+    return null
+  }
   const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })
   if (up?.to === 'Legendary' && item.rarity === 'Legendary') return addItem(run, p, item)
   // Below Legendary the drop leaves the run (dismantled, or vaulted to keep for normal play);
@@ -573,8 +586,14 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 /** Synergy is a preference, not a filter: matching items sort first, ties random. */
+/** Synergy's pull: a full match (score 1) is this much more likely to be drawn than no match (score 0). */
+const SYNERGY_PULL = 0.5
+/**
+ * A weighted shuffle: anything can come first, and a better match (score 0 to 1) only tilts the
+ * odds (weight 1 + score × SYNERGY_PULL). Each item gets the key random^(1/weight); highest keys first.
+ */
 function favor<T>(items: T[], score: (t: T) => number): T[] {
-  return shuffle(items).map((t) => ({ t, s: score(t) + Math.random() * 0.9 })).sort((a, b) => b.s - a.s).map((x) => x.t)
+  return items.map((t) => ({ t, k: Math.random() ** (1 / (1 + Math.max(0, score(t)) * SYNERGY_PULL)) })).sort((a, b) => b.k - a.k).map((x) => x.t)
 }
 
 export function unlockChoices(run: Run, p: Player) {
@@ -866,7 +885,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (!up) return null
       p.upgrades = p.upgrades!.filter((x) => x !== up)
       // The tier's piece joins the run; the previous tier's item stays as a spare.
-      if (up.to !== 'Legendary' && up.item) addItem(run, p, { name: up.item, slot: up.slot, rarity: up.to, source: `${up.to} tier` })
+      if (up.to !== 'Legendary' && up.item) addItem(run, p, { name: up.item, slot: up.slot, rarity: up.to, source: `${up.to} tier`, instanceId: up.instanceId })
       return null
     }
     case 'tradeup-start': {
@@ -1000,7 +1019,12 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const l = (raw ?? {}) as { itemId?: unknown; instanceId?: unknown }
         const item = p.inventory.find((x) => x.id === l.itemId && !x.instanceId)
         const instanceId = str(l.instanceId, 30)
-        if (item && instanceId && !p.inventory.some((x) => x.instanceId === instanceId)) item.instanceId = instanceId
+        if (item && instanceId && !p.inventory.some((x) => x.instanceId === instanceId)) {
+          item.instanceId = instanceId
+          // A copy wrongly taken for a drop earlier (a tier piece counted as one) is the run's again.
+          p.dismissed = (p.dismissed ?? []).filter((x) => x !== instanceId)
+          p.retired = (p.retired ?? []).filter((r) => r.instanceId !== instanceId)
+        }
       }
       // New items on the account since the run started count as drops; equipped gear at the start is starting gear.
       const dismissed = new Set(p.dismissed ?? [])
@@ -1008,6 +1032,9 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         const d = (raw ?? {}) as Partial<DetectedDrop>
         const instanceId = str(d.instanceId, 30)
         if (!instanceId || dismissed.has(instanceId) || p.inventory.some((x) => x.instanceId === instanceId)) continue
+        // The tier piece a tier-up is waiting for (pulled from Collections or the Vault): that copy is the piece, not a drop.
+        const awaited = !d.starting && p.upgrades?.find((u) => !u.instanceId && u.item === str(d.name) && u.slot === d.slot && u.to === d.rarity)
+        if (awaited) { awaited.instanceId = instanceId; continue }
         // A reward pulled from Collections (or moved in by hand) is already tracked by name: link that copy instead.
         const twin = !d.starting && p.inventory.find((x) => !x.instanceId && x.name === str(d.name) && x.slot === d.slot && x.rarity === d.rarity)
         if (twin) { twin.instanceId = instanceId; continue }

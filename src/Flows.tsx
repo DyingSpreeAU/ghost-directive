@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ALL_SLOTS, KIND_LABEL, RARITIES, WEAPON_SLOTS, nextTier, abilityById, abilityDesc, artifactPerk, dungeonById, type Rarity, type Slot, type VaultEntry } from './data'
 import {
-  capacityOf, changeIntegrity, current, itemsIn, log, recordClear, sandbox, slotTier, tradeBlock, tradeTierOk, tradeableFor,
+  capacityOf, changeIntegrity, current, itemsIn, log, raisesTier, recordClear, sandbox, slotTier, tradeBlock, tradeTierOk, tradeableFor,
   type ChestReward, type Intent, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
@@ -487,7 +487,7 @@ function RegisterFlow({ run, onClose, playerId, slot }: { run: Run; onClose: () 
       </form>
       {exoticClass && <p className="small tone-danger">Exotic class items only come from final boss rewards, for Prismatic Guardians.</p>}
       <p className={`small ${n >= cap ? 'tone-warn' : 'muted'}`}>
-        Your {s} slot holds {n} of {cap}.{slotTier(run, p, s) !== 'Legendary' && !(rarity === 'Exotic' && sandbox(run.ruleset).exoticsAnyTime) ? ` It\u2019s at ${slotTier(run, p, s)}: this drop moves it up a tier instead of joining the inventory.` : n >= cap ? ' You\u2019ll be asked to trade up or let an item go.' : ''}
+        Your {s} slot holds {n} of {cap}.{slotTier(run, p, s) !== 'Legendary' && !(rarity === 'Exotic' && sandbox(run.ruleset).exoticsAnyTime) ? (raisesTier(run, rarity) ? ` It\u2019s at ${slotTier(run, p, s)}: this drop moves it up a tier instead of joining the inventory.` : ` It\u2019s at ${slotTier(run, p, s)}, and only Legendary drops move it up a tier: this one won\u2019t count.`) : n >= cap ? ' You\u2019ll be asked to trade up or let an item go.' : ''}
       </p>
     </Modal>
   )
