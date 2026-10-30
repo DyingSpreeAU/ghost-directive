@@ -92,6 +92,8 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Naming**: rulesets are called **Directives** everywhere players see them (the Directives page, "Custom
   Directive", "Save Directive", "Import Directive", the lobby's Directive section). In code they're still
   `Ruleset` / protocols (`Protocols.tsx`, `allProtocols`, `protocolId`).
+- **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the
+  equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume
   and run pages (first on phones), for everyone, with a copy icon button.
 - **Mini command bar** (host, active run; `MiniCommand` in `src/Briefing.tsx`): once the command panel's

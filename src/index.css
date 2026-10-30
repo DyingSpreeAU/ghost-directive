@@ -767,8 +767,9 @@ button.tile-empty:hover:not(:disabled) { border-color: var(--dim); color: var(--
 .tiles .tile.item { padding: 0; border: 1px solid color-mix(in srgb, var(--rc) 70%, var(--seam)); border-bottom: 3px solid var(--rc); cursor: pointer; overflow: hidden; }
 .tiles .tile.item img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .tile-initial { font-family: var(--f-display); font-weight: 700; font-size: 1.05rem; color: var(--rc); text-transform: uppercase; }
-.tiles .tile.item.is-eq { box-shadow: 0 0 0 2px var(--light); }
-.tile-eq { position: absolute; top: 3px; right: 3px; width: 8px; height: 8px; background: var(--light); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+/* Run inventory: the first spot in each slot is the equipped one, a size up, like Destiny's inventory screen. */
+.tiles.has-eq { grid-template-columns: 64px repeat(var(--n1, 3), minmax(0, 52px)); align-items: end; }
+.tiles .tile.item.is-eq { order: -1; }
 .tiles .tile.item.is-over { border-color: var(--danger); box-shadow: 0 0 0 2px var(--danger); }
 .tiles .tile.item.is-selected { outline: 2px solid var(--text); outline-offset: 2px; }
 /* Gear on the character that isn't in the run: dimmed, hatched and outlined in red. */

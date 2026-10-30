@@ -62,3 +62,17 @@ test('reopening a run shows the read-only resume lobby', async ({ page }) => {
   await expect(page.locator('.command')).toBeVisible()
   expect(await layoutProblems(page)).toEqual([])
 })
+
+test('the equipped item sits first in its slot, a size up, with no border or dot', async ({ page }) => {
+  await exampleRun(page)
+  await editStore(page, "const p = s.active.players[0]; p.inventory = p.inventory.filter((i) => i.slot !== 'Kinetic'); ['Pariah', 'Hung Jury SR4', 'Fatebringer'].forEach((n, k) => p.inventory.push({ id: 'k' + k, name: n, slot: 'Kinetic', rarity: 'Legendary', source: 'test', equipped: k === 2 }))")
+  await page.waitForSelector('.guardian')
+  const tiles = page.locator('.guardian').first().locator('.g-slot').first().locator('.tile')
+  const boxes = await tiles.evaluateAll((t) => t.map((x) => ({ title: x.getAttribute('title'), w: x.getBoundingClientRect().width, left: x.getBoundingClientRect().left, shadow: getComputedStyle(x).boxShadow })))
+  const first = boxes.reduce((a, b) => (b.left < a.left ? b : a))
+  expect(first.title).toContain('Fatebringer')
+  expect(first.title).toContain('Equipped')
+  expect(first.w).toBeGreaterThan(boxes.find((b) => b !== first)!.w + 8)
+  expect(first.shadow).toBe('none')
+  await expect(page.locator('.tile-eq')).toHaveCount(0)
+})

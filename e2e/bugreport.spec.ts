@@ -21,9 +21,12 @@ test('without Netlify, the report is copied to the clipboard', async ({ page, co
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await page.route(`${baseURL}/`, (r) => r.request().method() === 'POST' ? r.fulfill({ status: 404, body: '' }) : r.continue())
   await exampleRun(page)
+  await page.bringToFront()
   await page.click('.sidebar .bug-link')
   await page.fill('.bug-form textarea >> nth=0', 'second')
   await page.click('.modal-foot .btn-light')
   await expect(page.getByText('copied to your clipboard')).toBeVisible()
+  // The clipboard can stall on a page without focus when several test browsers run at once.
+  await page.bringToFront()
   expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('what: second')
 })

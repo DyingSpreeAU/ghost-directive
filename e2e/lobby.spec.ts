@@ -7,6 +7,7 @@ test('host lobby: code card, copy, artifact gate, begin', async ({ page, context
   await collapseTools(page)
   const code = (await page.textContent('.code-big'))!.trim()
   expect(code).toMatch(/^[A-Z0-9]{6}$/)
+  await page.bringToFront()
   await page.click('.code-copy')
   await expect(page.locator('.toast')).toHaveText('Code copied')
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code)

@@ -165,8 +165,9 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                 <span className={`cap ${over ? 'tone-danger' : items.length === cap ? 'tone-warn' : ''}`}>{items.length}/{cap}</span>
                 {control && tu.enabled && (p.trade?.slot === slot || (!p.trade && eligibleForTrade(slot))) && <button className="link" disabled={!active} onClick={() => openFlow({ type: 'tradeup', playerId: p.id, slot })}>{p.trade ? 'Finish trade-up' : <>Trade up {tu.inputs}&rarr;1</>}</button>}
               </div>
-              <div className="tiles" style={{ ['--n' as string]: Math.max(cap, items.length, 4) }}>
-                {items.map((it, i) => (
+              {/* Like Destiny's inventory: the first spot, a size up, is the equipped one (see .tiles.has-eq). */}
+              <div className="tiles has-eq" style={{ ['--n' as string]: Math.max(cap, items.length, 4), ['--n1' as string]: Math.max(cap, items.length, 4) - 1 }}>
+                {[...items].sort((a, b) => Number(b.equipped) - Number(a.equipped)).map((it, i) => (
                   <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} icon={icons.gear(it.name)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
                 {Array.from({ length: Math.max(0, cap - items.length) }, (_, i) => (
@@ -265,7 +266,6 @@ function OutsideTile({ u, icon, selected, onSelect, flash }: { u: { name: string
     <button data-flash={flash} className={`tile item is-outside ${rarityClass(u.rarity ?? 'Legendary')} ${u.equipped ? 'is-eq' : ''} ${selected ? 'is-selected' : ''}`} title={label} aria-label={label} aria-pressed={selected} onClick={onSelect}>
       {icon && !broken ? <img src={icon} alt="" loading="lazy" onError={() => setBroken(true)} /> : <span className="tile-initial">{u.name.slice(0, 2)}</span>}
       <span className="tile-out" aria-hidden="true">!</span>
-      {u.equipped && <span className="tile-eq" aria-hidden="true" />}
     </button>
   )
 }
@@ -284,7 +284,6 @@ function Tile({ it, icon, over, selected, onSelect, flash }: { it: Item; icon?: 
     >
       {icon && !broken ? <img src={icon} alt="" loading="lazy" onError={() => setBroken(true)} /> : <span className="tile-initial">{it.name.slice(0, 2)}</span>}
       <span className="item-name sr-only">{it.name}</span>
-      {it.equipped && <span className="tile-eq" aria-hidden="true" />}
     </button>
   )
 }
