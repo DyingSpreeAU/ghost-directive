@@ -202,3 +202,35 @@ test('below Legendary, a blue drop doesn’t raise the tier (Legendary drops onl
   expect(p.upgrades ?? []).toHaveLength(0)
   await expect(page.locator('.scrim')).toHaveCount(0)
 })
+
+test('run stats: post-game reports and live weapon kill trackers reach the Guardian’s stats', async ({ page, baseURL }) => {
+  const a = account()
+  await stubBungie(page, a, baseURL!)
+  await fresh(page)
+  await signIn(page)
+  await page.click('text=Create lobby')
+  await page.waitForSelector('.equipped-grid .item')
+  await collapseTools(page)
+  await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await page.click('button:has-text("Begin run and lock route")')
+  await page.waitForSelector('#arsenal')
+  await later(page)
+  const gun = a.chars[HUNTER].eq.find((x) => x.hash === I.Fatebringer)!
+  a.trackers[gun.id] = 300
+  await editStore(page, `s.active.players[0].inventory.push({ id: 'fb', name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary', equipped: false, source: 'test', instanceId: '${gun.id}' })`)
+  await later(page)
+  const sync = () => page.locator('.guardian').first().locator('button:has-text("Sync drops now")').click()
+  await sync()
+  await expect.poll(async () => (await store(page)).active.players[0].stats?.trackers?.[gun.id]?.base).toBe(300)
+  // A session ends (its report appears) and the tracker moves on.
+  a.sessions.push({ id: '9001', period: new Date().toISOString(), kills: 120, precision: 30, weapons: [[I.Fatebringer, 80]] })
+  a.trackers[gun.id] = 342
+  await sync()
+  const card = page.locator('.g-stats').first()
+  await expect(card).toContainText('From Bungie · 1 session')
+  await expect(card.locator('.g-stats-grid div', { hasText: 'Kills' }).locator('dd')).toHaveText('120')
+  await expect(card.locator('.g-stats-grid div', { hasText: 'Precision' }).locator('dd')).toHaveText('25%')
+  await expect(card.locator('.weapon-kills')).toContainText('Fatebringer')
+  await expect(card.locator('.g-live')).toContainText('+42')
+  await expect(page.locator('.stat-tile', { hasText: 'Kills' }).locator('.stat-value')).toHaveText('120')
+})

@@ -233,6 +233,8 @@ export type Player = {
   bungie?: BungieLink
   /** Individual deaths recorded this run. */
   deaths?: number
+  /** Combat stats from Bungie, read on the player's device: post-game reports and weapon kill trackers. */
+  stats?: PlayerStats
   /** Items that left the run, with what happened to them (newest first), so a sync can tell what's allowed. */
   retired?: (Item & { fate: Fate; at: number })[]
   /** Gear progression: each slot's tier (missing on runs from before progression: no limits). */
@@ -282,6 +284,21 @@ export type BungieLink = {
 }
 
 export type LogKind = 'clear' | 'wipe' | 'death' | 'chest' | 'unlock' | 'drop' | 'gear' | 'artifact' | 'upgrade' | 'trade' | 'vault' | 'run'
+
+/** One dungeon session's post-game report (Bungie), for this player. */
+export type StatSession = {
+  id: string; at: number; activity: string; completed: boolean; seconds: number
+  kills: number; deaths: number; assists: number; precision: number
+  grenade: number; melee: number; super: number; ability: number
+  weapons: { name: string; kills: number; precision: number }[]
+}
+export type PlayerStats = {
+  /** Post-game reports for dungeon sessions played during the run, oldest first. */
+  sessions: StatSession[]
+  /** Run weapons' PvE kill trackers by instance: the count when the run first saw it, and now. */
+  trackers: Record<string, { name: string; base: number; now: number }>
+  at: number
+}
 
 export type LogEntry = { at: number; kind: LogKind; text: string; delta?: number; integrity?: number; where?: string }
 
@@ -831,6 +848,7 @@ export type Intent =
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
   | { type: 'keep-outside' }
+  | { type: 'bungie-stats'; sessions: StatSession[]; trackers: { instanceId: string; name: string; kills: number }[] }
   | { type: 'resume-ready'; ready: boolean }
   | { type: 'link-item'; itemId?: string; name?: string; slot?: Slot; instanceId: string }
 
@@ -1081,6 +1099,32 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     // Run progress: any Guardian may record these, not only the host. Each names what its sender saw
     // (encounter, chest, wipe or death count), so two players recording the same thing count it once.
+    case 'bungie-stats': {
+      // Read on the player's device: new post-game reports join (by instance), kill trackers update.
+      const n = (v: unknown) => Math.max(0, Math.min(1e7, Math.floor(Number(v) || 0)))
+      const st: PlayerStats = p.stats ? structuredClone(p.stats) : { sessions: [], trackers: {}, at: 0 }
+      for (const raw of (Array.isArray(it.sessions) ? it.sessions : []).slice(0, 50)) {
+        const x = raw as Partial<StatSession>
+        const id = str(x.id, 30)
+        if (!id) continue
+        const s: StatSession = {
+          id, at: n(x.at), activity: str(x.activity, 80), completed: !!x.completed, seconds: n(x.seconds),
+          kills: n(x.kills), deaths: n(x.deaths), assists: n(x.assists), precision: n(x.precision),
+          grenade: n(x.grenade), melee: n(x.melee), super: n(x.super), ability: n(x.ability),
+          weapons: (Array.isArray(x.weapons) ? x.weapons : []).slice(0, 20).map((w) => ({ name: str(w?.name), kills: n(w?.kills), precision: n(w?.precision) })).filter((w) => w.name),
+        }
+        st.sessions = [...st.sessions.filter((y) => y.id !== id), s].sort((a, b) => a.at - b.at).slice(-200)
+      }
+      for (const t of (Array.isArray(it.trackers) ? it.trackers : []).slice(0, 40)) {
+        const id = str(t?.instanceId, 30)
+        if (!id) continue
+        const kills = n(t.kills), was = st.trackers[id]
+        st.trackers[id] = { name: str(t.name) || was?.name || '?', base: Math.min(was?.base ?? kills, kills), now: kills }
+      }
+      st.at = Date.now()
+      p.stats = st
+      return null
+    }
     case 'keep-outside': {
       // Items recorded as dismantled that the player kept after all: still out of the run, but
       // "removed" rather than "dismantled", so syncs stop flagging them.
@@ -1435,10 +1479,36 @@ export function exampleRun(code: string, hostCid: string): Run {
   resolveAll()
   recordDeath(run, pc)
   changeIntegrity(run, -run.ruleset.integrity.wipe, 'Team wipe recorded.', 'wipe')
+  // They stopped for the night at Vorgeth and picked up the next evening.
+  log(run, 'run', 'Run reopened. Every Guardian restores their character before play continues.')
   recordClear(run)
   tierUp(pa, { name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary' }, 'Home Again')
   // Everyone has chosen except Threadrunner, who has no device: the host can resolve it for them.
   resolveAll({}, pc)
   // Left on the first of the two chests between Vorgeth and D\u00fbl Incaru, so the chest prompt shows.
+
+  // A believable timeline for the stats: the first evening, a break, then this one.
+  const MIN = 60_000
+  const gap = (e: LogEntry) => (e.kind === 'run' && e.text.startsWith('Run reopened') ? 20 * 60 * MIN : e.kind === 'clear' ? 13 * MIN : e.kind === 'wipe' ? 9 * MIN : e.kind === 'death' ? 4 * MIN : e.kind === 'chest' ? 5 * MIN : 0.2 * MIN)
+  const entries = [...run.log].reverse()
+  const span = entries.reduce((n, e) => n + gap(e), 0)
+  let t = Date.now() - span - 7 * MIN // 7 minutes into the current stretch
+  run.startedAt = t
+  for (const e of entries) { t += gap(e); e.at = t }
+  // The first evening's post-game reports, and the run weapons' kill trackers since.
+  const firstNight = entries.find((e) => e.kind === 'run' && e.text.startsWith('Run reopened'))!.at - 20 * 60 * MIN
+  const report = (p: Player, i: number, k: number, weapons: [string, number][]): PlayerStats => ({
+    sessions: [{
+      id: `example-${i}`, at: run.startedAt, activity: 'The Shattered Throne', completed: false, seconds: Math.round((firstNight - run.startedAt) / 1000),
+      kills: k, deaths: [0, 0, 2][i], assists: Math.round(k * 0.4), precision: Math.round(k * [0.31, 0.22, 0.38][i]),
+      grenade: [14, 9, 6][i], melee: [5, 18, 11][i], super: [0, 12, 7][i], ability: [9, 4, 3][i],
+      weapons: weapons.map(([name, kills]) => ({ name, kills, precision: Math.round(kills * 0.3) })),
+    }],
+    trackers: Object.fromEntries(p.inventory.filter((x) => WEAPON_SLOTS.includes(x.slot)).map((x, j) => [x.id, { name: x.name, base: 500 + j, now: 500 + j + [21, 9, 3, 14][j % 4] }])),
+    at: Date.now(),
+  })
+  pa.stats = report(pa, 0, 168, [['Pillager', 71], ['Prosecutor', 58], ['Tarantula', 11]])
+  pb.stats = report(pb, 1, 142, [['Chain of Command', 52], ['Bad Neighbors', 41], ['Pentatonic-48', 18]])
+  pc.stats = report(pc, 2, 131, [['Dead-Eye', 49], ['Nightshade', 44], ['Pentatonic-48', 22]])
   return run
 }

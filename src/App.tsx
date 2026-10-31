@@ -442,6 +442,7 @@ type NavItem = { view: View; anchor?: string; label: string; short: string; host
 const RUN_NAV: NavItem[] = [
   { view: 'briefing', anchor: 'top', label: 'Mission Briefing', short: 'Briefing' },
   { view: 'briefing', anchor: 'arsenal', label: 'Fireteam', short: 'Fireteam' },
+  { view: 'briefing', anchor: 'stats', label: 'Run Stats', short: 'Stats' },
   { view: 'briefing', anchor: 'report', label: 'Combat Report', short: 'Report' },
 ]
 /** Sections of the lobby page, in page order. */

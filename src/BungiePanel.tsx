@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-import { accountName, bungieConfigured, detectDrops, fetchSnapshot, linkByName, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
+import { accountName, bungieConfigured, detectDrops, fetchRunStats, fetchSnapshot, linkByName, isSignedIn, onAuthChange, reconcile, restoreGuardian, signOut, startSignIn, takeSignInResult, type RestoreReport } from './bungie'
 import { Modal } from './ui'
+import { WEAPON_SLOTS } from './data'
 import { raisesTier, slotTier, type Intent, type Player, type Run } from './model'
 import { useGD } from './store'
 
@@ -41,7 +42,7 @@ export function useBungie() {
  * Reads the player's Destiny profile on this device and sends the result to the host:
  * Vault pool, mismatch checks, and any drops detected since the run started.
  */
-export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?: string) => void, notify?: (msg: string) => void) {
+export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?: string) => void, notify?: (msg: string) => void, asked = false) {
   if (sync.busy || !isSignedIn()) return
   setSync({ busy: true })
   try {
@@ -75,7 +76,29 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
     setSync({ busy: false })
   } catch (e) {
     setSync({ busy: false, error: (e as Error).message })
+    return
   }
+  // Combat stats after the sync, so they never hold it up.
+  void syncStats(run, p, dispatch, asked)
+}
+
+/** Combat stats are read at most this often (each read is two or three Bungie calls). */
+const STATS_MS = 2 * 60_000
+let statsAt = 0
+/**
+ * Reads the player's post-game reports and run weapons' kill trackers and sends them to the host.
+ * A failure here never fails the sync: stats wait for the next one.
+ */
+async function syncStats(run: Run, p: Player, dispatch: (i: Intent, pid?: string) => void, asked: boolean) {
+  // A sync someone asked for (Sync now, Sync all) always reads them.
+  if (run.example || (!asked && Date.now() - statsAt < STATS_MS)) return
+  statsAt = Date.now()
+  try {
+    const known = new Set((p.stats?.sessions ?? []).map((x) => x.id))
+    const weapons = p.inventory.filter((i) => i.instanceId && WEAPON_SLOTS.includes(i.slot)).map((i) => ({ instanceId: i.instanceId!, name: i.name }))
+    const r = await fetchRunStats(p.cls, { from: run.startedAt, to: run.endedAt }, known, weapons)
+    if (r.sessions.length || r.trackers.length) dispatch({ type: 'bungie-stats', sessions: r.sessions, trackers: r.trackers }, p.id)
+  } catch { /* next time */ }
 }
 
 /** During a run, drops are checked every minute; otherwise every 10. */
@@ -105,7 +128,7 @@ export function useAutoSync(run: Run | null, me: Player | undefined, dispatch: (
   useEffect(() => {
     if (!run?.syncRequest || run.syncRequest === seenRequest.current) return
     seenRequest.current = run.syncRequest
-    if (ready) syncBungie(run, me!, dispatch, notify)
+    if (ready) syncBungie(run, me!, dispatch, notify, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run?.syncRequest, ready])
   // A reopened run: read the account straight away, so drop detection forgets the break and the
@@ -160,7 +183,7 @@ export function BungiePanel({ p, dispatch }: { p: Player; dispatch: (i: Intent, 
         {error && <p className="small tone-danger">{error}</p>}
       </div>
       <div className="row-acts">
-        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => run && syncBungie(run, p, dispatch, toast)}>{busy ? 'Syncing…' : 'Sync now'}</button>
+        <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => run && syncBungie(run, p, dispatch, toast, true)}>{busy ? 'Syncing…' : 'Sync now'}</button>
         <button className="link" onClick={() => { signOut(); if (p.bungie) dispatch({ type: 'bungie-unlink' }, p.id) }}>Sign out</button>
       </div>
     </div>

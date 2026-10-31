@@ -4,12 +4,14 @@
 // and only when the player asks for it.
 
 import { ALL_SLOTS, ARTIFACTS, PRISMATIC_BASE_GRENADES, subclassAbilities, STARTER_KINDS, type StarterKind, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
-import type { Player } from './model'
+import type { Player, StatSession } from './model'
 import { inClaudeViewer } from './net'
 
 const API_KEY = import.meta.env.VITE_BUNGIE_API_KEY as string | undefined
 const CLIENT_ID = import.meta.env.VITE_BUNGIE_CLIENT_ID as string | undefined
 const ROOT = 'https://www.bungie.net/Platform'
+/** Post-game reports are served from Bungie's stats host. */
+const STATS_ROOT = 'https://stats.bungie.net/Platform'
 const TOKENS_KEY = 'ghost-directive:bungie-tokens'
 const STATE_KEY = 'ghost-directive:bungie-oauth-state'
 
@@ -112,11 +114,11 @@ export class BungieActionError extends BungieError {
   constructor(message: string, status: string) { super(message); this.status = status }
 }
 
-async function api<T>(path: string, body?: object): Promise<T> {
+async function api<T>(path: string, body?: object, root = ROOT): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     const token = await accessToken()
     if (!token) throw new BungieError('Your Bungie sign-in has expired. Sign in again.')
-    const res = await fetch(ROOT + path, body
+    const res = await fetch(root + path, body
       ? { method: 'POST', headers: { 'X-API-Key': API_KEY!, Authorization: `Bearer ${token}`, 'content-type': 'application/json' }, body: JSON.stringify(body) }
       : { headers: { 'X-API-Key': API_KEY!, Authorization: `Bearer ${token}` } })
     const data = await res.json().catch(() => null) as { ErrorCode?: number; Message?: string; ErrorStatus?: string; ThrottleSeconds?: number; Response?: T } | null
@@ -179,6 +181,8 @@ type ProfileResponse = {
     sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> }
     /** Instance stats (component 304), e.g. a weapon's rolled Range or Handling. */
     stats?: { data?: Record<string, { stats: Record<string, { statHash: number; value: number }> }> }
+    /** Objectives on each item's plugs (component 309), e.g. a weapon's kill tracker. */
+    plugObjectives?: { data?: Record<string, { objectivesPerPlug?: Record<string, { objectiveHash: number; progress?: number }[]> }> }
     /** Instance details (component 300): power level, element. */
     instances?: { data?: Record<string, { primaryStat?: { value: number }; damageType?: number }> }
     /** What each socket can take (component 310), by socket index. */
@@ -1159,4 +1163,74 @@ export async function moveItems(player: Player, ops: MoveOp[]): Promise<MoveResu
     }
   }
   return out
+}
+
+// ------------------------------------------------------------------ run stats
+
+/** A weapon kill tracker's PvE count ("Enemies Defeated"); memento trackers count only their own activities. */
+const PVE_KILLS = 2579044636
+/** Activity mode: dungeons. */
+const DUNGEON_MODE = 82
+/** Post-game reports fetched per sync at most (the rest come next time). */
+const REPORTS_PER_SYNC = 5
+
+type StatValue = { basic?: { value?: number } }
+type Pgcr = {
+  period?: string
+  activityDetails?: { referenceId?: number; directorActivityHash?: number; instanceId?: string }
+  entries?: {
+    characterId?: string
+    player?: { destinyUserInfo?: { membershipId?: string } }
+    values?: Record<string, StatValue>
+    extended?: { values?: Record<string, StatValue>; weapons?: { referenceId: number; values?: Record<string, StatValue> }[] }
+  }[]
+}
+const val = (v?: Record<string, StatValue>, k = '') => Math.round(v?.[k]?.basic?.value ?? 0)
+
+const activityNames = new Map<number, Promise<string>>()
+function activityName(hash?: number) {
+  if (!hash) return Promise.resolve('Dungeon')
+  if (!activityNames.has(hash)) activityNames.set(hash, api<{ displayProperties?: { name?: string } }>(`/Destiny2/Manifest/DestinyActivityDefinition/${hash >>> 0}/`).then((d) => d.displayProperties?.name?.trim() || 'Dungeon').catch(() => 'Dungeon'))
+  return activityNames.get(hash)!
+}
+
+export type RunStatsReport = { sessions: StatSession[]; trackers: { instanceId: string; name: string; kills: number }[] }
+
+/**
+ * The signed-in player's combat stats for the run: post-game reports for dungeon sessions that
+ * started in the run's window and aren't known yet, and the PvE kill tracker on each run weapon.
+ */
+export async function fetchRunStats(cls: ClassType, window: { from: number; to?: number }, known: Set<string>, weapons: { instanceId: string; name: string }[]): Promise<RunStatsReport> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=200,204,309`)
+  const objectives = p.itemComponents?.plugObjectives?.data ?? {}
+  const trackers = weapons.flatMap((w) => {
+    const all = Object.values(objectives[w.instanceId]?.objectivesPerPlug ?? {}).flat()
+    const kills = all.find((o) => o.objectiveHash === PVE_KILLS)?.progress
+    return kills === undefined ? [] : [{ instanceId: w.instanceId, name: w.name, kills }]
+  })
+  const picked = pickCharacter(p, cls)
+  if (!picked) return { sessions: [], trackers }
+  const history = await api<{ activities?: { period: string; activityDetails: { instanceId: string } }[] }>(
+    `/Destiny2/${mem.membershipType}/Account/${mem.membershipId}/Character/${picked.id}/Stats/Activities/?mode=${DUNGEON_MODE}&count=25&page=0`)
+  // A session belongs to the run if it started after the run did (a minute's slack) and before it ended.
+  const fresh = (history.activities ?? [])
+    .filter((a) => { const at = Date.parse(a.period); return at >= window.from - 60_000 && (!window.to || at <= window.to) && !known.has(a.activityDetails.instanceId) })
+    .slice(0, REPORTS_PER_SYNC)
+  const sessions: StatSession[] = []
+  for (const a of fresh) {
+    const r = await api<Pgcr>(`/Destiny2/Stats/PostGameCarnageReport/${a.activityDetails.instanceId}/`, undefined, STATS_ROOT).catch(() => null)
+    const me = r?.entries?.find((e) => e.player?.destinyUserInfo?.membershipId === mem.membershipId && e.characterId === picked.id)
+      ?? r?.entries?.find((e) => e.player?.destinyUserInfo?.membershipId === mem.membershipId)
+    if (!r || !me) continue
+    const v = me.values, x = me.extended?.values
+    sessions.push({
+      id: a.activityDetails.instanceId, at: Date.parse(a.period), activity: await activityName(r.activityDetails?.referenceId),
+      completed: val(v, 'completed') === 1 && val(v, 'completionReason') === 0, seconds: val(v, 'timePlayedSeconds'),
+      kills: val(v, 'kills'), deaths: val(v, 'deaths'), assists: val(v, 'assists'), precision: val(x, 'precisionKills'),
+      grenade: val(x, 'weaponKillsGrenade'), melee: val(x, 'weaponKillsMelee'), super: val(x, 'weaponKillsSuper'), ability: val(x, 'weaponKillsAbility'),
+      weapons: (me.extended?.weapons ?? []).map((w) => ({ name: items[w.referenceId]?.[0] ?? 'Unknown weapon', kills: val(w.values, 'uniqueWeaponKills'), precision: val(w.values, 'uniqueWeaponPrecisionKills') })).filter((w) => w.kills > 0),
+    })
+  }
+  return { sessions, trackers }
 }

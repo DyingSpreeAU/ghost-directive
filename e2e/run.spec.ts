@@ -1,4 +1,4 @@
-import { test, expect, exampleRun, editStore, startRun, fresh, layoutProblems, store, tools, toolsForMe } from './helpers'
+import { test, expect, exampleRun, editStore, startRun, fresh, layoutProblems, store, tools, toolsForMe, later } from './helpers'
 
 test('wipe and death change Integrity', async ({ page }) => {
   await exampleRun(page)
@@ -191,4 +191,38 @@ test('items marked dismantled but kept can be left outside the run, and stop bei
   const p = (await store(page)).active.players[0]
   expect(p.retired.map((r: { fate: string }) => r.fate)).toEqual(['removed', 'removed', 'removed'])
   expect(p.bungie.undismantled).toEqual([])
+})
+
+test('run stats: splits leave out breaks, with highlights and the Integrity chart', async ({ page }) => {
+  await exampleRun(page)
+  const s = page.locator('#stats')
+  await expect(s.locator('.splits tbody tr')).toHaveCount(3)
+  await expect(s.locator('.splits tbody tr').first()).toContainText('15:00')
+  await expect(s.locator('.splits tbody tr').nth(1)).toContainText('32:36') // the night's break isn't counted
+  await expect(s.locator('.splits tr.is-now')).toContainText('In progress')
+  await expect(s.locator('.highlights')).toContainText('The wall')
+  await expect(s.locator('.stat-tile', { hasText: 'Kills' }).locator('.stat-value')).toHaveText('441')
+  await expect(s.locator('.int-chart .ic-mark')).toHaveCount(4) // two clears, a death, a wipe (a found chest costs nothing here)
+  await s.locator('.int-chart').scrollIntoViewIfNeeded()
+  const box = (await s.locator('.int-chart').boundingBox())!
+  await page.mouse.move(box.x + box.width * 0.62, box.y + 90)
+  await expect(s.locator('.ic-tip')).toContainText('Wipe')
+})
+
+test('an archived run keeps its stats in Run History', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await page.locator('.side-player .sp-main').click()
+  await page.click('.modal-foot button:has-text("Record clear and advance")')
+  await expect(page.locator('.side-player .sp-title')).not.toHaveText('Erebus: The Labyrinth')
+  await editStore(page, 's.active.pending = []') // skip the reward screen
+  await page.click('.page-head button:has-text("End run")')
+  await page.click('.modal-foot .btn-danger')
+  await page.click('button:has-text("Archive and reopen lobby")')
+  await page.click('.sidebar >> text=Run History')
+  await page.click('.hist-head')
+  const st = page.locator('.hist-body .run-stats')
+  await expect(st.locator('.splits tbody tr')).toHaveCount(1)
+  await expect(st.locator('.splits tbody tr')).toContainText('Erebus: The Labyrinth')
+  await expect(st.locator('.stat-tile', { hasText: 'Encounters' }).locator('.stat-value')).toHaveText('1/34')
 })

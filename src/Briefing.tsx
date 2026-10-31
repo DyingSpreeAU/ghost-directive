@@ -11,6 +11,7 @@ import { bungieConfigured } from './bungie'
 import { Fireteam } from './Fireteam'
 import { BungiePanel } from './BungiePanel'
 import { CodeCard } from './Lobby'
+import { RunStats } from './RunStats'
 import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter } from './ui'
 
@@ -182,6 +183,8 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
       )}
 
       <Fireteam run={run} warnings={warnings} />
+
+      <RunStats run={run} history={host?.store.history} />
 
       <div className="fold-label"><span>Records</span></div>
 

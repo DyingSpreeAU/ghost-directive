@@ -147,7 +147,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
       {control && p.bungie && (
         <div className="auto-drops">
           <span><span className="tag tag-bungie">Bungie</span> Drops are checked automatically every minute.</span>
-          {bungie.signedIn && <button className="btn btn-ghost btn-sm" disabled={bungie.busy} onClick={() => syncBungie(run, p, dispatch, (m) => toast(m))}>{bungie.busy ? 'Syncing…' : 'Sync drops now'}</button>}
+          {bungie.signedIn && <button className="btn btn-ghost btn-sm" disabled={bungie.busy} onClick={() => syncBungie(run, p, dispatch, (m) => toast(m), true)}>{bungie.busy ? 'Syncing…' : 'Sync drops now'}</button>}
           <RestoreGuardian run={run} p={p} />
         </div>
       )}

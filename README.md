@@ -298,7 +298,31 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   don't place a Rally Banner to restock ammo or heal. When on, it's in the lobby's "How the run works"
   and on the run page under the run name ("No Rally Banners (honour rule)").
 - State persists in `localStorage`. First launch loads a clearly marked example run.
-- **Example run** (`exampleRun` in `src/model.ts`): built by playing the real rules forward, so it
+- **Run stats** (`src/stats.ts`, shown by `RunStats` in `src/RunStats.tsx`): a "Run Stats" section on
+  the run page (nav: Run Stats / Stats), live while the run is on ("So far", timers tick) and as
+  "Final stats" after it ends. Archived runs show the same in Run History. Most of it comes from the
+  run log, so every run has it, old saves included:
+  - **Times** leave out breaks between sessions (from the last thing recorded to "Run reopened").
+  - **Tiles**: run time, the current encounter's timer, encounters cleared, wipes, deaths, kills.
+  - **Fireteam Integrity chart**: a step line against play time, with a marker on every change
+    (clear or chest, death, wipe; a key names them), a dashed line at one wipe's cost, and a hover or
+    tap tooltip with the event, time and Integrity.
+  - **Splits**: time per encounter (from the previous clear), with its wipes and deaths, the
+    encounter in progress, and on the host a **Best** column (fastest in archived runs) with a
+    "New best" tag.
+  - **Highlights**: fastest clear, the wall (most wipes), boss kill times, most deaths, most kills,
+    sharpest (precision, 20+ kills).
+  - **Per Guardian**: deaths, abilities unlocked, artifact perks, tier-ups; and from Bungie (signed-in
+    players): kills, assists, precision %, Super, grenade and melee kills, top weapons, and live
+    kill trackers.
+  Bungie stats are read on each player's device after its syncs (`fetchRunStats` in `src/bungie.ts`,
+  at most every 2 minutes, or straight away for Sync now / Sync all) and sent to the host
+  (`bungie-stats` intent, kept on `Player.stats`): **post-game reports** for dungeon sessions (activity
+  mode 82) that started in the run's window, from `stats.bungie.net` (they appear once a session
+  ends, so they keep being read after the run ends, until it's archived), and each run weapon's
+  **PvE kill tracker** (objective 2579044636 "Enemies Defeated", component 309), counted from when the
+  run first saw it. Bungie reports no damage, so there's no DPS; the boss kill time is the nearest.
+: built by playing the real rules forward, so it
   keeps up with them. Three Guardians (the host's Warlock, plus a Titan and Hunter with no device) on
   Standard Directive, partway through The Shattered Throne: Erebus cleared and every reward chosen,
   Secret Chest 1 found (artifact perks researched), a death and a wipe at Vorgeth, then its clear.
@@ -511,7 +535,7 @@ chromium`.
 
 - `start` – start screen, explainer, first-visit intro, the Integrity gauge animation.
 - `lobby` – code card and copy, artifact gate, custom route, rules text per Directive.
-- `run` – deaths and wipes, the phone mini bar, the sidebar player, the missing-gear pop-up and wanted poster, reward type banners, pop-ups above the page, final boss bonus, resume lobby.
+- `run` – run stats (splits leave out breaks, highlights, chart tooltip, kept in Run History), deaths and wipes, the phone mini bar, the sidebar player, the missing-gear pop-up and wanted poster, reward type banners, pop-ups above the page, final boss bonus, resume lobby.
 - `progression` – tier-ups (piece named by type), the "used for a tier-up" record, BONUS.
 - `tradeup` – locked options across a reload, the room rule and Arsenal Expansions.
 - `sandbox` – the editor end to end (changes, reset, save, Use in lobby, the run following the rules),
@@ -519,7 +543,7 @@ chromium`.
 - `bugreport` – posted fields (version, Bungie status), the clipboard fallback.
 - `submission-created` – the Netlify function that files GitHub issues (no browser).
 - `bungie` – against a simulated account (`stubBungie` in `e2e/helpers.ts`): restore, resume without
-  false drops, duplicate copies and the swap, trade-ups taking the Vault copy, seat class preference.
+  false drops, duplicate copies and the swap, trade-ups taking the Vault copy, seat class preference, run stats from post-game reports and live kill trackers.
 - `multiplayer` – host and guest browsers: join, ready up, guest restore on a reopened run, a guest recording a clear, a wipe (a second copy turned down) and the host's death.
 - `layout` – main screens and pop-ups at 360–3440 px: no overlaps, spilled text or sideways scroll
   (`layoutProblems` in `e2e/helpers.ts`).

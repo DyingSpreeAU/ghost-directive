@@ -100,6 +100,10 @@ export type Account = {
   sub: { id: string; plugs: number[] }
   calls: string[]
   next: number
+  /** Dungeon sessions with post-game reports: kills, and kills by weapon hash. */
+  sessions: { id: string; period: string; kills: number; precision: number; weapons: [number, number][] }[]
+  /** Weapon kill trackers ("Enemies Defeated") by item instance. */
+  trackers: Record<string, number>
 }
 
 export const HUNTER = '2305843009'
@@ -107,7 +111,7 @@ export const TITAN = '2305843010'
 
 /** A Hunter in an activity with Legendary/Common gear on, a Titan with nothing, two weapons in the Vault. */
 export function account(): Account {
-  const a: Account = { vault: [], chars: {}, inActivity: HUNTER, location: true, sub: { id: '777', plugs: [11, 12, 13, 14, 15] }, calls: [], next: 1000 }
+  const a: Account = { vault: [], chars: {}, inActivity: HUNTER, location: true, sub: { id: '777', plugs: [11, 12, 13, 14, 15] }, calls: [], next: 1000, sessions: [], trackers: {} }
   a.vault = [item(a, I.Pariah, B.k), item(a, I.StayAway, B.e)]
   a.chars[HUNTER] = { classType: 1, inv: [], lastPlayed: '2026-10-27T10:00:00Z', eq: [item(a, I.Fatebringer, B.k), item(a, I.Funnelweb, B.e), item(a, I.Hadrian, B.p), item(a, I.Helm, B.helm), item(a, I.Arms, B.arms), item(a, I.Chest, B.chest), item(a, I.Legs, B.legs), item(a, I.Cloak, B.cls)] }
   a.chars[TITAN] = { classType: 0, inv: [], eq: [], lastPlayed: '2026-10-01T10:00:00Z' }
@@ -132,7 +136,10 @@ function profile(a: Account) {
     responseMintedTimestamp: now, secondaryComponentsMintedTimestamp: now,
     profileInventory: { data: { items: a.vault.map((x) => ({ itemHash: x.hash, itemInstanceId: x.id, bucketHash: B.vault })) } },
     characters: { data: charData }, characterInventories: { data: inv }, characterEquipment: { data: eq }, characterActivities: { data: acts },
-    itemComponents: { sockets: { data: { [a.sub.id]: { sockets: a.sub.plugs.map((h) => ({ plugHash: h, isEnabled: true })) } } } },
+    itemComponents: {
+      sockets: { data: { [a.sub.id]: { sockets: a.sub.plugs.map((h) => ({ plugHash: h, isEnabled: true })) } } },
+      plugObjectives: { data: Object.fromEntries(Object.entries(a.trackers).map(([id, n]) => [id, { objectivesPerPlug: { 2302094943: [{ objectiveHash: 2579044636, progress: n }] } }])) },
+    },
   }
 }
 
@@ -159,6 +166,8 @@ export async function stubBungie(page: Page, a: Account, baseURL: string, member
     const m = path.match(/DestinyInventoryItemDefinition\/(\d+)/)
     if (m) return route.fulfill(ok({ displayProperties: { name: DEFS[m[1]] ?? 'Unknown' } }))
     if (path.includes('DestinyArtifactDefinition')) return route.fulfill(ok({ displayProperties: { name: 'Tablet of Ruin' } }))
+    if (path.includes('DestinyActivityDefinition')) return route.fulfill(ok({ displayProperties: { name: 'The Shattered Throne' } }))
+    if (path.includes('/Stats/Activities/')) return route.fulfill(ok({ activities: a.sessions.map((s) => ({ period: s.period, activityDetails: { instanceId: s.id } })) }))
     if (body) {
       a.calls.push(path.split('/').slice(-2, -1)[0])
       if (path.includes('TransferItem')) {
@@ -181,6 +190,21 @@ export async function stubBungie(page: Page, a: Account, baseURL: string, member
       if (path.includes('InsertSocketPlugFree')) { a.sub.plugs[body.plug.socketIndex] = body.plug.plugItemHash; return route.fulfill(ok({})) }
     }
     return route.fulfill(ok(profile(a)))
+  })
+  // Post-game reports come from Bungie's stats host.
+  await page.route('https://stats.bungie.net/Platform/**', (route) => {
+    const id = new URL(route.request().url()).pathname.match(/PostGameCarnageReport\/(\d+)/)?.[1]
+    const s = a.sessions.find((x) => x.id === id)
+    if (!s) return route.fulfill(fail('DestinyPGCRNotFound'))
+    const v = (n: number) => ({ basic: { value: n } })
+    return route.fulfill(ok({
+      period: s.period, activityDetails: { referenceId: 5, instanceId: s.id },
+      entries: [{
+        characterId: HUNTER, player: { destinyUserInfo: { membershipId: '77' } },
+        values: { kills: v(s.kills), deaths: v(1), assists: v(10), completed: v(0), completionReason: v(255), timePlayedSeconds: v(1800) },
+        extended: { values: { precisionKills: v(s.precision), weaponKillsGrenade: v(4), weaponKillsMelee: v(3), weaponKillsSuper: v(2), weaponKillsAbility: v(1) }, weapons: s.weapons.map(([referenceId, n]) => ({ referenceId, values: { uniqueWeaponKills: v(n), uniqueWeaponPrecisionKills: v(0) } })) },
+      }],
+    }))
   })
 }
 

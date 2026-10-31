@@ -4,6 +4,7 @@ import { dungeonById } from './data'
 import { current } from './model'
 import { useGD, type HostStore } from './store'
 import { ElementMark, Empty } from './ui'
+import { RunStats } from './RunStats'
 
 export function History() {
   const { host } = useGD()
@@ -41,6 +42,7 @@ export function History() {
               </button>
               {open === r.id && (
                 <div className="hist-body">
+                  <RunStats run={r} history={store.history} embedded />
                   <CombatReport run={r} embedded />
                   <button className="link" onClick={() => setStore((s) => ({ ...s, history: s.history.filter((x) => x.id !== r.id) }))}>Delete this record</button>
                 </div>
