@@ -463,9 +463,21 @@ artifacts with their perks.
 To regenerate after a game update (needs docs.google.com and *.bungie.net access):
 
 ```sh
-python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json public/bungie-tiers.json src/artifactText.ts
+python3 tools/fetch_sources.py /tmp/gd-sources public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json public/bungie-tiers.json src/artifactText.ts src/abilityText.ts
 python3 tools/parse_compendium.py /tmp/gd-sources src/compendium.ts
 ```
+
+**Weekly refresh** (`.github/workflows/refresh-game-data.yml`): every Wednesday at 02:43 UTC, after
+Tuesday's reset (or by hand from the Actions tab, "Run workflow"), GitHub Actions runs both commands
+above on `nightly`. When anything changed it runs the type check and the e2e tests, then opens or
+updates one pull request into `nightly` ("Weekly game data refresh", branch `data/weekly-refresh`)
+with the changed files and whether the tests passed. Nothing is merged automatically. It needs
+"Allow GitHub Actions to create and approve pull requests" on (Settings > Actions > General).
+Not covered: a new dungeon's layout in `DUNGEONS` is still written by hand, and the compendium (the
+subclass, Exotic and artifact lists) can lag behind the game. Ability and artifact text drop the
+game's inline icon tokens (element and Champion icons; button prompts become words), and ability
+text is looked up ignoring case and "&"/"and", since Bungie and the compendium spell a few names
+differently. Downloads retry on Bungie server errors.
 
 Dungeon layouts (`DUNGEONS` in `src/data.ts`) are written in play order, for example `['C', 'E:Phry’zhia The Insatiable', ...]`: `E:` is an encounter, `F:` the final boss, and `C` a secret chest. Chest positions are worked out from that order.
 

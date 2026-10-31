@@ -31,3 +31,4 @@ dist-*
 test-results
 playwright-report
 tools/__pycache__/
+.cache/

@@ -79,8 +79,13 @@ export function subclassAbilities(cls: ClassType, element: Element): Ability[] {
   ]
 }
 
+// Bungie and the compendium spell a few names differently ("Silence and Squall", "Into the Fray"):
+// in-game text is looked up ignoring case and "&" / "and".
+const textKey = (id: string) => id.toLowerCase().replace(/ & /g, ' and ')
+const GAME_ABILITY_TEXT = new Map(Object.entries(ABILITY_TEXT).map(([k, v]) => [textKey(k), v]))
+
 /** The ability's in-game description (falls back to the compendium's note). */
-export const abilityDesc = (id: string): string | undefined => ABILITY_TEXT[id] ?? CLASS_ABILITY_DESC[id] ?? C.desc[id]
+export const abilityDesc = (id: string): string | undefined => GAME_ABILITY_TEXT.get(textKey(id)) ?? CLASS_ABILITY_DESC[id] ?? C.desc[id]
 
 export function abilityById(id: string): Ability {
   const [element, kind, name] = id.split('|') as [Element, AbilityKind, string]

@@ -1,0 +1,112 @@
+# Weekly game data refresh: re-reads Bungie's manifest and the Destiny Data Compendium, regenerates
+# the app's data files, runs the tests, and opens (or updates) a pull request into nightly when
+# anything changed. Nothing is merged automatically.
+#
+# Needs: Settings > Actions > General > "Allow GitHub Actions to create and approve pull requests".
+name: Refresh game data
+
+on:
+  schedule:
+    - cron: '43 2 * * 3' # Wednesdays 02:43 UTC, after Tuesday's 17:00 UTC weekly reset
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: refresh-game-data
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: nightly
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download and regenerate
+        run: |
+          python3 tools/fetch_sources.py "$RUNNER_TEMP/gd-sources" public/bungie-items.json public/bungie-icons.json public/bungie-exotics.json public/bungie-tiers.json src/artifactText.ts src/abilityText.ts
+          python3 tools/parse_compendium.py "$RUNNER_TEMP/gd-sources" src/compendium.ts
+
+      - name: Anything new?
+        id: diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Game data is unchanged."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git diff --stat | tee "$RUNNER_TEMP/stat.txt"
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.diff.outputs.changed == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Type check and tests
+        id: tests
+        if: steps.diff.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          npx tsc -b 2>&1 | tee "$RUNNER_TEMP/tests.txt"
+          npm run test:e2e 2>&1 | tee -a "$RUNNER_TEMP/tests.txt"
+
+      - name: Open or update the pull request
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTS: ${{ steps.tests.outcome }}
+        run: |
+          branch=data/weekly-refresh
+          version=$(python3 -c "import json; print(json.load(open('public/bungie-items.json'))['version'])")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git checkout -B "$branch"
+          git add -A public src
+          git commit -m "Refresh game data (Bungie manifest $version)"
+          git push -f origin "$branch"
+          {
+            echo "Weekly refresh of the game data from Bungie's manifest ($version) and the Destiny Data Compendium."
+            echo
+            if [ "$TESTS" = success ]; then echo "**Tests: passed.**"; else echo "**Tests: failed.** See the log below and the workflow run before merging."; fi
+            echo
+            echo '### Changed files'
+            echo '```'
+            cat "$RUNNER_TEMP/stat.txt"
+            echo '```'
+            echo
+            echo '<details><summary>Test log (last 60 lines)</summary>'
+            echo
+            echo '```'
+            tail -n 60 "$RUNNER_TEMP/tests.txt"
+            echo '```'
+            echo '</details>'
+            echo
+            echo 'Not covered: a new dungeon still needs its layout added to `DUNGEONS` in `src/data.ts` by hand, and the compendium can lag behind the game.'
+            echo
+            echo "Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          } > "$RUNNER_TEMP/body.md"
+          if [ "$(gh pr view "$branch" --json state -q .state 2>/dev/null)" = OPEN ]; then
+            gh pr edit "$branch" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base nightly --head "$branch" --title 'Weekly game data refresh' --body-file "$RUNNER_TEMP/body.md"
+          fi
