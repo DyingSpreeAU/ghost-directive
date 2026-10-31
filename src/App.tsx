@@ -2,6 +2,7 @@ import { BugReport } from './BugReport'
 import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Briefing, SidePlayer } from './Briefing'
+import { isZorpalod, useZorpalod } from './easterEggs'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
 import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
@@ -551,6 +552,8 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
 
   // Decisions that belong to this device open by themselves: your rewards first, then overflow swaps.
   const me = run?.players.find((p) => p.id === myPlayerId)
+  // Easter egg (EASTER_EGGS.md): calling yourself Zorpalod turns every image into the owl, on this device only.
+  useZorpalod(isZorpalod(me?.name ?? lobby?.seats.find((x) => x.clientId === base.me)?.name))
   useAutoSync(run, me, base.dispatch, setToastMsg)
   const myPending = run && me ? run.pending.filter((x) => x.playerId === me.id) : []
   const autoReward = myPending.find((x) => !deferred.includes(x.id))

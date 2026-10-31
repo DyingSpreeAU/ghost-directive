@@ -1461,3 +1461,6 @@ body:has(.channel-badge) .mini-dock { top: 34px; } /* under the nightly badge */
 .at-note { font-size: 0.76rem; color: var(--dim); }
 @keyframes at-step { 0%, 22% { box-shadow: 0 0 0 2px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 60%, transparent); } 30%, 100% { box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { .at-tile { animation: none; } }
+
+/* Easter egg (EASTER_EGGS.md): a Guardian named Zorpalod sees the owl on emblems too. */
+html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; background-size: auto, 20.25% 100%, auto !important; background-repeat: no-repeat !important; }
