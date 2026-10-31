@@ -40,6 +40,12 @@ test('armor tiers: each Guardian must choose; simulated armor keeps the grey pie
   await expect(page.locator('.begin-bar')).toContainText('Every Guardian picks real or simulated armor tiers')
   await expect(page.locator('button:has-text("Begin run")')).toBeDisabled()
   await expect(page.locator('.seat.is-you .armor-tiers .at-row')).toHaveCount(2)
+  // Every step has a real icon, and they follow the seat's class.
+  const pics = page.locator('.seat.is-you .armor-tiers img')
+  await expect(pics).toHaveCount(8)
+  const before = await pics.first().getAttribute('src')
+  await page.click(`.seat.is-you [aria-label="Class"] button:not([aria-checked="true"])`)
+  await expect(pics.first()).not.toHaveAttribute('src', before!)
   await pickArmor(page, 'Simulated')
   await page.click('button:has-text("Begin run")')
   await page.waitForSelector('#arsenal')

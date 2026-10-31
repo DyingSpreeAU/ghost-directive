@@ -2,6 +2,13 @@ import { tierArmor, type ClassType, type Rarity } from './data'
 import type { ArmorMode } from './model'
 import { useIcons } from './icons'
 
+/** A grey helmet and a Legendary one for each class, for the first and last steps (real Bungie items). */
+const ENDS: Record<ClassType, { grey: string; legendary: string }> = {
+  Titan: { grey: 'Brave Titan Helm', legendary: 'Calamity Rig Helm' },
+  Hunter: { grey: 'Daring Hunter Mask', legendary: 'Calamity Rig Mask' },
+  Warlock: { grey: 'Wise Warlock Hood', legendary: 'Calamity Rig Cover' },
+}
+
 const STEPS: { tier: Rarity; label: string }[] = [
   { tier: 'Common', label: 'Grey' }, { tier: 'Uncommon', label: 'Green' }, { tier: 'Rare', label: 'Blue' }, { tier: 'Legendary', label: 'Legendary drop' },
 ]
@@ -22,13 +29,18 @@ function Helmet() {
  */
 export function ArmorTiersGraphic({ cls, chosen }: { cls: ClassType; chosen?: ArmorMode }) {
   const icons = useIcons()
-  const real = (tier: Rarity) => { const n = tierArmor(cls, 'Helmet', tier); return n ? icons.gear(n, 'Helmet', tier) : undefined }
+  // The class's own pieces: its grey helmet, the tier pieces (real) or the grey one again (simulated), a Legendary.
+  const piece = (mode: ArmorMode, tier: Rarity) => {
+    const name = tier === 'Common' || (mode === 'simulated' && tier !== 'Legendary') ? ENDS[cls].grey
+      : tier === 'Legendary' ? ENDS[cls].legendary : tierArmor(cls, 'Helmet', tier)
+    return name ? icons.gear(name, 'Helmet', tier === 'Legendary' || tier === 'Common' || mode === 'collections' ? tier : 'Common') : undefined
+  }
   const row = (mode: ArmorMode) => (
     <div className={`at-row ${chosen === mode ? 'is-chosen' : ''}`}>
       <span className="at-mode">{mode === 'collections' ? 'Real pieces' : 'Simulated'}</span>
       <ol className="at-steps">
         {STEPS.map((s, i) => {
-          const icon = mode === 'collections' && i > 0 && i < 3 ? real(s.tier) : undefined
+          const icon = piece(mode, s.tier)
           return (
             <li key={s.tier} className={`at-step r-${s.tier.toLowerCase()}`} style={{ ['--i' as string]: i }}>
               <span className={`at-tile ${mode === 'simulated' && i > 0 && i < 3 ? 'is-tinted' : ''}`}>{icon ? <img src={icon} alt="" loading="lazy" /> : <Helmet />}</span>
