@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
-import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, sandbox, startRarities, type Ruleset, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type Lobby, type Player, type Run, type Seat } from './model'
+import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, armorChoice, needsArmor, sandbox, startRarities, type Ruleset, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type ArmorMode, type Lobby, type Player, type Run, type Seat } from './model'
 import { allProtocols, endSavedRuns, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { RestoreGuardian, reportLink, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
+import { ArmorTiersGraphic } from './ArmorTiers'
 
 type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean }
 
@@ -131,6 +132,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               editable={editable}
               onPatch={(p) => patchSeat(s, p)}
               notice={undefined}
+              armorAsk={armorChoice(lobby.ruleset)}
               sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
               equipped={s.clientId === me ? <EquippedNow eq={eq} seat={s} ruleset={lobby.ruleset} onApply={(patch) => patchSeat(s, patch)} /> : undefined}
               hostTools={role === 'host' && !s.isHost ? {
@@ -211,8 +213,16 @@ function SeatPicker({ lobby }: { lobby: Lobby }) {
   )
 }
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped, statusLabel, resume }: {
+/** The two ways armor can climb its tiers, as offered in each seat. */
+const ARMOR_MODES: { value: ArmorMode; title: string; blurb: string }[] = [
+  { value: 'collections', title: 'Real pieces', blurb: 'Pull each tier’s armor from Collections (or your Vault) and wear it, like the weapons.' },
+  { value: 'simulated', title: 'Simulated', blurb: 'Keep wearing your grey armor. The app colours it green, then blue, as the slot climbs. Nothing to pull.' },
+]
+
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped, statusLabel, resume, armorAsk }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
+  /** The Directive lets each Guardian choose real or simulated armor tiers. */
+  armorAsk?: boolean
   /** Replaces the lobby's own status word (the resume screen shows Restored or Waiting). */
   statusLabel?: string
   /** On the resume screen: Bungie sign-in is about restoring, not the Vault. */
@@ -234,7 +244,8 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
   const always = baseKit(seat.cls, seat.element)
   // Someone else's seat shows the same full layout, read-only.
   const ro = !editable
-  const status = statusLabel ?? (seat.clientId === null ? (art ? 'No device' : 'Needs artifact') : connected ? ((seat.ready || seat.isHost) && art ? 'Ready' : 'Setting up') : 'Disconnected')
+  const armorOk = !armorAsk || !!seat.armor
+  const status = statusLabel ?? (seat.clientId === null ? (!art ? 'Needs artifact' : !armorOk ? 'Needs armor tiers' : 'No device') : connected ? ((seat.ready || seat.isHost) && art && armorOk ? 'Ready' : 'Setting up') : 'Disconnected')
   const chip = (id: string, on: boolean, onClick: () => void) => {
     const a = abil.find((x) => x.id === id)
     if (!a) return null
@@ -318,11 +329,27 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
               : <small className="tone-warn">{ro ? 'Not chosen yet.' : 'Pick one before the run starts. All Artifact research comes from it.'}</small>}
           </section>
 
+          {armorAsk && (
+            <section className="g-sec" aria-label="Armor tiers">
+              <header className="g-sec-head"><span className="eyebrow">Armor tiers</span><span className="muted small">locked for the run</span></header>
+              <div className="armor-pick" role="radiogroup" aria-label="Armor tiers">
+                {ARMOR_MODES.map((o) => (
+                  <button key={o.value} role="radio" aria-checked={seat.armor === o.value} className={`armor-opt ${seat.armor === o.value ? 'is-on' : ''}`} disabled={ro} onClick={() => onPatch({ armor: o.value })}>
+                    <strong>{o.title}</strong>
+                    <span className="muted small">{o.blurb}</span>
+                  </button>
+                ))}
+              </div>
+              <ArmorTiersGraphic cls={seat.cls} chosen={seat.armor} />
+              {!seat.armor && <small className="tone-warn">{ro ? 'Not chosen yet.' : 'Pick one before the run starts.'}</small>}
+            </section>
+          )}
+
           {equipped}
           {notice}
           {!ro && !seat.isHost && seat.clientId !== null && (
-            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
-              {seat.ready ? 'Not ready yet' : art ? 'I\u2019m ready' : 'Choose an artifact first'}
+            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={(!art || !armorOk) && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
+              {seat.ready ? 'Not ready yet' : !art ? 'Choose an artifact first' : !armorOk ? 'Choose armor tiers first' : 'I\u2019m ready'}
             </button>
           )}
       </div>
@@ -533,6 +560,7 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
   const [confirm, setConfirm] = useState(false)
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
+  const noArmor = lobby.seats.filter((s) => needsArmor(lobby, s))
   const noRoute = lobby.route.length === 0
   const { host } = useGD()
   const replaces = host?.store.saved ?? []
@@ -544,14 +572,15 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
         {readyRow ?? (notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>)}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
+        {noArmor.length > 0 && <p className="small tone-danger">Every Guardian picks real or simulated armor tiers. Still to choose: {noArmor.map((s) => s.name).join(', ')}</p>}
         {replaces.length > 0 && <p className="small tone-warn">Beginning ends your saved run{replaces.length > 1 ? 's' : ''} {replaces.map((r) => `\u201c${r.name}\u201d`).join(', ')}: only one run is kept at a time. {replaces.length > 1 ? 'They move' : 'It moves'} to Run History.</p>}
         {notice}
       </div>
       <div className="begin-acts">
-        <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || notReady.length > 0} onClick={onBegin}>
+        <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || noArmor.length > 0 || notReady.length > 0} onClick={onBegin}>
           {notReady.length ? `Waiting on ${notReady.length} Guardian${notReady.length === 1 ? '' : 's'}` : <>Begin run<span className="hide-narrow"> and lock route</span></>}
         </button>
-        {notReady.length > 0 && !noRoute && noArtifact.length === 0 && (confirm ? (
+        {notReady.length > 0 && !noRoute && noArtifact.length === 0 && noArmor.length === 0 && (confirm ? (
           <div className="override">
             <p className="small tone-warn">{notReady.map((s) => s.name).join(', ')} {notReady.length === 1 ? 'isn’t' : 'aren’t'} ready. Their setup may not match the run&rsquo;s starting rules.</p>
             <div className="row-acts"><button className="btn btn-ghost btn-sm" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-danger btn-sm" onClick={onBegin}>Begin anyway</button></div>
@@ -606,7 +635,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
           <li><strong>The fireteam wipes:</strong> <span className="tone-danger">&minus;{i.wipe}</span> Integrity.</li>
           <li className="rules-key"><strong>What counts as a wipe:</strong> every Guardian in the fireteam dead at the same time, at any point in the run. That includes traversal sections and anywhere the game would let you revive or respawn: no wipe mechanic or Darkness zone is needed. Record it as one wipe, not as separate deaths.</li>
           {r.progression && (
-            <li><strong>Gear progression:</strong> weapons start at <TierWord tier={g.weapons} />, the heavy weapon at <TierWord tier={g.heavy} /> and armor at <TierWord tier={g.armor} />; each slot climbs towards <TierWord tier="Legendary" />. Each {sb.tierUpDrops === 'legendary' ? 'Legendary' : 'non-Exotic'} drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). {sb.exoticsAnyTime ? 'Exotics can be used at any time.' : 'Exotics count as drops too.'}{sb.bonusChance > 0 && <> After any reward there&rsquo;s a {pct(sb.bonusChance)} BONUS: move any slot up a tier.</>}</li>
+            <li><strong>Gear progression:</strong> weapons start at <TierWord tier={g.weapons} />, the heavy weapon at <TierWord tier={g.heavy} /> and armor at <TierWord tier={g.armor} />; each slot climbs towards <TierWord tier="Legendary" />. Each {sb.tierUpDrops === 'legendary' ? 'Legendary' : 'non-Exotic'} drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). {sb.armorTiers === 'choose' ? ' Armor: each Guardian picks real pieces (pulled like the weapons) or simulated (keep the grey armor; the app shows the tier) in their seat.' : sb.armorTiers === 'simulated' ? ' Armor is simulated: keep wearing the grey armor; the app shows each slot\u2019s tier.' : ''} {sb.exoticsAnyTime ? 'Exotics can be used at any time.' : 'Exotics count as drops too.'}{sb.bonusChance > 0 && <> After any reward there&rsquo;s a {pct(sb.bonusChance)} BONUS: move any slot up a tier.</>}</li>
           )}
           <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> {sb.tradeUpExotics ? 'Legendary or Exotic' : 'Legendary'} items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression && sb.tradeUpNeedsLegendary ? ' that\u2019s reached Legendary' : ''}{sb.tradeUpNeedsRoom && r.inventory.capacity < tu.inputs ? `, once your slots can hold ${tu.inputs} (an Arsenal Expansion adds one)` : ''} for a Legendary from your Vault.</> : null}</li>
           <li><strong>{sb.startAbilities === 'all' ? 'Artifact perks' : 'Abilities and artifact perks'}</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>

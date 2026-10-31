@@ -1,5 +1,5 @@
 // The app signed in to a simulated Bungie account: restore, resume, exact copies, moves.
-import { test, expect, fresh, signIn, stubBungie, account, item, nameOf, I, B, HUNTER, TITAN, later, collapseTools, store, tools, editStore } from './helpers'
+import { test, expect, fresh, signIn, stubBungie, account, item, nameOf, I, B, HUNTER, TITAN, later, collapseTools, store, tools, editStore, pickArmor } from './helpers'
 
 test('restore puts the run setup back: vaults extras, pulls run items home', async ({ page, baseURL }) => {
   const a = account()
@@ -10,6 +10,7 @@ test('restore puts the run setup back: vaults extras, pulls run items home', asy
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal')
   await later(page)
@@ -37,6 +38,7 @@ test('reopened run: gear from the break is not a drop; restoring lets play conti
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal'); await later(page)
   await tools(page, () => page.click('.devtools button:has-text("All slots Legendary")'))
@@ -67,6 +69,7 @@ test('a duplicate copy is flagged, and can be swapped in as the run’s copy', a
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal'); await later(page)
   await tools(page, () => page.click('.devtools button:has-text("All slots Legendary")'))
@@ -90,6 +93,7 @@ test('a trade-up pulls the Vault copy, not one already on the character', async 
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal'); await later(page)
   await tools(page, async () => { await page.click('.devtools button:has-text("All slots Legendary")'); await page.click('.devtools button:has-text("Empty inventory")') })
@@ -131,6 +135,7 @@ test('a name shared by a grey and a Legendary: the run takes the Legendary copy'
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal'); await later(page)
   await tools(page, async () => { await page.click('.devtools button:has-text("All slots Legendary")'); await page.click('.devtools button:has-text("Empty inventory")') })
@@ -162,6 +167,7 @@ async function progressionRun(page: import('@playwright/test').Page, a: ReturnTy
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal'); await later(page)
   await expect.poll(async () => (await store(page)).active.players[0].inventory.length).toBe(8)
@@ -212,6 +218,7 @@ test('run stats: post-game reports and live weapon kill trackers reach the Guard
   await page.waitForSelector('.equipped-grid .item')
   await collapseTools(page)
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run and lock route")')
   await page.waitForSelector('#arsenal')
   await later(page)

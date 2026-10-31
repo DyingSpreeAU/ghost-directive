@@ -76,7 +76,14 @@ export type Sandbox = {
   tradeUpNeedsRoom: boolean
   /** Honour rule (the app can't see it): no Rally Banners during the run. */
   noRallyBanners: boolean
+  /**
+   * How armor climbs its tiers (with progression): each Guardian picks in the lobby, or everyone
+   * pulls the real pieces, or everyone keeps their grey armor and the app shows the tier.
+   */
+  armorTiers: 'choose' | ArmorMode
 }
+/** Real armor pieces from Collections, or simulated tiers on the grey armor already worn. */
+export type ArmorMode = 'collections' | 'simulated'
 
 export const SANDBOX_DEFAULTS: Sandbox = {
   finalClear: 0, chestFound: 0, secretChests: true,
@@ -84,7 +91,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   bonusChance: 10, exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
-  tierUpDrops: 'legendary', noRallyBanners: false,
+  tierUpDrops: 'legendary', noRallyBanners: false, armorTiers: 'choose',
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -233,6 +240,8 @@ export type Player = {
   bungie?: BungieLink
   /** Individual deaths recorded this run. */
   deaths?: number
+  /** Armor tiers for this Guardian, chosen in the lobby and kept for the run (missing: real pieces). */
+  armorTiers?: ArmorMode
   /** Combat stats from Bungie, read on the player's device: post-game reports and weapon kill trackers. */
   stats?: PlayerStats
   /** Items that left the run, with what happened to them (newest first), so a sync can tell what's allowed. */
@@ -542,6 +551,26 @@ export function slotTier(run: Run, p: Player, slot: Slot): Rarity {
   return run.ruleset.progression && p.tiers ? p.tiers[slot] ?? 'Legendary' : 'Legendary'
 }
 
+const ARMOR_SLOTS: Slot[] = ['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
+/** A Guardian's armor tiers: the Directive's, or their own pick when it lets each choose. */
+export function armorMode(run: Run, p: Player): ArmorMode {
+  const set = sandbox(run.ruleset).armorTiers
+  return set === 'choose' ? p.armorTiers ?? 'collections' : set
+}
+/** Whether a lobby has each Guardian choose their armor tiers. */
+export const armorChoice = (r: Ruleset) => !!r.progression && sandbox(r).armorTiers === 'choose'
+/** A seat still has to choose its armor tiers. */
+export const needsArmor = (l: Lobby, s: Seat) => armorChoice(l.ruleset) && !s.armor
+/**
+ * How a run item looks with simulated armor: the grey piece worn below Legendary takes the slot's
+ * tier colour. Everything else shows its own rarity.
+ */
+export function shownRarity(run: Run, p: Player, it: Pick<Item, 'slot' | 'rarity'>): Rarity {
+  if (!ARMOR_SLOTS.includes(it.slot) || armorMode(run, p) !== 'simulated') return it.rarity
+  const tier = slotTier(run, p, it.slot)
+  return tier !== 'Legendary' && RARITIES.indexOf(it.rarity) < RARITIES.indexOf(tier) ? tier : it.rarity
+}
+
 /** Whether a drop of this rarity raises a slot below Legendary under the Directive. */
 export const raisesTier = (run: Run, rarity: Rarity) => rarity === 'Legendary' || rarity === 'Exotic' || sandbox(run.ruleset).tierUpDrops === 'any'
 
@@ -552,11 +581,14 @@ export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reas
   const to = nextTier(from)
   p.tiers[slot] = to
   const up: Upgrade = { id: uid(), slot, from, to, reason, drop }
-  const armor = tierArmor(p.cls, slot, to)
+  const simulated = ARMOR_SLOTS.includes(slot) && armorMode(run, p) === 'simulated' && to !== 'Legendary'
+  const armor = simulated ? null : tierArmor(p.cls, slot, to)
   if (armor) up.item = armor
-  p.upgrades = [...(p.upgrades ?? []), up]
   const why = reason === 'bonus' ? 'BONUS' : reason === 'reward' ? 'a final-boss reward' : `a drop (${drop?.name ?? 'unknown'})`
-  log(run, 'upgrade', `${p.name}'s ${slot} went up a tier: ${from} \u2192 ${to}, from ${why}.`)
+  log(run, 'upgrade', `${p.name}'s ${slot} went up a tier: ${from} \u2192 ${to}, from ${why}.${simulated ? ' Simulated armor: no piece to pull.' : ''}`)
+  // Simulated armor has nothing to do in game, except putting away the drop that raised it.
+  if (simulated && reason !== 'drop') return up
+  p.upgrades = [...(p.upgrades ?? []), up]
   return up
 }
 
@@ -1253,6 +1285,8 @@ export type Seat = {
   checklist: Record<ChecklistKey, boolean>
   /** Artifact chosen for the run; '' until picked. Required before the run starts. */
   artifact: string
+  /** Armor tiers, when the Directive lets each Guardian choose; required before the run starts then. */
+  armor?: ArmorMode
   /** The player changed class, subclass or abilities themselves, so Bungie auto-fill leaves the seat alone. */
   custom?: boolean
   /** The Bungie.net account of the seat's device (see bindBungieId). */
@@ -1344,14 +1378,14 @@ export function bindBungieId(target: { run: Run | null; lobby: Lobby | null }, c
 export function runFromLobby(l: Lobby): Run {
   const players: Player[] = l.seats.map((s, i) => {
     const p = newPlayer(i + 1, s.cls, s.element)
-    return { ...p, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: sandbox(l.ruleset).startAbilities === 'all' ? subclassAbilities(s.cls, s.element).map((a) => a.id) : [...STARTER_KINDS.map((k) => starterOf(s)[k]), ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
+    return { ...p, armorTiers: armorChoice(l.ruleset) ? s.armor : undefined, id: s.id, clientId: s.clientId, name: s.name.trim() || `Guardian ${i + 1}`, isHost: s.isHost, unlocked: sandbox(l.ruleset).startAbilities === 'all' ? subclassAbilities(s.cls, s.element).map((a) => a.id) : [...STARTER_KINDS.map((k) => starterOf(s)[k]), ...baseKit(s.cls, s.element)], checklist: { ...s.checklist }, artifactName: s.artifact || undefined, bungieId: s.bungieId }
   })
   return createRun({ ruleset: l.ruleset, players, expedition: l.expedition, route: l.route, code: l.code, name: l.name.trim() || undefined })
 }
 
 export type LobbyIntent =
   | { type: 'seat-claim'; seatId: string | null }
-  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean } }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact' | 'emblem' | 'armor'>> & { auto?: boolean } }
   | { type: 'seat-leave' }
 
 /** Seat changes from a player's device (or the host for their own seat). */
@@ -1391,9 +1425,10 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
         for (const [k, v] of Object.entries(pt.checklist as Record<string, unknown>)) if (k in mine.checklist) mine.checklist[k as ChecklistKey] = !!v
       }
       if (typeof pt.artifact === 'string' && artifactByName(pt.artifact)) mine.artifact = pt.artifact
+      if (pt.armor === 'collections' || pt.armor === 'simulated') mine.armor = pt.armor
       const em = (pt.emblem ?? {}) as { icon?: unknown; background?: unknown }
       if (iconPath(em.icon) && iconPath(em.background)) mine.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
-      if (typeof pt.ready === 'boolean') mine.ready = pt.ready && !!mine.artifact
+      if (typeof pt.ready === 'boolean') mine.ready = pt.ready && !!mine.artifact && !needsArmor(l, mine)
       return null
     }
     case 'seat-leave': {

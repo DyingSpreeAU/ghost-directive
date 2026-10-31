@@ -1,4 +1,4 @@
-import { test, expect, fresh, collapseTools, later, store } from './helpers'
+import { test, expect, fresh, collapseTools, later, store, pickArmor } from './helpers'
 
 test('sandbox editor: change rules, see the summary, save, and the run follows them', async ({ page }) => {
   await fresh(page)
@@ -33,6 +33,7 @@ test('sandbox editor: change rules, see the summary, save, and the run follows t
   await expect(page.locator('.setup-guide')).not.toContainText('No aspects')
   await expect(page.locator('.setup-guide')).toContainText('No Rally Banners: don’t place a Rally Banner')
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run")')
   await expect(page.locator('.command')).toBeVisible()
   await later(page)

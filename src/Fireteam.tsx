@@ -5,7 +5,7 @@ import { useState } from 'react'
 import {
   ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
 } from './data'
-import { FATE_LABEL, capacityOf, equippedNotUnlocked, itemsIn, sandbox, slotTier, tradeTierOk, tradeableFor, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
+import { FATE_LABEL, armorMode, shownRarity, capacityOf, equippedNotUnlocked, itemsIn, sandbox, slotTier, tradeTierOk, tradeableFor, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
@@ -70,7 +70,7 @@ function GuardianColumn({ run, p, warnings, showLocked }: { run: Run; p: Player;
         <ElementMark element={p.element} size={22} />
         <div>
           <h3>{p.name}</h3>
-          <div className="player-sub">{p.element} {p.cls}{p.isHost && <span className="tag tag-host">Host</span>}{p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} · ${p.bungie.character}`}>Bungie</span>}</div>
+          <div className="player-sub">{p.element} {p.cls}{p.isHost && <span className="tag tag-host">Host</span>}{run.ruleset.progression && armorMode(run, p) === 'simulated' && <span className="tag tag-sim" title="Armor tiers are simulated: grey armor is worn until Legendary, and the app shows each slot's tier.">Simulated armor</span>}{p.bungie && <span className="tag tag-bungie" title={`${p.bungie.name} · ${p.bungie.character}`}>Bungie</span>}</div>
         </div>
         <span className={`device dev-${device.replace(' ', '').toLowerCase()}`}>{device}</span>
       </header>
@@ -166,7 +166,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               {/* Like Destiny's inventory: the first spot, a size up, is the equipped one (see .tiles.has-eq). */}
               <div className="tiles has-eq" style={{ ['--n' as string]: Math.max(cap, items.length, 4), ['--n1' as string]: Math.max(cap, items.length, 4) - 1 }}>
                 {[...items].sort((a, b) => Number(b.equipped) - Number(a.equipped)).map((it, i) => (
-                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} icon={icons.gear(it.name, it.slot, it.rarity)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
+                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} shown={shownRarity(run, p, it)} icon={icons.gear(it.name, it.slot, it.rarity)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
                 {Array.from({ length: Math.max(0, cap - items.length) }, (_, i) => (
                   control && !p.bungie
@@ -209,7 +209,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
                 <div className={`tile-detail ${rarityClass(sel.rarity)}`} role="group" aria-label={sel.name}>
                   <div className="item-main">
                     <span className="item-name">{removing ? `Dismantled ${sel.name}?` : sel.name}</span>
-                    <span className="item-meta">{removing ? 'It comes out of your run inventory. Press this only once you’ve dismantled it in Destiny 2.' : <>{sel.rarity} &middot; {sel.source}{sel.equipped ? ' · Equipped' : ''}</>}</span>
+                    <span className="item-meta">{removing ? 'It comes out of your run inventory. Press this only once you’ve dismantled it in Destiny 2.' : <>{sel.rarity}{shownRarity(run, p, sel) !== sel.rarity && <> (counts as <TierWord tier={shownRarity(run, p, sel)} />, simulated armor)</>} &middot; {sel.source}{sel.equipped ? ' · Equipped' : ''}</>}</span>
                   </div>
                   {control && (removing ? (
                     <div className="item-acts row">
@@ -269,13 +269,14 @@ function OutsideTile({ u, icon, selected, onSelect, flash }: { u: { name: string
 }
 
 /** One item: its Bungie icon where known, otherwise a rarity-coloured initial. */
-function Tile({ it, icon, over, selected, onSelect, flash }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void; flash?: string }) {
+function Tile({ it, icon, over, selected, onSelect, flash, shown = it.rarity }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void; flash?: string; shown?: Rarity }) {
   const [broken, setBroken] = useState(false)
+  const sim = shown !== it.rarity
   return (
     <button
       data-flash={flash}
-      className={`tile item ${rarityClass(it.rarity)} ${it.equipped ? 'is-eq' : ''} ${over ? 'is-over' : ''} ${selected ? 'is-selected' : ''}`}
-      title={`${it.name} · ${it.rarity}${it.equipped ? ' · Equipped' : ''}`}
+      className={`tile item ${rarityClass(shown)} ${sim ? 'is-sim' : ''} ${it.equipped ? 'is-eq' : ''} ${over ? 'is-over' : ''} ${selected ? 'is-selected' : ''}`}
+      title={`${it.name} · ${sim ? `${it.rarity}, counts as ${shown} (simulated armor)` : it.rarity}${it.equipped ? ' · Equipped' : ''}`}
       aria-label={`${it.name}, ${it.rarity}${it.equipped ? ', equipped' : ''}`}
       aria-pressed={selected}
       onClick={onSelect}

@@ -1,5 +1,5 @@
 // Host and guest on separate browsers through the local lobby server.
-import { test, expect, fresh, stubBungie, account, item, I, B, HUNTER, collapseTools } from './helpers'
+import { test, expect, fresh, stubBungie, account, item, I, B, HUNTER, collapseTools, pickArmor } from './helpers'
 
 test('guest joins, readies up, and on a reopened run can only restore', async ({ browser, baseURL }) => {
   test.setTimeout(180_000)
@@ -22,9 +22,11 @@ test('guest joins, readies up, and on a reopened run can only restore', async ({
   await guest.click('text=Join as a new Guardian', { timeout: 30_000 })
   await collapseTools(guest)
   await guest.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(guest)
   await guest.click('text=I’m ready')
   await collapseTools(host)
   await host.click('.seat.is-you .art-pick [role=radio][title^="Encrypted Data Disk"]')
+  await pickArmor(host)
   await expect(host.locator('.seat-status.st-ready')).toHaveCount(2)
   await host.click('text=Begin run and lock route')
   await expect(guest.locator('#arsenal')).toBeVisible()
@@ -62,9 +64,11 @@ test('a guest records a clear, a wipe and another Guardian’s death', async ({ 
   await guest.click('text=Join as a new Guardian', { timeout: 30_000 })
   await collapseTools(guest)
   await guest.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(guest)
   await guest.click('text=I’m ready')
   await collapseTools(host)
   await host.click('.seat.is-you .art-pick [role=radio][title^="Encrypted Data Disk"]')
+  await pickArmor(host)
   await expect(host.locator('.seat-status.st-ready')).toHaveCount(2)
   await host.click('text=Begin run and lock route')
   await expect(guest.locator('#arsenal')).toBeVisible()

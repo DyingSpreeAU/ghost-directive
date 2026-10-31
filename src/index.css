@@ -1419,3 +1419,45 @@ body:has(.channel-badge) .mini-dock { top: 34px; } /* under the nightly badge */
 .weapon-kills li > span:first-child, .g-live li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wk-bar { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--light) var(--w), var(--seam) var(--w)); }
 .g-live li { display: flex; justify-content: space-between; gap: 8px; }
+
+/* ---------------------------------------------------------------- simulated armor tiers */
+/* A grey piece counting as a higher tier: its icon's grey background takes the tier colour. */
+.tiles .tile.item.is-sim { position: relative; }
+.tiles .tile.item.is-sim::after, .at-tile.is-tinted::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(circle at 50% 45%, transparent 30%, var(--rc) 95%);
+  mix-blend-mode: color; opacity: 0.95;
+}
+.tiles .tile.item.is-sim::before, .at-tile.is-tinted::before {
+  content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: radial-gradient(circle at 50% 45%, transparent 45%, color-mix(in srgb, var(--rc) 35%, transparent) 100%);
+}
+.tag-sim { border-color: var(--r-uncommon); color: var(--r-uncommon); }
+
+.armor-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.armor-opt { display: grid; gap: 4px; text-align: left; padding: 10px 12px; background: var(--ink); border: 1px solid var(--seam); border-radius: var(--radius); }
+.armor-opt strong { font-family: var(--f-display); font-size: 1rem; letter-spacing: 0.04em; text-transform: uppercase; }
+.armor-opt:hover:not(:disabled) { border-color: var(--dim); }
+.armor-opt.is-on { border-color: var(--light); box-shadow: inset 0 0 0 1px var(--light); }
+@media (max-width: 480px) { .armor-pick { grid-template-columns: minmax(0, 1fr); } }
+
+.armor-tiers { margin: 4px 0 0; display: grid; gap: 10px; padding: 12px; background: var(--ink); border: 1px solid var(--seam); border-radius: var(--radius); }
+.at-row { display: grid; gap: 6px; opacity: 0.75; transition: opacity 0.2s; }
+.at-row.is-chosen, .armor-tiers:not(:has(.is-chosen)) .at-row { opacity: 1; }
+.at-mode { font-family: var(--f-display); font-size: 0.74rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); }
+.at-row.is-chosen .at-mode { color: var(--light); }
+.at-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.at-step { display: grid; justify-items: center; gap: 4px; position: relative; }
+.at-step + .at-step::before { content: '\2192'; position: absolute; left: -9px; top: 16px; color: var(--dim); font-size: 0.8rem; }
+.at-tile {
+  position: relative; overflow: hidden; width: 44px; height: 44px; display: grid; place-items: center;
+  background: radial-gradient(circle at 50% 40%, #6b6b6b, #3c3c3c); border: 1px solid color-mix(in srgb, var(--rc) 70%, var(--seam)); border-bottom: 3px solid var(--rc);
+  animation: at-step 4.8s calc(var(--i) * 1.2s) infinite;
+}
+.at-step.r-legendary .at-tile { background: radial-gradient(circle at 50% 40%, #7a4f9c, #3b2550); }
+.at-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.at-glyph { width: 26px; height: 26px; fill: none; stroke: #d9d9d9; stroke-width: 1.6; stroke-linejoin: round; position: relative; z-index: 2; }
+.at-label { font-size: 0.68rem; color: var(--dim); text-align: center; line-height: 1.2; }
+.at-note { font-size: 0.76rem; color: var(--dim); }
+@keyframes at-step { 0%, 22% { box-shadow: 0 0 0 2px var(--rc), 0 0 14px color-mix(in srgb, var(--rc) 60%, transparent); } 30%, 100% { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .at-tile { animation: none; } }

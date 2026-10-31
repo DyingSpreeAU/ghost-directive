@@ -828,6 +828,9 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
         ) : (
           <ol className="upgrade-steps">
             {up.reason === 'drop' && up.drop && <li><strong>Dismantle or vault {up.drop.name}</strong> in Destiny 2. It moved your {up.slot} up a tier, but it isn&rsquo;t yours for the run until the slot is Legendary. Vault it if you want to keep it for normal play.</li>}
+            {!weapon && !up.item ? (
+              <li><strong>Keep wearing your {up.slot === 'Class Item' ? ARMOR_PIECE[p.cls].toLowerCase() : ARMOR_PIECE[up.slot].toLowerCase()}.</strong> Your armor tiers are simulated: there&rsquo;s nothing to pull, and the app now shows it as <TierWord tier={up.to} />.</li>
+            ) : <>
             <li>
               {up.item
                 ? <><strong>Use {up.item}</strong>, {up.to === 'Uncommon' ? 'an' : 'a'} <TierWord tier={up.to} /> {weapon ? `${up.slot.toLowerCase()} ${wtype ?? 'weapon'}` : ARMOR_PIECE[up.slot === 'Class Item' ? p.cls : up.slot]}. </>
@@ -839,6 +842,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
                 : <span>Pull it from your Vault, or from <strong>Collections</strong> ({where}) if you don&rsquo;t have one.</span>)}
             </li>
             <li>Your previous {up.slot} item stays in your run inventory as a spare.</li>
+            </>}
           </ol>
         )}
       </div>

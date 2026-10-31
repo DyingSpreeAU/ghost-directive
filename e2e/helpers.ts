@@ -71,12 +71,18 @@ export async function editStore(page: Page, fn: string) {
   await page.reload()
 }
 
+/** Picks armor tiers on your own seat (real pieces unless said otherwise). */
+export async function pickArmor(page: Page, mode: 'Real pieces' | 'Simulated' = 'Real pieces') {
+  await page.click(`.seat.is-you .armor-opt:has-text("${mode}")`)
+}
+
 /** Creates a lobby, picks an artifact and begins a real run. */
 export async function startRun(page: Page, artifact = 'Tablet of Ruin') {
   await page.click('text=Create lobby')
   await page.waitForSelector('.seat')
   await collapseTools(page)
   await page.click(`.seat.is-you .art-pick [role=radio][title^="${artifact}"]`)
+  await pickArmor(page)
   await page.click('button:has-text("Begin run")')
   await page.waitForSelector('.command')
   await later(page)

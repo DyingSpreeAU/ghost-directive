@@ -103,6 +103,17 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   to that copy. Pieces left unlinked by the old behaviour reclaim their copy on the next sync. The
   Directive rule **Drops that move a slot up a tier** (`Sandbox.tierUpDrops`, default Legendary only)
   ignores other drops below Legendary, with no drop notice.
+- **Armor tiers: real or simulated** (`Sandbox.armorTiers`: each Guardian chooses (default), real
+  pieces, or simulated). With "chooses", every seat picks in the lobby (**Real pieces** / **Simulated**,
+  `Seat.armor`, required before Ready and Begin, kept on `Player.armorTiers` for the run), next to a
+  small animated infographic (`ArmorTiersGraphic` in `src/ArmorTiers.tsx`): real pieces change the
+  item at each tier (the class's own tier armor icons), simulated keeps the same grey piece and only
+  its colour changes; both end on a Legendary drop. Simulated armor below Legendary: a drop that raises
+  the slot still asks to dismantle or vault the drop, then says to keep wearing the current piece (no
+  piece to pull, nothing added to the inventory); a BONUS or reward tier-up has nothing to do in game,
+  so no swap screen. The worn grey piece shows the slot's tier (`shownRarity`): tier border, and its
+  icon's grey background tinted green or blue; the column shows "Simulated armor". Reaching Legendary
+  and weapons work the same as before.
 - **Exotic offers** lean only slightly towards subclass synergy: a weighted draw (`favor`, a full match
   1.5× as likely), so any Exotic in your Collections can come up. Exotic class items: Prismatic only.
 - **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the

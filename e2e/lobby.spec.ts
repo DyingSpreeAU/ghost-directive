@@ -1,4 +1,4 @@
-import { test, expect, fresh, collapseTools, later } from './helpers'
+import { test, expect, fresh, collapseTools, later, pickArmor } from './helpers'
 
 test('host lobby: code card, copy, artifact gate, begin', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -14,6 +14,7 @@ test('host lobby: code card, copy, artifact gate, begin', async ({ page, context
   await expect(page.getByText('Every Guardian needs an artifact')).toBeVisible()
   await expect(page.locator('.begin-bar .btn-light')).toBeDisabled()
   await page.click('.seat.is-you .art-pick [role=radio][title^="Tablet of Ruin"]')
+  await pickArmor(page)
   await page.click('button:has-text("Begin run")')
   await expect(page.locator('.command')).toBeVisible()
   await later(page)
