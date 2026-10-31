@@ -3,7 +3,7 @@
 
 import { useState } from 'react'
 import {
-  ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Slot,
+  ABILITY_KINDS, ALL_SLOTS, KIND_PLURAL, ELEMENT_COLOR, RARITIES, abilityById, artifactByName, artifactPerk, abilityDesc, subclassAbilities, type Rarity, type Slot,
 } from './data'
 import { FATE_LABEL, armorMode, shownRarity, capacityOf, equippedNotUnlocked, itemsIn, sandbox, slotTier, tradeTierOk, tradeableFor, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'

@@ -536,7 +536,7 @@ Dungeon layouts (`DUNGEONS` in `src/data.ts`) are written in play order, for exa
 End-to-end tests live in `e2e/` and run with Playwright:
 
 ```
-npm run test:e2e        # everything (about 1.5 minutes)
+npm run test:e2e        # type check (tsc -b, as the Netlify build does), then everything (about 1.5 minutes)
 npm run test:e2e:fast   # skips the multi-size layout sweep (@layout)
 ```
 

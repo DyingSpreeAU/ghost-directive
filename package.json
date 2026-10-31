@@ -9,8 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "build:nightly": "SINGLE=1 VITE_CHANNEL=nightly vite build --outDir dist-nightly",
-    "test:e2e": "playwright test",
-    "test:e2e:fast": "playwright test --grep-invert @layout"
+    "test:e2e": "tsc -b && playwright test",
+    "test:e2e:fast": "tsc -b && playwright test --grep-invert @layout"
   },
   "dependencies": {
     "peerjs": "^1.5.4",

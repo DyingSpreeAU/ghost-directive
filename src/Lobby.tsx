@@ -9,7 +9,7 @@ import { RestoreGuardian, reportLink, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { ArmorTiersGraphic } from './ArmorTiers'
 
-type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem'>> & { auto?: boolean }
+type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem' | 'armor'>> & { auto?: boolean }
 
 export function LobbyView({ lobby }: { lobby: Lobby }) {
   const { role, me, online, host, lobbyAct, toast, net } = useGD()
