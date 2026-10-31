@@ -15,7 +15,7 @@ import { useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter } from './ui'
 
 export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { run: Run; warnings: Warning[]; pendingDeferred: number; onOpenRewards: () => void }) {
-  const { openFlow, host, go, toast, role, myPlayerId, dispatch } = useGD()
+  const { openFlow, host, go, toast, role, myPlayerId, dispatch, canControl } = useGD()
   const isHost = role === 'host'
   const { dungeon, encounter, done, total } = current(run)
   const next = nextEncounter(run)
@@ -157,16 +157,27 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
 
       {warnings.length > 0 && (
         <section className="warnings" aria-label="Warnings">
-          {warnings.map((w) => (
-            <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => { if (!flashTargets(w.flash ?? [])) go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where) }}>
-              <span className="warn-sev">{w.discrepancy ? 'Discrepancy' : w.severity === 'info' ? 'Note' : 'Warning'}</span>
-              <span className="warn-title">
-                {w.playerId && <b>{run.players.find((p) => p.id === w.playerId)?.name}: </b>}
-                {w.title}
-              </span>
-              <span className="warn-rule">{w.rule}</span>
-            </button>
-          ))}
+          {warnings.map((w) => {
+            const card = (
+              <button key={w.id} className={`warn warn-${w.severity}`} onClick={() => { if (!flashTargets(w.flash ?? [])) go('briefing', w.where === 'integrity' ? undefined : w.where === 'setup' ? 'arsenal' : w.where) }}>
+                <span className="warn-sev">{w.discrepancy ? 'Discrepancy' : w.severity === 'info' ? 'Note' : 'Warning'}</span>
+                <span className="warn-title">
+                  {w.playerId && <b>{run.players.find((p) => p.id === w.playerId)?.name}: </b>}
+                  {w.title}
+                </span>
+                <span className="warn-rule">{w.rule}</span>
+              </button>
+            )
+            // A fix the Guardian's own player (or the host, for one with no device) can make right here.
+            if (!w.action || !w.playerId || !canControl(w.playerId)) return card
+            const act = w.action
+            return (
+              <div key={w.id} className="warn-with-act">
+                {card}
+                <button className="btn btn-ghost btn-sm warn-act" onClick={() => { if (dispatch(act.intent, w.playerId) !== false) toast(act.done) }}>{act.label}</button>
+              </div>
+            )
+          })}
         </section>
       )}
 

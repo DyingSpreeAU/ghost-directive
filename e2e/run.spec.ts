@@ -176,3 +176,19 @@ test('subclass reward choices carry an Ability, Aspect or Fragment banner', asyn
   expect(n).toBeGreaterThan(0)
   for (let i = 0; i < n; i++) await expect(cards.nth(i).locator('.type-banner .tb-type')).toHaveText(/^(ability|aspect|fragment)$/)
 })
+
+test('items marked dismantled but kept can be left outside the run, and stop being flagged', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await editStore(page, `const p = s.active.players[0]
+    const gone = (id, name) => ({ id, name, slot: 'Energy', rarity: 'Legendary', equipped: false, source: 'test', instanceId: 'i' + id, fate: 'dismantled', at: Date.now() })
+    p.retired = [gone('1', 'Cry Defiance'), gone('2', 'Cry Defiance'), gone('3', 'Lionheart')]
+    p.bungie = { name: 'Tester#0001', character: 'Hunter', syncedAt: Date.now(), vaultItems: 0, missing: [], untracked: [], undismantled: ['Cry Defiance', 'Cry Defiance', 'Lionheart'] }`)
+  const warn = page.locator('.warn-with-act')
+  await expect(warn.locator('.warn-title')).toContainText('Marked dismantled but still on your account: Cry Defiance ×2, Lionheart')
+  await warn.locator('button:has-text("Keep them, not in the run")').click()
+  await expect(page.locator('.warn-title', { hasText: 'Marked dismantled' })).toHaveCount(0)
+  const p = (await store(page)).active.players[0]
+  expect(p.retired.map((r: { fate: string }) => r.fate)).toEqual(['removed', 'removed', 'removed'])
+  expect(p.bungie.undismantled).toEqual([])
+})

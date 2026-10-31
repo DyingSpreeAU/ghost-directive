@@ -340,6 +340,10 @@ that browser. The player's device reads their profile and sends the host:
 
 - their eligible Vault Legendaries (weapons, plus armor for their class);
 - tracked run items not found anywhere on the account;
+- items the run recorded as dismantled that are still on the account. The warning names them
+  (repeats counted: "Cry Defiance ×4") and has **Keep them, not in the run** for that Guardian's
+  player (or the host, for a Guardian with no device): the `keep-outside` intent re-files them as
+  removed from the run (still in Destiny 2), so later syncs stop flagging them;
 - items equipped on their character that aren't in the run inventory.
 
 The host turns the last two into warnings. Items not found anywhere also open a pop-up on that

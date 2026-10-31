@@ -228,6 +228,10 @@ input[type='range'] { accent-color: var(--light); }
   text-align: left; padding: 9px 14px; background: var(--hull); border: 1px solid var(--seam); border-left: 3px solid var(--warn);
 }
 .warn.static { cursor: default; }
+.warn-with-act { position: relative; display: grid; }
+.warn-with-act .warn { padding-right: 200px; }
+.warn-act { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+@media (max-width: 700px) { .warn-with-act .warn { padding-right: 14px; padding-bottom: 48px; } .warn-act { top: auto; bottom: 8px; left: 127px; right: auto; transform: none; } }
 .warn-critical { border-left-color: var(--danger); }
 .warn-info { border-left-color: var(--dim); }
 .warn-sev { font-family: var(--f-display); font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--warn); grid-row: span 2; }

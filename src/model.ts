@@ -670,7 +670,10 @@ export function chestChoices(run: Run, p: Player): ChestReward[] {
 export type Severity = 'critical' | 'warn' | 'info'
 /** `discrepancy`: what's in the game doesn't match the run. Anything else is a warning. */
 /** `flash`: keys of the screen parts it's about (elements with a matching `data-flash`), flashed when it's clicked. */
-export type Warning = { id: string; severity: Severity; playerId?: string; title: string; rule: string; where: string; discrepancy?: boolean; flash?: string[] }
+export type Warning = { id: string; severity: Severity; playerId?: string; title: string; rule: string; where: string; discrepancy?: boolean; flash?: string[]; action?: { label: string; intent: Intent; done: string } }
+
+/** "Cry Defiance ×4, Lionheart": names in order, repeats counted. */
+const counted = (names: string[]) => [...new Set(names)].map((n) => { const k = names.filter((x) => x === n).length; return k > 1 ? `${n} \u00d7${k}` : n }).join(', ')
 
 export function computeWarnings(run: Run): Warning[] {
   const out: Warning[] = []
@@ -710,7 +713,8 @@ export function computeWarnings(run: Run): Warning[] {
         where: 'arsenal',
       })
     }
-    if (p.bungie?.undismantled?.length) out.push({ flash: p.bungie.undismantled.map((n) => `item:${p.id}:${n}`), discrepancy: true, id: `bd-${p.id}`, severity: 'warn', playerId: p.id, title: `Marked dismantled but still on your account: ${p.bungie.undismantled.join(', ')}`, rule: 'Dismantle them in Destiny 2.', where: 'arsenal' })
+    if (p.bungie?.undismantled?.length) out.push({ flash: p.bungie.undismantled.map((n) => `item:${p.id}:${n}`), discrepancy: true, id: `bd-${p.id}`, severity: 'warn', playerId: p.id, title: `Marked dismantled but still on your account: ${counted(p.bungie.undismantled)}`, rule: 'Dismantle them in Destiny 2, or keep them: they stay out of the run either way.', where: 'arsenal',
+      action: { label: 'Keep them, not in the run', intent: { type: 'keep-outside' }, done: 'Kept outside the run. They won\u2019t be flagged again.' } })
   }
   return out
 }
@@ -826,6 +830,7 @@ export type Intent =
   | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; links?: { itemId: string; instanceId: string }[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
+  | { type: 'keep-outside' }
   | { type: 'resume-ready'; ready: boolean }
   | { type: 'link-item'; itemId?: string; name?: string; slot?: Slot; instanceId: string }
 
@@ -1076,6 +1081,16 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
     }
     // Run progress: any Guardian may record these, not only the host. Each names what its sender saw
     // (encounter, chest, wipe or death count), so two players recording the same thing count it once.
+    case 'keep-outside': {
+      // Items recorded as dismantled that the player kept after all: still out of the run, but
+      // "removed" rather than "dismantled", so syncs stop flagging them.
+      const names = p.bungie?.undismantled ?? []
+      if (!names.length) return null
+      for (const r of p.retired ?? []) if (r.fate === 'dismantled' && names.includes(r.name)) r.fate = 'removed'
+      p.bungie!.undismantled = []
+      log(run, 'vault', `${p.name} kept ${counted(names)} outside the run (still in Destiny 2, not run items).`)
+      return null
+    }
     case 'death': {
       if (run.status !== 'active') return 'The run has ended.'
       const t = it.target ? run.players.find((x) => x.id === it.target) : p
