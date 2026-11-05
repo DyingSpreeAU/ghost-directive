@@ -12,7 +12,7 @@ import { Fireteam } from './Fireteam'
 import { BungiePanel } from './BungiePanel'
 import { CodeCard } from './Lobby'
 import { RunStats } from './RunStats'
-import { useGD } from './store'
+import { currentRuleset, useGD } from './store'
 import { ElementMark, Empty, EncounterArt, Meter } from './ui'
 
 export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { run: Run; warnings: Warning[]; pendingDeferred: number; onOpenRewards: () => void }) {
@@ -33,7 +33,7 @@ export function Briefing({ run, warnings, pendingDeferred, onOpenRewards }: { ru
     host!.mutate((s) => {
       const r = s.active!
       if (!r.example) s.history.unshift({ ...r, status: r.status === 'active' ? 'abandoned' : r.status, endedAt: r.endedAt ?? Date.now() })
-      const l = createLobby(keepCode ? r.code : makeLobbyCode(), s.hostCid, r.ruleset)
+      const l = createLobby(keepCode ? r.code : makeLobbyCode(), s.hostCid, currentRuleset(s, r.ruleset.id) ?? r.ruleset)
       l.protocolId = r.ruleset.id
       s.active = null
       s.lobby = l

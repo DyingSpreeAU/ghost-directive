@@ -24,7 +24,12 @@ export function loadHostStore(): HostStore {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const s = JSON.parse(raw) as HostStore
-      if (s && Array.isArray(s.history) && Array.isArray(s.protocols) && s.hostCid) return { ...s, saved: Array.isArray(s.saved) ? s.saved : [] }
+      if (s && Array.isArray(s.history) && Array.isArray(s.protocols) && s.hostCid) {
+        const out = { ...s, saved: Array.isArray(s.saved) ? s.saved : [] }
+        // A lobby saved under an older version of its Directive plays the current one (a run keeps its own).
+        if (out.lobby) out.lobby = { ...out.lobby, ruleset: currentRuleset(out, out.lobby.protocolId) ?? out.lobby.ruleset }
+        return out
+      }
     }
   } catch { /* storage unavailable */ }
   return { hostCid: uid() + uid(), lobby: null, active: null, saved: [], history: [], protocols: [], hideIntro: false }
@@ -109,6 +114,13 @@ export function lastCode(): string {
 }
 
 export const allProtocols = (s: HostStore) => [...PRESETS, ...s.protocols]
+/**
+ * The current version of a Directive by id: built-in ones as they are now, custom ones as last saved.
+ * A run freezes its Directive when it begins, so a lobby reopened after it (or one saved before an
+ * update) takes the current one, with new rules such as gear progression.
+ */
+export const currentRuleset = (s: Pick<HostStore, 'protocols'>, id: string | undefined): Ruleset | undefined =>
+  id ? structuredClone([...PRESETS, ...s.protocols].find((p) => p.id === id)) : undefined
 
 /** What the host broadcasts. Absolute state, re-sent on change and on request. */
 export type Snapshot =

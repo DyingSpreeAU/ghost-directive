@@ -309,6 +309,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   don't place a Rally Banner to restock ammo or heal. When on, it's in the lobby's "How the run works"
   and on the run page under the run name ("No Rally Banners (honour rule)").
 - State persists in `localStorage`. First launch loads a clearly marked example run.
+- **Lobbies use the current Directive** (`currentRuleset` in `src/store.tsx`): a run keeps the Directive it
+  began with, but a lobby reopened after it ("Archive and reopen lobby"), or one saved by an older
+  version of the app, takes the current version of that Directive (built-in as it is now, custom as last
+  saved), so rules added since (gear progression, armor tiers) are there.
 - **Easter eggs** are listed in `EASTER_EGGS.md`, with what triggers each one.
 - **Run stats** (`src/stats.ts`, shown by `RunStats` in `src/RunStats.tsx`): a "Run Stats" section on
   the run page (nav: Run Stats / Stats), live while the run is on ("So far", timers tick) and as
