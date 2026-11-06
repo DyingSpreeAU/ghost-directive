@@ -1086,11 +1086,33 @@ export async function ownedInSlot(names: string[], slot: Slot, cls: ClassType, r
   return out
 }
 
-let tierPool: Promise<{ weapons: Record<string, Record<string, string[]>>; types?: Record<string, string> }> | null = null
+let tierPool: Promise<{ weapons: Record<string, Record<string, string[]>>; types?: Record<string, string>; collectibles?: Record<string, number[]> }> | null = null
 /** Uncommon and Rare weapons per slot that can be pulled from Collections (public/bungie-tiers.json). */
 const loadTiers = () => (tierPool ??= fetch('/bungie-tiers.json').then((r) => (r.ok ? r.json() : { weapons: {} }), () => ({ weapons: {} })))
 export function tierWeapons() {
   return loadTiers().then((t) => t.weapons ?? {})
+}
+/**
+ * The tier weapons (a slot's Uncommon or Rare pool) this player can get: held anywhere on the
+ * account, or unlocked in Collections. Each counts once, so a piece from Collections is as likely
+ * to be picked as one in the Vault.
+ */
+export async function availableTierWeapons(slot: Slot, tier: Rarity, cls: ClassType): Promise<string[]> {
+  const [{ mem }, items, tiers] = await Promise.all([membership(), itemTable(), loadTiers()])
+  const pool = tiers.weapons?.[slot]?.[tier] ?? []
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,800`)
+  const want = new Set(pool)
+  const out = new Set<string>()
+  for (const h of holdings(p, items)) {
+    const row = items[h.itemHash]
+    if (row && want.has(row[0]) && ALL_SLOTS[row[1]] === slot && TIERS[row[2]] === tier && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) out.add(row[0])
+  }
+  const scopes = [p.profileCollectibles?.data?.collectibles, ...Object.values(p.characterCollectibles?.data ?? {}).map((c) => c.collectibles)]
+    .filter((c): c is Record<string, { state: number }> => !!c)
+  for (const name of pool) {
+    if ((tiers.collectibles?.[name] ?? []).some((h: number) => scopes.some((c) => c[h] && (c[h].state & 1) === 0))) out.add(name)
+  }
+  return [...out]
 }
 /** A tier weapon's type as the game names it ("Auto Rifle"), if known. */
 export function tierWeaponType(name: string) {

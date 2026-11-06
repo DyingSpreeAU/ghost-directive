@@ -182,8 +182,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   for the player (the host for device-less Guardians): dismantle or vault the drop (vault to keep it for
   normal play), then use the tier's piece,
   pulled from the Vault when owned, else from Collections. Weapons are any Uncommon/Rare of the slot
-  with a Collections entry (`public/bungie-tiers.json`), picked once on the player's device (preferring
-  one they own) and fixed with `upgrade-pick`; armor is a fixed set per class (`TIER_ARMOR` in
+  with a Collections entry (`public/bungie-tiers.json`, which also lists each one's Collections
+  entries), picked once on the player's device and fixed with `upgrade-pick`. Signed in, the pick is
+  from every piece the player can get, held anywhere on the account or unlocked in Collections, each
+  equally likely (`availableTierWeapons` in `src/bungie.ts`); otherwise from the whole pool; armor is a fixed set per class (`TIER_ARMOR` in
   `src/data.ts`: Warlock Cry Defiance/Rite of Refusal, Chiron's Cure/Bond of Chiron; Titan Fieldplate
   Type 10/Mark of the Longest Line, RPC Valiant/Mark of Inquisition; Hunter Makeshift Suit/At Least
   It's a Cape, Shadow Specter). The previous tier's item stays as a spare. Every encounter, final-boss

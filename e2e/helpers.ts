@@ -110,6 +110,8 @@ export type Account = {
   sessions: { id: string; period: string; kills: number; precision: number; weapons: [number, number][] }[]
   /** Weapon kill trackers ("Enemies Defeated") by item instance. */
   trackers: Record<string, number>
+  /** Collections entries unlocked on the account (collectible hashes). */
+  unlocked: number[]
 }
 
 export const HUNTER = '2305843009'
@@ -117,7 +119,7 @@ export const TITAN = '2305843010'
 
 /** A Hunter in an activity with Legendary/Common gear on, a Titan with nothing, two weapons in the Vault. */
 export function account(): Account {
-  const a: Account = { vault: [], chars: {}, inActivity: HUNTER, location: true, sub: { id: '777', plugs: [11, 12, 13, 14, 15] }, calls: [], next: 1000, sessions: [], trackers: {} }
+  const a: Account = { vault: [], chars: {}, inActivity: HUNTER, location: true, sub: { id: '777', plugs: [11, 12, 13, 14, 15] }, calls: [], next: 1000, sessions: [], trackers: {}, unlocked: [] }
   a.vault = [item(a, I.Pariah, B.k), item(a, I.StayAway, B.e)]
   a.chars[HUNTER] = { classType: 1, inv: [], lastPlayed: '2026-10-27T10:00:00Z', eq: [item(a, I.Fatebringer, B.k), item(a, I.Funnelweb, B.e), item(a, I.Hadrian, B.p), item(a, I.Helm, B.helm), item(a, I.Arms, B.arms), item(a, I.Chest, B.chest), item(a, I.Legs, B.legs), item(a, I.Cloak, B.cls)] }
   a.chars[TITAN] = { classType: 0, inv: [], eq: [], lastPlayed: '2026-10-01T10:00:00Z' }
@@ -141,6 +143,7 @@ function profile(a: Account) {
   return {
     responseMintedTimestamp: now, secondaryComponentsMintedTimestamp: now,
     profileInventory: { data: { items: a.vault.map((x) => ({ itemHash: x.hash, itemInstanceId: x.id, bucketHash: B.vault })) } },
+    profileCollectibles: { data: { collectibles: Object.fromEntries(a.unlocked.map((h) => [h, { state: 0 }])) } },
     characters: { data: charData }, characterInventories: { data: inv }, characterEquipment: { data: eq }, characterActivities: { data: acts },
     itemComponents: {
       sockets: { data: { [a.sub.id]: { sockets: a.sub.plugs.map((h) => ({ plugHash: h, isEnabled: true })) } } },

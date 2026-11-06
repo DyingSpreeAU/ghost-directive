@@ -187,7 +187,7 @@ if exotic_table:
 # each one's weapon type ("Auto Rifle") for the upgrade steps.
 if tier_table:
     WB = {1498876634: 'Kinetic', 2465295065: 'Energy', 953998645: 'Power'}
-    weapons, types = {}, {}
+    weapons, types, collectibles = {}, {}, {}
     for it in items.values():
         inv = it.get('inventory', {})
         slot, tier = WB.get(inv.get('bucketTypeHash')), inv.get('tierTypeName')
@@ -196,12 +196,16 @@ if tier_table:
             lst = weapons.setdefault(slot, {}).setdefault(tier, [])
             if name not in lst:
                 lst.append(name)
+            # Collections entries by name (a weapon can have several), so a player's unlocked ones can be offered.
+            hashes = collectibles.setdefault(name, [])
+            if it['collectibleHash'] not in hashes:
+                hashes.append(it['collectibleHash'])
             if it.get('itemTypeDisplayName'):
                 types[name] = it['itemTypeDisplayName']
     for tiers in weapons.values():
         for lst in tiers.values():
             lst.sort()
-    json.dump({'weapons': weapons, 'types': types}, open(tier_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
+    json.dump({'weapons': weapons, 'types': types, 'collectibles': collectibles}, open(tier_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', tier_table)
 
 # Ability descriptions exactly as the game shows them: every plug on each subclass's sockets (Supers,

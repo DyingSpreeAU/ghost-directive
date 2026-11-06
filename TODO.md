@@ -19,6 +19,8 @@ The owner's list of planned and parked work. Nothing here is started until the o
 
 ## Parked
 
+- [ ] Rewards panel in the rules section: what an encounter clear, final boss, secret chest and drops give
+  (Integrity, picks, BONUS and Arsenal Expansion chances), using the run's own Directive numbers.
 - [ ] Saved loadouts and the Vault pool panel (built but hidden).
 - [ ] Sandbox editor: starting artifact perks; which gear slots count towards limits.
 - [ ] Explainer: mention custom Directives (it shows Standard Directive's numbers).

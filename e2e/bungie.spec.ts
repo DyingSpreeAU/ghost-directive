@@ -241,3 +241,17 @@ test('run stats: post-game reports and live weapon kill trackers reach the Guard
   await expect(card.locator('.g-live')).toContainText('+42')
   await expect(page.locator('.stat-tile', { hasText: 'Kills' }).locator('.stat-value')).toHaveText('120')
 })
+
+const TIERS = JSON.parse(readFileSync(new URL('../public/bungie-tiers.json', import.meta.url), 'utf8')) as { weapons: Record<string, Record<string, string[]>>; collectibles: Record<string, number[]> }
+
+test('a weapon tier piece comes from what the player can get: held or unlocked in Collections', async ({ page, baseURL }) => {
+  const a = account()
+  // Not held anywhere, but unlocked in Collections: the only green Kinetic this player can get.
+  const unlocked = TIERS.weapons.Kinetic.Uncommon[0]
+  a.unlocked = TIERS.collectibles[unlocked]
+  await progressionRun(page, a, baseURL!)
+  a.chars[HUNTER].inv.push(item(a, anyOf(0, 3), B.k))
+  await syncNow(page)
+  await expect(page.locator('.modal h2')).toContainText('Kinetic')
+  await expect.poll(async () => (await store(page)).active.players[0].upgrades?.[0]?.item).toBe(unlocked)
+})

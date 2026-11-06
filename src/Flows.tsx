@@ -8,7 +8,7 @@ import { useGD, type Flow } from './store'
 import { ElementMark, Modal, TierWord, rarityClass } from './ui'
 import { useIcons } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
-import { bungieConfigured, isSignedIn, ownedInSlot, tierWeaponType, tierWeapons, type MoveResult } from './bungie'
+import { availableTierWeapons, bungieConfigured, isSignedIn, ownedInSlot, tierWeaponType, tierWeapons, type MoveResult } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
 
 export function FlowHost({ flow, run, onClose }: { flow: Flow; run: Run; onClose: () => void }) {
@@ -775,8 +775,9 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
     ;(async () => {
       const pool = (await tierWeapons())[up.slot]?.[up.to] ?? []
       if (!pool.length) return
-      const owned = inGame ? [...await ownedInSlot(pool, up.slot, p.cls, up.to).catch(() => new Set<string>())] : []
-      const from = owned.length ? owned : pool
+      // Signed in: any piece the player can get, held or unlocked in Collections, all equally likely.
+      const mine = inGame ? await availableTierWeapons(up.slot, up.to, p.cls).catch(() => []) : []
+      const from = mine.length ? mine : pool
       dispatch({ type: 'upgrade-pick', upgradeId: up.id, item: from[Math.floor(Math.random() * from.length)] }, p.id)
     })()
   }, [up?.id, up?.item]) // eslint-disable-line react-hooks/exhaustive-deps
