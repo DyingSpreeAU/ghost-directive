@@ -36,7 +36,9 @@ test('guest joins, readies up, and on a reopened run can only restore', async ({
   await host.click('.saved-run button:has-text("Resume")')
   await expect(guest.locator('.resume-lobby')).toBeVisible({ timeout: 30_000 })
   await collapseTools(guest)
-  // Besides showing or hiding the guide and copying the lobby code, a guest's only button is Restore.
+  // Besides showing or hiding the guide and copying the lobby code, a guest's only button is Restore
+  // (it appears once the guest's Bungie sign-in is read, so wait for it before listing).
+  await expect(guest.locator('.resume-lobby button:has-text("Restore my Guardian")')).toBeVisible()
   const clickable = await guest.locator('.resume-lobby :is(button, input, select):not([disabled]):not(.code-copy)').allTextContents()
   expect(clickable.map((t) => t.trim()).filter((t) => t !== 'Hide' && t !== 'Show')).toEqual(['Restore my Guardian'])
   a.location = false

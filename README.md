@@ -197,8 +197,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   equally likely (`availableTierWeapons` in `src/bungie.ts`); otherwise from the whole pool; armor is a fixed set per class (`TIER_ARMOR` in
   `src/data.ts`: Warlock Cry Defiance/Rite of Refusal, Chiron's Cure/Bond of Chiron; Titan Fieldplate
   Type 10/Mark of the Longest Line, RPC Valiant/Mark of Inquisition; Hunter Makeshift Suit/At Least
-  It's a Cape, Shadow Specter). The previous tier's item stays as a spare. Every encounter, final-boss
-  and chest reward has a 1 in 10 BONUS step: raise any slot below Legendary one tier. Tier names are
+  It's a Cape, Shadow Specter). The previous tier's item stays as a spare. An encounter clear's reward
+  (not a final boss or secret chest) has a 1 in 10 BONUS step: raise any slot below Legendary one tier
+  (Directive rules **BONUS tier-up chance** and **BONUS comes from**, `Sandbox.bonusOn`: encounter clears
+  only by default, or every reward). Tier names are
   coloured grey, green, blue, purple. Moves match same-named set pieces by slot and class (`MoveOp.slot`).
 - **Subclass reward cards** carry a type banner across the top (`TypeBanner` in `src/Flows.tsx`), so
   the three kinds are told apart at a glance: **Ability** (Super, class ability, grenade, melee) is

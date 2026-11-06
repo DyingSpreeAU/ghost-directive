@@ -106,3 +106,18 @@ test('final boss weapon pick: each option at its slot’s tier, kept without rai
   expect(after.tiers).toEqual(before.tiers)
   expect(after.inventory.find((i: { name: string }) => i.name === offered[0].name).rarity).toBe(offered[0].rarity)
 })
+
+test('BONUS rolls on encounter clears only, not on a final boss', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  // A certain BONUS, so whether it rolls depends only on where it can come from.
+  await editStore(page, 's.active.ruleset.sandbox = { bonusChance: 100 }')
+  await page.locator('.side-player .sp-main').click()
+  await page.click('.modal-foot button:has-text("Record clear and advance")')
+  await expect.poll(async () => (await store(page)).active.pending.map((x: { final: boolean; bonus?: boolean }) => `${x.final}:${!!x.bonus}`)).toEqual(['false:true'])
+  await editStore(page, 's.active.pending = []; s.active.eIdx = 2; s.active.chestsDone = 9')
+  await expect(page.locator('.side-player .sp-title')).toContainText('Dûl Incaru')
+  await page.locator('.side-player .sp-main').click()
+  await page.click('.modal-foot button:has-text("Record clear and advance")')
+  await expect.poll(async () => (await store(page)).active.pending.map((x: { final: boolean; bonus?: boolean }) => `${x.final}:${!!x.bonus}`)).toEqual(['true:false'])
+})

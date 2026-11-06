@@ -278,7 +278,7 @@ export function Explainer({ onDone, intro }: { onDone: () => void; intro?: boole
       </Section>
 
       <Section n="05" kicker="Rewards" title="Choose one. Commit." art={<RewardArt />}>
-        <p>Every encounter, secret chest and final boss hands each Guardian a choice. Final bosses offer Exotic armor from your Collections or a Legendary from your Vault, plus artifact perks from the one artifact you chose. Now and then, a <b>BONUS</b> lets you push any slot up a tier.</p>
+        <p>Every encounter, secret chest and final boss hands each Guardian a choice. Final bosses offer Exotic armor from your Collections or a weapon to keep, plus artifact perks from the one artifact you chose. Now and then, an encounter clear also gives a <b>BONUS</b>: push any slot up a tier.</p>
       </Section>
 
       <Section n="06" kicker="Field Arsenal" title="Every slot has a limit" art={<ArsenalArt />}>

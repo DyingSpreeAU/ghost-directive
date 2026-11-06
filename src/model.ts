@@ -56,6 +56,8 @@ export type Sandbox = {
   startAbilities: 'one' | 'all'
   /** Chance (%) of a BONUS tier-up after a reward, with progression. */
   bonusChance: number
+  /** Which rewards can roll the BONUS: encounter clears only (not final bosses or secret chests), or every reward. */
+  bonusOn: 'encounters' | 'all'
   /** Exotic drops can be used straight away, whatever the slot's tier. */
   exoticsAnyTime: boolean
   /** How many Exotic armor, Vault Legendary and Artifact perk options a final boss offers. */
@@ -99,7 +101,7 @@ export type ArmorMode = 'collections' | 'simulated'
 export const SANDBOX_DEFAULTS: Sandbox = {
   finalClear: 0, chestFound: 0, secretChests: true,
   startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
-  bonusChance: 10, exoticsAnyTime: true,
+  bonusChance: 10, bonusOn: 'encounters', exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticSynergy: 'only', weaponReward: 'tier', exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
   tierUpDrops: 'legendary', noRallyBanners: false, armorTiers: 'choose',
@@ -858,7 +860,7 @@ export function pendingChest(run: Run): { number: number; remaining: number } | 
 }
 
 /** A BONUS tier-up after the rewards (gear progression, while a slot is below Legendary); 1 in 10 by default. */
-const rollBonus = (run: Run, p: Player) => !!run.ruleset.progression && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') && Math.random() < sandbox(run.ruleset).bonusChance / 100
+const rollBonus = (run: Run, p: Player, from: 'encounter' | 'final' | 'chest') => (from === 'encounter' || sandbox(run.ruleset).bonusOn === 'all') && !!run.ruleset.progression && ALL_SLOTS.some((s) => slotTier(run, p, s) !== 'Legendary') && Math.random() < sandbox(run.ruleset).bonusChance / 100
 
 /** Records whether the fireteam got the next secret chest; a found chest gives everyone a chest reward. */
 export function recordChest(run: Run, found: boolean) {
@@ -875,7 +877,7 @@ export function recordChest(run: Run, found: boolean) {
     run.pending.push({
       id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false,
       unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
-      bonus: rollBonus(run, p),
+      bonus: rollBonus(run, p, 'chest'),
     })
   }
 }
@@ -896,7 +898,7 @@ export function recordClear(run: Run) {
       legendary: final && rw.finalBossGear ? weaponRewardChoices(run, p) : [],
       artifact: final && rw.finalBossArtifact ? artifactChoices(p, sandbox(run.ruleset).artifactChoices) : [],
       chest: [],
-      bonus: rollBonus(run, p),
+      bonus: rollBonus(run, p, final ? 'final' : 'encounter'),
     })
   }
   if (run.status === 'active') advance(run)
