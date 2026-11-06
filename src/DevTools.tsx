@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react'
 import { ALL_SLOTS, RARITIES, artifactByName, dungeonById, subclassAbilities, type Rarity, type Slot } from './data'
 import {
-  receiveGear, artifactChoices, chestChoices, current, exoticChoices, legendaryWeaponChoices, log, uid, unlockChoices,
+  receiveGear, artifactChoices, chestChoices, current, exoticChoices, weaponRewardChoices, log, uid, unlockChoices,
   type Pending, type Player, type Run,
 } from './model'
 import { CHANNEL } from './channel'
@@ -74,7 +74,7 @@ function grant(run: Run, kind: Kind, who: Player[]) {
       final: kind === 'final',
       unlock: kind === 'encounter' || kind === 'final' ? unlockChoices(run, p).map((a) => a.id) : [],
       exotic: kind === 'final' ? exoticChoices(p, run.ruleset) : [],
-      legendary: kind === 'final' ? legendaryWeaponChoices(p, run.ruleset) : [],
+      legendary: kind === 'final' ? weaponRewardChoices(run, p) : [],
       artifact: kind === 'final' ? artifactChoices(p) : [],
       chest: kind === 'chest' || kind === 'bonus' ? chestChoices(run, p) : [],
       bonus: kind === 'bonus' || undefined,

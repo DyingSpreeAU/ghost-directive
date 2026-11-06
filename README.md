@@ -88,8 +88,17 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Mission Briefing**: shared Fireteam Integrity, current encounter with generated destination
   art and route progress, three player panels with unlocks and slot capacity, host actions.
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
-  final-boss category-first reward (Exotic armor or Vault Legendary weapon), final-boss
+  final-boss category-first reward (Exotic armor or a weapon), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
+- **Final-boss weapon pick** (Directive rule **Weapon pick**, `Sandbox.weaponReward`, default 'tier';
+  `weaponRewardChoices` in `src/model.ts`): each of the three options rolls Kinetic, Energy or Power,
+  all equally likely (repeats allowed, e.g. a grey Kinetic and two Legendary heavies), and offers a
+  weapon of that slot's current tier, which the player keeps without the tier moving: below Legendary,
+  a grey, green or blue weapon they can get (held or unlocked in Collections, reported by each sync as
+  `BungieLink.tierWeapons`; otherwise any in the game, from `public/bungie-tiers.json`, now with grey
+  weapons too); at Legendary, a Legendary from their Vault. A piece only in Collections gets a "pull it
+  from Collections" note. The 'vault' setting keeps the old pick: Vault Legendaries, which below
+  Legendary raise the slot a tier instead.
 - **Naming**: rulesets are called **Directives** everywhere players see them (the Directives page, "Custom
   Directive", "Save Directive", "Import Directive", the lobby's Directive section). In code they're still
   `Ruleset` / protocols (`Protocols.tsx`, `allProtocols`, `protocolId`).

@@ -5,7 +5,7 @@ import { Briefing, SidePlayer } from './Briefing'
 import { isZorpalod, useZorpalod } from './easterEggs'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
-import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
+import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult, tierWeaponPool } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView, ResumeLobby } from './Lobby'
@@ -15,7 +15,7 @@ import {
   type Ctx, type Flow, type HostStore, type Snapshot, type View,
 } from './store'
 import {
-  STANDARD, applyIntent, applyLobbyIntent, bindBungieId, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
+  STANDARD, applyIntent, applyLobbyIntent, bindBungieId, setTierPool, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
   type Intent, type LobbyIntent, type Run,
 } from './model'
 import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, normalizeCode, snapshotAssembler, type StateChunk, type Transport, type TransportStatus } from './net'
@@ -34,6 +34,8 @@ function ChannelBadge() {
 }
 
 export default function App() {
+  // The game's grey, green and blue weapons, for the host's final-boss weapon rolls.
+  useEffect(() => { tierWeaponPool().then((t) => setTierPool(t.weapons, t.types), () => {}) }, [])
   return <><ChannelBadge /><Root /></>
 }
 

@@ -299,9 +299,11 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
-              <span className="choice-kind r-legendary-text">Vault Legendary weapon</span>
-              <strong>1 of 3 weapons from your Vault</strong>
-              <span className="muted">{p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
+              <span className="choice-kind r-legendary-text">{sandbox(run.ruleset).weaponReward === 'tier' ? 'Weapon' : 'Vault Legendary weapon'}</span>
+              <strong>1 of {pend.legendary.length || 3} {sandbox(run.ruleset).weaponReward === 'tier' ? 'weapons to keep' : 'weapons from your Vault'}</strong>
+              <span className="muted">{sandbox(run.ruleset).weaponReward === 'tier'
+                ? 'Each at its slot\u2019s tier, so it\u2019s yours to use now: a Legendary from your Vault once the slot is Legendary.'
+                : p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
           </ChoiceGrid>
@@ -370,7 +372,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 }
 
 /** An Exotic that's unlocked in Collections but not on the account yet: it has to be pulled in game. */
-const notHeld = (p: Player, g: VaultEntry) => g.rarity === 'Exotic' && !!p.bungie?.exotics && !p.bungie.exotics.held.includes(g.name)
+const notHeld = (p: Player, g: VaultEntry) => g.rarity === 'Exotic' ? !!p.bungie?.exotics && !p.bungie.exotics.held.includes(g.name)
+  // A grey, green or blue weapon reward may be unlocked in Collections without a copy on the account.
+  : g.rarity !== 'Legendary' && !!p.bungie?.tierWeapons && !p.bungie.tierWeapons.held.includes(g.name)
 
 /**
  * Item choices with real icons, and details read from the player's own account. Weapons show the

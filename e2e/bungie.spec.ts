@@ -255,3 +255,18 @@ test('a weapon tier piece comes from what the player can get: held or unlocked i
   await expect(page.locator('.modal h2')).toContainText('Kinetic')
   await expect.poll(async () => (await store(page)).active.players[0].upgrades?.[0]?.item).toBe(unlocked)
 })
+
+test('final boss weapon pick offers grey weapons the player can get (Collections)', async ({ page, baseURL }) => {
+  const a = account()
+  const grey = TIERS.weapons.Kinetic.Common[0]
+  a.unlocked = TIERS.collectibles[grey]
+  await progressionRun(page, a, baseURL!)
+  // Held (the account's grey Pariah) and unlocked in Collections both count.
+  await expect.poll(async () => [...((await store(page)).active.players[0].bungie?.tierWeapons?.available?.Kinetic?.Common ?? [])].sort()).toEqual([grey, 'Pariah'].sort())
+  // Energy and Power are Legendary with no Vault Legendaries for them; Kinetic is grey, so every option is a Kinetic grey.
+  await editStore(page, "Object.assign(s.active.players[0].tiers, { Energy: 'Legendary', Power: 'Legendary' }); s.active.players[0].vault = [{ name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary' }]")
+  await tools(page, async () => { await page.click('.devtools button:has-text("Final boss")') })
+  await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
+  const offered = (await store(page)).active.pending[0].legendary as { name: string; slot: string; rarity: string }[]
+  expect(offered.map((w) => `${w.rarity} ${w.slot} ${w.name}`).sort()).toEqual([`Common Kinetic ${grey}`, 'Common Kinetic Pariah'].sort())
+})

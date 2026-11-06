@@ -1,4 +1,4 @@
-import { test, expect, exampleRun, tools, toolsForMe, later, store, fresh, collapseTools, editStore, pickArmor } from './helpers'
+import { test, expect, exampleRun, tools, toolsForMe, later, store, fresh, collapseTools, editStore, pickArmor, startRun } from './helpers'
 
 test('a drop below Legendary raises the tier, names the piece, and is recorded as used for a tier-up', async ({ page }) => {
   await exampleRun(page)
@@ -80,4 +80,29 @@ test('a Directive can set simulated armor for everyone: no choice in the lobby',
   await page.click('.sidebar >> text=Setup and rules')
   await expect(page.locator('.seat.is-you section[aria-label="Armor tiers"]')).toHaveCount(0)
   await expect(page.locator('.setup-guide')).toContainText('Armor is simulated')
+})
+
+test('final boss weapon pick: each option at its slot’s tier, kept without raising the tier', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await editStore(page, "s.active.players[0].tiers.Power = 'Legendary'")
+  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
+  await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
+  const before = (await store(page)).active.players[0]
+  const offered = (await store(page)).active.pending[0].legendary as { name: string; slot: string; rarity: string }[]
+  expect(offered).toHaveLength(3)
+  for (const w of offered) expect(w.rarity).toBe(before.tiers[w.slot])
+  // Through the reward screen: an ability, then a weapon, then an artifact perk.
+  await page.click('.modal .choice >> nth=0')
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal .choice:has-text("Weapon")')
+  await page.locator('.modal .choice', { hasText: offered[0].name }).first().click()
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal .choice >> nth=0')
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal-foot button:has-text("claim rewards")')
+  await expect.poll(async () => (await store(page)).active.players[0].inventory.some((i: { name: string }) => i.name === offered[0].name)).toBe(true)
+  const after = (await store(page)).active.players[0]
+  expect(after.tiers).toEqual(before.tiers)
+  expect(after.inventory.find((i: { name: string }) => i.name === offered[0].name).rarity).toBe(offered[0].rarity)
 })

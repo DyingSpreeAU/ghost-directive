@@ -183,7 +183,7 @@ if exotic_table:
     json.dump({'collectibles': ex}, open(exotic_table, 'w', encoding='utf-8'), separators=(',', ':'), ensure_ascii=False)
     print('wrote', exotic_table, len(ex), 'Exotic armor collectibles')
 
-# Gear progression: Uncommon and Rare weapons per slot that can be pulled from Collections, and
+# Gear progression: Common, Uncommon and Rare weapons per slot that can be pulled from Collections, and
 # each one's weapon type ("Auto Rifle") for the upgrade steps.
 if tier_table:
     WB = {1498876634: 'Kinetic', 2465295065: 'Energy', 953998645: 'Power'}
@@ -192,7 +192,7 @@ if tier_table:
         inv = it.get('inventory', {})
         slot, tier = WB.get(inv.get('bucketTypeHash')), inv.get('tierTypeName')
         name = it.get('displayProperties', {}).get('name', '').strip()
-        if slot and tier in ('Uncommon', 'Rare') and it.get('itemType') == 3 and it.get('collectibleHash') and name:
+        if slot and tier in ('Common', 'Uncommon', 'Rare') and it.get('itemType') == 3 and it.get('collectibleHash') and name:
             lst = weapons.setdefault(slot, {}).setdefault(tier, [])
             if name not in lst:
                 lst.append(name)

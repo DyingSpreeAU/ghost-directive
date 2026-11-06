@@ -4,7 +4,7 @@
 // and only when the player asks for it.
 
 import { ALL_SLOTS, ARTIFACTS, PRISMATIC_BASE_GRENADES, subclassAbilities, STARTER_KINDS, type StarterKind, type AbilityKind, type ClassType, type DamageElement, type Element, type Rarity, type Slot, type VaultEntry } from './data'
-import type { Player, StatSession } from './model'
+import type { Player, StatSession, TierWeapons } from './model'
 import { inClaudeViewer } from './net'
 
 const API_KEY = import.meta.env.VITE_BUNGIE_API_KEY as string | undefined
@@ -229,6 +229,8 @@ export type BungieSnapshot = {
   classItems: ClassItemRoll[]
   /** This class's Exotic armor unlocked in Collections, and which of those are on the account; null if Bungie didn't say. */
   exotics: { unlocked: string[]; held: string[] } | null
+  /** Grey, green and blue weapons this player can get (held or unlocked in Collections). */
+  tierWeapons: TierWeapons | null
 }
 
 /** A character's equipped gear and subclass sockets, recorded so the run's setup can be re-equipped. */
@@ -320,6 +322,7 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
     exotics: collectedExotics(p, exoticRows, cls, owned),
     classItems: await classItemRolls(p, items, cls).catch(() => []),
+    tierWeapons: await loadTiers().then((t) => tierAvailability(p, items, t, cls)).catch(() => null),
   }
 }
 
@@ -1093,27 +1096,36 @@ export function tierWeapons() {
   return loadTiers().then((t) => t.weapons ?? {})
 }
 /**
- * The tier weapons (a slot's Uncommon or Rare pool) this player can get: held anywhere on the
- * account, or unlocked in Collections. Each counts once, so a piece from Collections is as likely
- * to be picked as one in the Vault.
+ * The grey, green and blue weapons this player can get, by slot and tier: held anywhere on the account,
+ * or unlocked in Collections. Each counts once, so a piece from Collections is as likely to be picked
+ * as one in the Vault. `held` lists the ones on the account.
  */
-export async function availableTierWeapons(slot: Slot, tier: Rarity, cls: ClassType): Promise<string[]> {
-  const [{ mem }, items, tiers] = await Promise.all([membership(), itemTable(), loadTiers()])
-  const pool = tiers.weapons?.[slot]?.[tier] ?? []
-  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,800`)
-  const want = new Set(pool)
-  const out = new Set<string>()
-  for (const h of holdings(p, items)) {
-    const row = items[h.itemHash]
-    if (row && want.has(row[0]) && ALL_SLOTS[row[1]] === slot && TIERS[row[2]] === tier && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) out.add(row[0])
-  }
+function tierAvailability(p: ProfileResponse, items: Record<string, ItemRow>, tiers: Awaited<ReturnType<typeof loadTiers>>, cls: ClassType): TierWeapons {
   const scopes = [p.profileCollectibles?.data?.collectibles, ...Object.values(p.characterCollectibles?.data ?? {}).map((c) => c.collectibles)]
     .filter((c): c is Record<string, { state: number }> => !!c)
-  for (const name of pool) {
-    if ((tiers.collectibles?.[name] ?? []).some((h: number) => scopes.some((c) => c[h] && (c[h].state & 1) === 0))) out.add(name)
+  const held = new Set<string>()
+  for (const h of holdings(p, items)) {
+    const row = items[h.itemHash]
+    if (row && row[1] <= 2 && row[2] <= 2 && (row[3] === 3 || row[3] === CLASS_TYPE[cls])) held.add(`${row[0]}|${ALL_SLOTS[row[1]]}|${TIERS[row[2]]}`)
   }
-  return [...out]
+  const available: TierWeapons['available'] = {}
+  for (const [slot, byTier] of Object.entries(tiers.weapons ?? {}) as [string, Record<string, string[]>][]) {
+    for (const [tier, names] of Object.entries(byTier)) {
+      const mine = names.filter((n) => held.has(`${n}|${slot}|${tier}`) || (tiers.collectibles?.[n] ?? []).some((h: number) => scopes.some((c) => c[h] && (c[h].state & 1) === 0)))
+      if (mine.length) ((available[slot as Slot] ??= {})[tier as Rarity] = mine)
+    }
+  }
+  return { available, held: [...held].map((k) => k.split('|')[0]) }
 }
+
+/** The tier weapons for one slot and tier this player can get (see tierAvailability). */
+export async function availableTierWeapons(slot: Slot, tier: Rarity, cls: ClassType): Promise<string[]> {
+  const [{ mem }, items, tiers] = await Promise.all([membership(), itemTable(), loadTiers()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,800`)
+  return tierAvailability(p, items, tiers, cls).available[slot]?.[tier] ?? []
+}
+/** The game's tier weapons and their types, for the host's reward rolls. */
+export const tierWeaponPool = () => loadTiers().then((t) => ({ weapons: t.weapons ?? {}, types: t.types ?? {} }))
 /** A tier weapon's type as the game names it ("Auto Rifle"), if known. */
 export function tierWeaponType(name: string) {
   return loadTiers().then((t) => t.types?.[name])
