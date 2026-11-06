@@ -226,3 +226,15 @@ test('an archived run keeps its stats in Run History', async ({ page }) => {
   await expect(st.locator('.splits tbody tr')).toContainText('Erebus: The Labyrinth')
   await expect(st.locator('.stat-tile', { hasText: 'Encounters' }).locator('.stat-value')).toHaveText('1/34')
 })
+
+test('final boss Exotic armor offers only pieces that synergise with the subclass', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
+  await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
+  const run = (await store(page)).active
+  const me = run.players[0]
+  const offered = run.pending.filter((x: { playerId: string }) => x.playerId === me.id).flatMap((x: { exotic: { element?: string }[] }) => x.exotic)
+  expect(offered).toHaveLength(3)
+  for (const e of offered) expect(e.element).toBe(me.element)
+})

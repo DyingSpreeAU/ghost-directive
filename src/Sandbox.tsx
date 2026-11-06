@@ -68,6 +68,7 @@ const FIELDS: Field[] = [
   { path: 'rewards.unlockChoices', label: 'Ability choices per clear', section: 'rewards', kind: 'num', min: 1, max: 5, group: 'Every clear' },
   { path: 'rewards.allowLater', label: 'Players can put off a reward (Later)', section: 'rewards', kind: 'toggle', group: 'Every clear' },
   { path: 'rewards.finalBossGear', label: 'Exotic armor or a Vault Legendary', section: 'rewards', kind: 'toggle', group: 'Final bosses' },
+  { path: 'sandbox.exoticSynergy', label: 'Exotic armor offered', section: 'rewards', kind: 'select', group: 'Final bosses', when: (r) => r.rewards.finalBossGear, options: [{ value: 'only', label: 'Only pieces that synergise with the subclass' }, { value: 'lean', label: 'Any, leaning slightly towards synergy' }], hint: 'Synergy only: element-neutral Exotics fill in when there aren’t enough synergy pieces. Prismatic counts every element.' },
   { path: 'sandbox.exoticChoices', label: 'Exotic armor options', section: 'rewards', kind: 'num', min: 1, max: 6, group: 'Final bosses', when: (r) => r.rewards.finalBossGear },
   { path: 'sandbox.legendaryChoices', label: 'Vault Legendary options', section: 'rewards', kind: 'num', min: 1, max: 6, group: 'Final bosses', when: (r) => r.rewards.finalBossGear },
   { path: 'sandbox.exoticClassItems', label: 'Prismatic Exotic class items', section: 'rewards', kind: 'toggle', group: 'Final bosses', when: (r) => r.rewards.finalBossGear, hint: 'A rolled copy from the Vault' },

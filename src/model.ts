@@ -2,7 +2,7 @@ import type { RestorePoint } from './bungie'
 import {
   ALL_SLOTS, CLASSES, artifactByName, DAMAGE_ELEMENTS, DUNGEONS, ELEMENTS, EXAMPLE_VAULT, EXOTIC_ARMOR, KIND_LABEL, RARITIES, STARTER_KINDS, WEAPON_SLOTS,
   abilityById, baseKit, dungeonById, nextTier, subclassAbilities, tierArmor,
-  type ClassType, type Element, type StarterKind, type Rarity, type Slot, type VaultEntry,
+  type ClassType, type Element, type ExoticArmor, type StarterKind, type Rarity, type Slot, type VaultEntry,
 } from './data'
 
 // ---------------------------------------------------------------- Rulesets
@@ -62,6 +62,11 @@ export type Sandbox = {
   exoticChoices: number
   legendaryChoices: number
   artifactChoices: number
+  /**
+   * Which Exotic armor a final boss offers: only pieces that synergise with the Guardian's subclass
+   * (topped up with element-neutral ones when too few), or any, leaning slightly towards synergy.
+   */
+  exoticSynergy: 'only' | 'lean'
   /** Prismatic Guardians can be offered their Exotic class item (one rolled copy from their Vault). */
   exoticClassItems: boolean
   /** Chance (%) that a secret chest offers an Arsenal Expansion (with "chests can offer upgrades"). */
@@ -89,7 +94,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   finalClear: 0, chestFound: 0, secretChests: true,
   startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
   bonusChance: 10, exoticsAnyTime: true,
-  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticClassItems: true, expansionChance: 28,
+  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticSynergy: 'only', exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
   tierUpDrops: 'legendary', noRallyBanners: false, armorTiers: 'choose',
 }
@@ -658,8 +663,12 @@ export function exoticChoices(p: Player, r: Ruleset = STANDARD): VaultEntry[] {
   // Signed in with Bungie: only Exotics unlocked in their Collections, which they can pull in game.
   const unlocked = p.bungie?.exotics ? new Set(p.bungie.exotics.unlocked) : null
   const pool = EXOTIC_ARMOR[p.cls].filter((e) => !owned.has(e.name) && (!unlocked || unlocked.has(e.name)))
-  // Prismatic draws on every element, so any element-synergy Exotic counts as a partial match.
-  const picks = favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4))
+  // Synergy: the Exotic's element is the Guardian's; Prismatic draws on every element, so any element counts.
+  const fits = (e: ExoticArmor) => e.synergy === p.element || (p.element === 'Prismatic' && !!e.synergy)
+  const picks = (sb.exoticSynergy === 'only'
+    // Only synergy pieces; when there aren't enough, element-neutral ones (which suit any subclass) fill the gap, never another element's.
+    ? [...shuffle(pool.filter(fits)), ...shuffle(pool.filter((e) => !e.synergy))]
+    : favor(pool, (e) => (e.synergy === p.element ? 1 : p.element === 'Prismatic' && e.synergy ? 0.6 : e.synergy ? 0 : 0.4)))
     .slice(0, sb.exoticChoices)
     .map((e): VaultEntry => ({ name: e.name, slot: e.slot, rarity: 'Exotic' as Rarity, element: e.synergy, archetype: e.perk ? `Exotic Armor \u00b7 ${e.perk}` : 'Exotic Armor', note: e.brief }))
   // Prismatic only: now and then an Exotic class item takes a spot, but only one the player has in their Vault.

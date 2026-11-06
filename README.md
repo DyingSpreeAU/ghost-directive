@@ -114,8 +114,13 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   so no swap screen. The worn grey piece shows the slot's tier (`shownRarity`): tier border, and its
   icon's grey background tinted green or blue; the column shows "Simulated armor". Reaching Legendary
   and weapons work the same as before.
-- **Exotic offers** lean only slightly towards subclass synergy: a weighted draw (`favor`, a full match
-  1.5× as likely), so any Exotic in your Collections can come up. Exotic class items: Prismatic only.
+- **Exotic offers** (Directive rule **Exotic armor offered**, `Sandbox.exoticSynergy`): by default only
+  pieces that synergise with the Guardian's subclass (its element; Prismatic counts every element),
+  drawn at random. Some classes have few for an element (Titan has two Strand Exotics), so when
+  there aren't enough (after Collections and pieces already held), element-neutral Exotics fill
+  the gap, never another element's. The other setting leans only slightly towards synergy: a
+  weighted draw (`favor`, a full match 1.5× as likely), so any Exotic in your Collections can come
+  up. Exotic class items: Prismatic only.
 - **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the
   equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume

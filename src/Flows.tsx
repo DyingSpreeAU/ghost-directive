@@ -295,7 +295,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
             <button className="choice" disabled={!pend.exotic.length} onClick={() => setCat('exotic')}>
               <span className="choice-kind r-exotic-text">Exotic armor</span>
               <strong>1 of 3 {p.cls} Exotics</strong>
-              <span className="muted">{p.element} synergy favored where available.</span>
+              <span className="muted">{sandbox(run.ruleset).exoticSynergy === 'only' ? `Pieces that synergise with ${p.element}${p.element === 'Prismatic' ? ' (any element)' : ''}, topped up with element-neutral ones if needed.` : `${p.element} synergy favored where available.`}</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
             <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
