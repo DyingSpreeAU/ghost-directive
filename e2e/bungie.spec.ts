@@ -191,9 +191,10 @@ test('a tier piece pulled from Collections is the piece, not another drop, and i
   expect((await me()).tiers.Kinetic).toBe('Uncommon')
   await page.click('.modal-foot .btn-light')
   await later(page)
+  // Finishing moves the piece in game first, then records the swap: wait for it.
+  await expect.poll(async () => ((await me()).upgrades ?? []).length).toBe(0)
   const p = await me()
   expect(p.tiers.Kinetic).toBe('Uncommon')
-  expect(p.upgrades ?? []).toHaveLength(0)
   expect(p.inventory.find((i: { name: string }) => i.name === piece)?.instanceId).toBe(pulled.id)
 })
 
