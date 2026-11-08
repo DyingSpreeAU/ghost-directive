@@ -52,8 +52,9 @@ export async function storageIsPersistent(): Promise<boolean | null> {
   try { return (await navigator.storage?.persisted?.()) ?? null } catch { return null }
 }
 
-/** Unfinished runs this browser can resume: the current one first. */
+/** Unfinished runs this browser can resume (no limit), most recently played first. */
 export const resumableRuns = (s: HostStore) => [...(s.active && s.active.status === 'active' && !s.active.example ? [s.active] : []), ...s.saved]
+  .sort((a, b) => (b.log[0]?.at ?? b.startedAt) - (a.log[0]?.at ?? a.startedAt))
 
 /** Puts the current run aside: unfinished runs are kept to resume, finished ones go to history. */
 export function shelveActive(s: HostStore) {
@@ -81,10 +82,6 @@ export function resumeRun(s: HostStore, runId: string) {
  * One run at a time: when a new run begins, any saved unfinished run ends and goes to history as
  * abandoned, so loot from two runs never mixes on the account.
  */
-export function endSavedRuns(s: HostStore) {
-  for (const r of s.saved) if (!s.history.some((h) => h.id === r.id)) s.history.unshift({ ...r, status: 'abandoned', endedAt: Date.now() })
-  s.saved = []
-}
 
 /** Deletes a saved run for good, with its drop-detection baselines. */
 export function deleteRun(s: HostStore, runId: string) {

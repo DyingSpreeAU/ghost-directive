@@ -89,6 +89,8 @@ export type Sandbox = {
   tradeUpNeedsLegendary: boolean
   /** Exotics can be traded in. */
   tradeUpExotics: boolean
+  /** Legendary drops the heavy weapon needs to go from green to blue (other steps take one). */
+  heavyGreenDrops: number
   /** Which drops raise a slot below Legendary: only Legendaries, or any non-Exotic. Others don't count. */
   tierUpDrops: 'legendary' | 'any'
   /** A slot must be able to hold every traded-in item (capacity, with Arsenal Expansions) before it can trade up. */
@@ -110,7 +112,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   bonusChance: 10, bonusOn: 'encounters', exoticsAnyTime: true,
   exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticSynergy: 'only', exoticUnlock: 'armor', weaponUnlock: 'weapons', finalArtifact: 'random', artifactOdds1: 60, artifactOdds2: 30, artifactOdds3: 10, chestAbilities: true, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
-  tierUpDrops: 'legendary', noRallyBanners: false, armorTiers: 'choose',
+  tierUpDrops: 'legendary', heavyGreenDrops: 2, noRallyBanners: false, armorTiers: 'choose',
 }
 
 /** A protocol's sandbox settings, with defaults for anything it doesn't set. */
@@ -232,6 +234,8 @@ export type Upgrade = {
   item?: string
   /** The copy of that piece on the account, once it turns up (pulled from Collections or the Vault). */
   instanceId?: string
+  /** A drop that counts towards the next tier without reaching it yet (the heavy weapon's green → blue). */
+  progress?: { have: number; need: number }
 }
 
 export type Player = {
@@ -267,6 +271,8 @@ export type Player = {
   retired?: (Item & { fate: Fate; at: number })[]
   /** Gear progression: each slot's tier (missing on runs from before progression: no limits). */
   tiers?: Partial<Record<Slot, Rarity>>
+  /** Drops counted towards a slot's next tier when it takes more than one (see Sandbox.heavyGreenDrops). */
+  tierProgress?: Partial<Record<Slot, number>>
   /** Slots that just went up a tier, waiting for the player to swap their gear in game. */
   upgrades?: Upgrade[]
   /** A trade-up in progress: inputs already given up, options rolled once by the host. Cleared when one is picked. */
@@ -601,6 +607,7 @@ export function raiseTier(run: Run, p: Player, slot: Slot, reason: Upgrade['reas
   if (from === 'Legendary' || !p.tiers) return null
   const to = nextTier(from)
   p.tiers[slot] = to
+  if (p.tierProgress?.[slot]) delete p.tierProgress[slot]
   const up: Upgrade = { id: uid(), slot, from, to, reason, drop }
   const simulated = ARMOR_SLOTS.includes(slot) && armorMode(run, p) === 'simulated' && to !== 'Legendary'
   const armor = simulated ? null : tierArmor(p.cls, slot, to)
@@ -622,6 +629,16 @@ export function receiveGear(run: Run, p: Player, item: Omit<Item, 'id' | 'equipp
   // Below Legendary, only drops that count raise the tier (by default Legendaries); others are ignored for good.
   if (reason === 'drop' && !raisesTier(run, item.rarity)) {
     if (item.instanceId) p.dismissed = [...(p.dismissed ?? []), item.instanceId].slice(-500)
+    return null
+  }
+  // The heavy weapon's green → blue takes several drops: until the last, a drop only counts towards it.
+  const need = item.slot === 'Power' && slotTier(run, p, 'Power') === 'Uncommon' ? Math.max(1, sandbox(run.ruleset).heavyGreenDrops) : 1
+  const have = (p.tierProgress?.[item.slot] ?? 0) + 1
+  if (reason === 'drop' && have < need) {
+    p.tierProgress = { ...p.tierProgress, [item.slot]: have }
+    p.upgrades = [...(p.upgrades ?? []), { id: uid(), slot: item.slot, from: 'Uncommon', to: 'Uncommon', reason, drop: { name: item.name, instanceId: item.instanceId }, progress: { have, need } }]
+    log(run, 'upgrade', `${p.name}'s ${item.slot}: ${have} of ${need} drops towards Rare, from a drop (${item.name}).`)
+    dismiss(p, [{ ...item, id: uid(), equipped: false }], 'tiered')
     return null
   }
   const up = raiseTier(run, p, item.slot, reason, { name: item.name, instanceId: item.instanceId })

@@ -123,3 +123,22 @@ test('BONUS rolls on encounter clears only, not on a final boss', async ({ page 
   await page.click('.modal-foot button:has-text("Record clear and advance")')
   await expect.poll(async () => (await store(page)).active.pending.map((x: { final: boolean; bonus?: boolean }) => `${x.final}:${!!x.bonus}`)).toEqual(['true:false'])
 })
+
+test('heavy weapon: green to blue takes two Legendary drops, then blue to Legendary takes one', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  const me = async () => (await store(page)).active.players[0]
+  expect((await me()).tiers.Power).toBe('Uncommon')
+  const drop = () => tools(page, async () => { await toolsForMe(page); await page.selectOption('.devtools select[aria-label="Slot"]', 'Power'); await page.click('.devtools button:has-text("Add a drop")') })
+  await drop()
+  await expect(page.locator('.modal h2')).toHaveText('Power: 1 of 2 drops towards Rare')
+  await expect(page.locator('.upgrade-steps li').first()).toContainText('Dismantle or vault')
+  await page.click('.modal-foot .btn-light')
+  await expect.poll(async () => (await me()).tierProgress?.Power).toBe(1)
+  expect((await me()).tiers.Power).toBe('Uncommon')
+  await expect(page.locator('.guardian').first().locator('.g-slot', { hasText: 'Power' }).locator('.tier-progress')).toHaveText('1/2')
+  await drop()
+  await expect(page.locator('.modal h2')).toHaveText('Power: Uncommon → Rare')
+  await expect.poll(async () => (await me()).tiers.Power).toBe('Rare')
+  expect((await me()).tierProgress?.Power).toBeUndefined()
+})

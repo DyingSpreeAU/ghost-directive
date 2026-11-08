@@ -1471,3 +1471,9 @@ html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; b
 .choice.is-locked { opacity: 0.6; border-style: dashed; cursor: not-allowed; }
 .choice.is-locked .muted { color: var(--text); }
 .lock-glyph { margin-right: 6px; vertical-align: -1px; }
+
+/* The heavy weapon's green → blue progress: one pip per drop needed. */
+.tier-pips { display: inline-flex; gap: 4px; vertical-align: middle; margin: 0 4px; }
+.tier-pips span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--r-rare); }
+.tier-pips span.is-on { background: var(--r-rare); }
+.tier-progress { font-family: var(--f-mono); font-size: 0.72rem; color: var(--r-rare); }

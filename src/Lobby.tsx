@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, chestCount, type ClassType, ELEMENT_COLOR, ELEMENTS, KIND_LABEL, STARTER_KINDS, dungeonById, subclassAbilities, type StarterKind } from './data'
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, armorChoice, needsArmor, sandbox, startRarities, type Ruleset, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type ArmorMode, type Lobby, type Player, type Run, type Seat } from './model'
-import { allProtocols, endSavedRuns, useGD } from './store'
+import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
 import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
@@ -155,7 +155,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
       <RouteAndProtocol lobby={lobby} />
 
       {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={() => {
-        host!.mutate((s) => { endSavedRuns(s); s.active = runFromLobby(s.lobby!); s.lobby = null })
+        host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
         toast('Run started. Route locked.')
       }} /> : (
         <div className="panel waiting-bar">
@@ -562,8 +562,6 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
   const noArmor = lobby.seats.filter((s) => needsArmor(lobby, s))
   const noRoute = lobby.route.length === 0
-  const { host } = useGD()
-  const replaces = host?.store.saved ?? []
   return (
     <div className="panel begin-bar">
       <div>
@@ -573,7 +571,6 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
         {noArmor.length > 0 && <p className="small tone-danger">Every Guardian picks real or simulated armor tiers. Still to choose: {noArmor.map((s) => s.name).join(', ')}</p>}
-        {replaces.length > 0 && <p className="small tone-warn">Beginning ends your saved run{replaces.length > 1 ? 's' : ''} {replaces.map((r) => `\u201c${r.name}\u201d`).join(', ')}: only one run is kept at a time. {replaces.length > 1 ? 'They move' : 'It moves'} to Run History.</p>}
         {notice}
       </div>
       <div className="begin-acts">
@@ -636,7 +633,7 @@ function SetupGuide({ lobby }: { lobby: Lobby }) {
           <li><strong>The fireteam wipes:</strong> <span className="tone-danger">&minus;{i.wipe}</span> Integrity.</li>
           <li className="rules-key"><strong>What counts as a wipe:</strong> every Guardian in the fireteam dead at the same time, at any point in the run. That includes traversal sections and anywhere the game would let you revive or respawn: no wipe mechanic or Darkness zone is needed. Record it as one wipe, not as separate deaths.</li>
           {r.progression && (
-            <li><strong>Gear progression:</strong> weapons start at <TierWord tier={g.weapons} />, the heavy weapon at <TierWord tier={g.heavy} /> and armor at <TierWord tier={g.armor} />; each slot climbs towards <TierWord tier="Legendary" />. Each {sb.tierUpDrops === 'legendary' ? 'Legendary' : 'non-Exotic'} drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). {sb.armorTiers === 'choose' ? ' Armor: each Guardian picks real pieces (pulled like the weapons) or simulated (keep the grey armor; the app shows the tier) in their seat.' : sb.armorTiers === 'simulated' ? ' Armor is simulated: keep wearing the grey armor; the app shows each slot\u2019s tier.' : ''} {sb.exoticsAnyTime ? 'Exotics can be used at any time.' : 'Exotics count as drops too.'}{sb.bonusChance > 0 && <> After {sb.bonusOn === 'all' ? 'any reward' : 'an encounter clear (not a final boss or secret chest)'} there&rsquo;s a {pct(sb.bonusChance)} BONUS: move any slot up a tier.</>}</li>
+            <li><strong>Gear progression:</strong> weapons start at <TierWord tier={g.weapons} />, the heavy weapon at <TierWord tier={g.heavy} /> and armor at <TierWord tier={g.armor} />; each slot climbs towards <TierWord tier="Legendary" />. Each {sb.tierUpDrops === 'legendary' ? 'Legendary' : 'non-Exotic'} drop in a slot below Legendary moves it up one tier: dismantle or vault the drop and use that tier&rsquo;s piece (the app names it, and pulls it if you own it). {sb.heavyGreenDrops > 1 ? ` The heavy weapon starts higher, so its green \u2192 blue step takes ${sb.heavyGreenDrops} Legendary drops.` : ''}{sb.armorTiers === 'choose' ? ' Armor: each Guardian picks real pieces (pulled like the weapons) or simulated (keep the grey armor; the app shows the tier) in their seat.' : sb.armorTiers === 'simulated' ? ' Armor is simulated: keep wearing the grey armor; the app shows each slot\u2019s tier.' : ''} {sb.exoticsAnyTime ? 'Exotics can be used at any time.' : 'Exotics count as drops too.'}{sb.bonusChance > 0 && <> After {sb.bonusOn === 'all' ? 'any reward' : 'an encounter clear (not a final boss or secret chest)'} there&rsquo;s a {pct(sb.bonusChance)} BONUS: move any slot up a tier.</>}</li>
           )}
           <li><strong>Gear:</strong> only what drops during the run, or what rewards give you. Each slot holds <b>{r.inventory.capacity}</b> items; anything over goes to your Vault.{tu.enabled ? <> Trade <b>{tu.inputs}</b> {sb.tradeUpExotics ? 'Legendary or Exotic' : 'Legendary'} items from one slot{tu.sameRarity ? ' (same rarity)' : ''}{r.progression && sb.tradeUpNeedsLegendary ? ' that\u2019s reached Legendary' : ''}{sb.tradeUpNeedsRoom && r.inventory.capacity < tu.inputs ? `, once your slots can hold ${tu.inputs} (an Arsenal Expansion adds one)` : ''} for a Legendary from your Vault.</> : null}</li>
           <li><strong>{sb.startAbilities === 'all' ? 'Artifact perks' : 'Abilities and artifact perks'}</strong> start locked and are unlocked as rewards. Only use what you&rsquo;ve unlocked.</li>

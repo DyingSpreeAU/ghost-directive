@@ -78,7 +78,7 @@ export async function pickArmor(page: Page, mode: 'Real pieces' | 'Simulated' = 
 
 /** Creates a lobby, picks an artifact and begins a real run. */
 export async function startRun(page: Page, artifact = 'Tablet of Ruin') {
-  await page.click('text=Create lobby')
+  await page.click('button:has-text("Create lobby"), button:has-text("Create new lobby")')
   await page.waitForSelector('.seat')
   await collapseTools(page)
   await page.click(`.seat.is-you .art-pick [role=radio][title^="${artifact}"]`)

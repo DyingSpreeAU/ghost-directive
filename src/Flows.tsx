@@ -785,7 +785,7 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
   const weapon = !!up && WEAPON_SLOTS.includes(up.slot)
   // A weapon piece is any of the tier's rarity for the slot: one the player owns if possible, fixed once picked.
   useEffect(() => {
-    if (!up || up.item || up.to === 'Legendary' || !weapon || picking.current) return
+    if (!up || up.item || up.progress || up.to === 'Legendary' || !weapon || picking.current) return
     picking.current = true
     ;(async () => {
       const pool = (await tierWeapons())[up.slot]?.[up.to] ?? []
@@ -828,6 +828,22 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
     onClose()
   }
   const where = up.slot === 'Class Item' || !weapon ? 'Armor' : 'Weapons'
+  // A drop that only counts towards the next tier (the heavy weapon's green → blue).
+  if (up.progress) {
+    const more = up.progress.need - up.progress.have
+    return (
+      <Modal kicker={`${p.name} \u00b7 Gear progression`} title={`${up.slot}: ${up.progress.have} of ${up.progress.need} drops towards Rare`}
+        footer={<button className="btn btn-light" onClick={finish}>Done</button>}>
+        <div className="stack upgrade-flow">
+          <p className="tier-step"><TierWord tier={up.from} /> <span className="tier-pips" aria-label={`${up.progress.have} of ${up.progress.need}`}>{Array.from({ length: up.progress.need }, (_, k) => <span key={k} className={k < up.progress!.have ? 'is-on' : ''} />)}</span> <span aria-hidden="true">&rarr;</span> <TierWord tier="Rare" /></p>
+          <ol className="upgrade-steps">
+            {up.drop && <li><strong>Dismantle or vault {up.drop.name}</strong> in Destiny 2. It counts towards your {up.slot} slot&rsquo;s next tier, but it isn&rsquo;t yours for the run until the slot is Legendary.</li>}
+            <li>Your heavy weapon starts at <TierWord tier="Uncommon" />, so it takes {up.progress.need} Legendary drops to reach <TierWord tier="Rare" />. {more} more to go; keep using your current one.</li>
+          </ol>
+        </div>
+      </Modal>
+    )
+  }
   return (
     <Modal kicker={`${p.name} \u00b7 Gear progression`} title={`${up.slot}: ${up.from} \u2192 ${up.to}`}
       footer={<button className="btn btn-light" disabled={moving || (!legendary && !up.item && weapon)} onClick={finish}>

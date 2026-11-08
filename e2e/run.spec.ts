@@ -240,3 +240,26 @@ test('final boss Exotic armor offers only pieces that synergise with the subclas
   expect(offered).toHaveLength(3)
   for (const e of offered) expect(e.element).toBe(me.element)
 })
+
+test('save slots: any number of unfinished runs are kept, and each reopens through the resume lobby', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  const first = (await store(page)).active.id
+  await page.click('.sidebar >> text=Back to start screen')
+  // Beginning another run keeps the first one saved.
+  await startRun(page)
+  const second = (await store(page)).active.id
+  await page.click('.sidebar >> text=Back to start screen')
+  await startRun(page)
+  await page.click('.sidebar >> text=Back to start screen')
+  await expect(page.locator('.saved-run')).toHaveCount(3)
+  await expect(page.locator('#saved-runs-title')).toContainText('3')
+  expect((await store(page)).history).toHaveLength(0)
+  // Reopen the first: it's the active run again, behind the resume lobby; the others stay saved.
+  await page.locator('.saved-run').last().locator('button:has-text("Resume")').click()
+  await expect(page.locator('.resume-lobby')).toBeVisible()
+  const s = await store(page)
+  expect(s.active.id).toBe(first)
+  expect(s.saved.map((r: { id: string }) => r.id)).toContain(second)
+  expect(s.saved).toHaveLength(2)
+})

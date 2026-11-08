@@ -121,6 +121,12 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   to that copy. Pieces left unlinked by the old behaviour reclaim their copy on the next sync. The
   Directive rule **Drops that move a slot up a tier** (`Sandbox.tierUpDrops`, default Legendary only)
   ignores other drops below Legendary, with no drop notice.
+- **Heavy weapon green → blue** (Directive rule **Heavy weapon: drops from green to blue**,
+  `Sandbox.heavyGreenDrops`, default 2): the heavy weapon starts a tier higher, so this step takes extra
+  Legendary drops and it climbs as many times as the other slots. Until the last one, a drop only counts
+  (`Player.tierProgress`; the slot shows "1/2"): its screen ("Power: 1 of 2 drops towards Rare") says to
+  dismantle or vault the drop and keep the current weapon. BONUS and reward tier-ups still move a whole
+  tier and clear the count.
 - **Armor tiers: real or simulated** (`Sandbox.armorTiers`: each Guardian chooses (default), real
   pieces, or simulated). With "chooses", every seat picks in the lobby (**Real pieces** / **Simulated**,
   `Seat.armor`, required before Ready and Begin, kept on `Player.armorTiers` for the run), next to a
@@ -303,10 +309,13 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   on any Guardian (**Record my death** on their own); the host can **Undo last** (restores the Integrity).
   The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
-- **Saved runs**: one unfinished run is kept in the host's browser (`saved` in the host store,
-  localStorage; the app asks the browser for persistent storage). Starting a new lobby puts the current
-  run aside; beginning the new run ends it (`endSavedRuns`: it moves to Run History as abandoned), and
-  the lobby's begin bar warns first. The start screen lists them with route
+- **Saved runs (save slots, unlimited)**: every unfinished run is kept in the host's browser (`saved` in the
+  host store, localStorage; the app asks the browser for persistent storage). Starting a new lobby puts
+  the current run aside, and beginning another run leaves the saved ones alone. A saved run is about
+  10–200 KB (the log and each signed-in player's Vault pool are most of it), well within a browser's
+  ~5 MB per site. Each reopens through the resume lobby (everyone restores; drop detection forgets gear
+  picked up during the break), so runs can't mix up each other's drops. The start screen lists them,
+  most recently played first, with route
   progress, Integrity, Guardians and last played, and offers Resume or Delete (deleting is permanent).
   Ending a run from the Briefing still archives it to Run History.
 - **Players are matched by Bungie account.** Each device sends its Bungie.net account id with its

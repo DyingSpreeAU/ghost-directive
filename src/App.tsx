@@ -159,7 +159,7 @@ function SavedRuns({ runs, onResume, onDelete }: { runs: Run[]; onResume: (id: s
       <header className="saved-runs-head">
         <div>
           <div className="eyebrow">Saved in this browser</div>
-          <h2 id="saved-runs-title">Saved runs</h2>
+          <h2 id="saved-runs-title">Saved runs <span className="muted">{runs.length}</span></h2>
         </div>
         <p className="small muted">
           Unlocks, route progress, inventory and each Guardian&rsquo;s last setup are kept in this browser&rsquo;s storage
