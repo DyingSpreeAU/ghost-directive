@@ -1477,3 +1477,14 @@ html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; b
 .tier-pips span { width: 10px; height: 10px; border-radius: 50%; border: 1px solid var(--r-rare); }
 .tier-pips span.is-on { background: var(--r-rare); }
 .tier-progress { font-family: var(--f-mono); font-size: 0.72rem; color: var(--r-rare); }
+.route-acts { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 8px; }
+
+/* A weapon's damage type, in the bottom-right corner of its icon. */
+.dmg-badge {
+  position: absolute; right: 2px; bottom: 2px; z-index: 2; display: grid; place-items: center;
+  width: 16px; height: 16px; border-radius: 50%; background: #000c; box-shadow: 0 0 0 1px #ffffff33; color: #e8e8e8; pointer-events: none;
+}
+.dmg-badge .el-mark { display: block; }
+.tiles .tile.item .dmg-badge { right: 3px; bottom: 5px; }
+.choice-icon-wrap { position: absolute; left: 12px; top: 12px; width: 50px; height: 50px; }
+.choice-icon-wrap .choice-icon { position: static; display: block; width: 100%; height: 100%; }

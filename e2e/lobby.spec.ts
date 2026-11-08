@@ -1,4 +1,4 @@
-import { test, expect, fresh, collapseTools, later, pickArmor } from './helpers'
+import { test, expect, fresh, collapseTools, later, pickArmor, store } from './helpers'
 
 test('host lobby: code card, copy, artifact gate, begin', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
@@ -91,4 +91,16 @@ test('reopening the lobby after a run from before gear progression brings it in'
   await page.click('.modal-foot .btn-danger')
   await page.click('button:has-text("Archive and reopen lobby")')
   await expect(page.locator('.seat.is-you section[aria-label="Armor tiers"]')).toBeVisible()
+})
+
+test('custom route: Shuffle order puts the same dungeons in a new random order', async ({ page }) => {
+  await fresh(page)
+  await page.click('text=Create lobby')
+  await collapseTools(page)
+  await page.locator('#route .seg button:has-text("Custom")').click()
+  const route = async () => (await store(page)).lobby.route as string[]
+  const before = await route()
+  await page.click('#route button:has-text("Shuffle order")')
+  await expect.poll(async () => (await route()).join('|')).not.toBe(before.join('|'))
+  expect([...(await route())].sort()).toEqual([...before].sort())
 })

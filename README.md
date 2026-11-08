@@ -145,6 +145,10 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   the gap, never another element's. The other setting leans only slightly towards synergy: a
   weighted draw (`favor`, a full match 1.5× as likely), so any Exotic in your Collections can come
   up. Exotic class items: Prismatic only.
+- **Weapon damage badges** (`DamageBadge` in `src/ui.tsx`, `useWeaponDamage` in `src/icons.ts`): every weapon
+  icon (run inventory tiles, reward and trade-up cards) has a small badge in its corner with its damage
+  type, read from `public/bungie-items.json`: the element's symbol, or a triangle for Kinetic.
+- **Custom route: Shuffle order** puts the dungeons in the route in a new random order (excluded ones stay out).
 - **Run inventory slots** read like Destiny's inventory: the first spot in each slot, a size up, is the
   equipped item (equipped items sort there; no extra border or marker), followed by the rest.
 - **Lobby code** (`CodeCard` in `src/Lobby.tsx`): the same compact card, top right of the lobby, resume

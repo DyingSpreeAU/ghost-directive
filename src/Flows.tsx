@@ -5,8 +5,8 @@ import {
   type ChestReward, type Intent, type NewItem, type Pending, type Player, type Run,
 } from './model'
 import { useGD, type Flow } from './store'
-import { ElementMark, Modal, TierWord, rarityClass } from './ui'
-import { useIcons } from './icons'
+import { DamageBadge, ElementMark, Modal, TierWord, rarityClass } from './ui'
+import { useIcons, useWeaponDamage, type DamageType } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
 import { availableTierWeapons, bungieConfigured, isSignedIn, ownedInSlot, tierWeaponType, tierWeapons, type MoveResult } from './bungie'
 import { ItemCard, bestStats, useItemPreviews } from './ItemPreview'
@@ -397,6 +397,7 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
   five?: boolean; tradeUp?: boolean
 }) {
   const icons = useIcons()
+  const damageOf = useWeaponDamage()
   const weapons = options.length > 0 && options.every((g) => WEAPON_SLOTS.includes(g.slot))
   const data = previews.data
   const compared = data ? options.filter((g) => data[g.name]) : []
@@ -410,7 +411,7 @@ function GearPicker({ run, p, options, chosen, onChoose, previews, previewable, 
           const pull = notHeld(p, g)
           return (
             <button key={g.name} className={`choice choice-item ${rarityClass(g.rarity)} ${chosen?.name === g.name ? 'is-on' : ''}`} aria-pressed={chosen?.name === g.name} onClick={() => onChoose(g)}>
-              {icon && <img className="choice-icon" src={icon} alt="" loading="lazy" />}
+              {icon && <span className="choice-icon-wrap"><img className="choice-icon" src={icon} alt="" loading="lazy" /><DamageBadge type={damageOf(g.name, g.slot, g.rarity) ?? (g.element as DamageType | undefined)} /></span>}
               <span className="choice-kind">{g.rarity} {info?.type ?? g.slot}</span>
               <strong>{g.name}</strong>
               <span className="muted">

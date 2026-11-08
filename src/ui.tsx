@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import type { DamageType } from './icons'
 import solarIcon from './assets/elements/solar.png'
 import arcIcon from './assets/elements/arc.png'
 import voidIcon from './assets/elements/void.png'
@@ -221,5 +222,17 @@ export function SortableList<T>({ items, keyOf, render, onReorder, label }: {
         </li>
       ))}
     </ol>
+  )
+}
+
+/** A weapon's damage type, as a small badge in the corner of its icon. */
+export function DamageBadge({ type }: { type?: DamageType }) {
+  if (!type) return null
+  return (
+    <span className={`dmg-badge dmg-${type.toLowerCase()}`} title={`${type} damage`} aria-label={`${type} damage`}>
+      {type === 'Kinetic'
+        ? <svg viewBox="0 0 16 16" width="11" height="11" aria-hidden="true"><path d="M8 2.2 13.6 12H2.4z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" /></svg>
+        : <ElementMark element={type} size={12} />}
+    </span>
   )
 }

@@ -263,3 +263,12 @@ test('save slots: any number of unfinished runs are kept, and each reopens throu
   expect(s.saved.map((r: { id: string }) => r.id)).toContain(second)
   expect(s.saved).toHaveLength(2)
 })
+
+test('weapon icons carry a damage-type badge', async ({ page }) => {
+  await fresh(page)
+  await startRun(page)
+  await editStore(page, "s.active.players[0].inventory.push({ id: 'w1', name: 'Fatebringer', slot: 'Kinetic', rarity: 'Legendary', equipped: false, source: 'test' }, { id: 'w2', name: 'Funnelweb', slot: 'Energy', rarity: 'Legendary', equipped: false, source: 'test' })")
+  const g = page.locator('.guardian').first()
+  await expect(g.locator('.tile.item[aria-label^="Fatebringer"] .dmg-badge')).toHaveAttribute('aria-label', 'Kinetic damage')
+  await expect(g.locator('.tile.item[aria-label^="Funnelweb"] .dmg-badge')).toHaveAttribute('aria-label', 'Void damage')
+})

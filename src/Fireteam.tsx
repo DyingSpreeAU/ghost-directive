@@ -7,10 +7,10 @@ import {
 } from './data'
 import { FATE_LABEL, armorMode, shownRarity, capacityOf, equippedNotUnlocked, itemsIn, sandbox, slotTier, tradeTierOk, tradeableFor, removePlayer, undoDeath, type Fate, type Item, type Player, type Run, type Warning } from './model'
 import { RestoreGuardian, syncBungie, useBungie } from './BungiePanel'
-import { useIcons } from './icons'
+import { useIcons, useWeaponDamage, type DamageType } from './icons'
 import { canMoveInGame, moveInGame } from './gearMoves'
 import { useGD } from './store'
-import { ElementMark, Empty, SwipeCols, TierWord, rarityClass } from './ui'
+import { DamageBadge, ElementMark, Empty, SwipeCols, TierWord, rarityClass } from './ui'
 
 const GUIDE_KEY = 'ghost-directive:fireteam-guide'
 
@@ -116,6 +116,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
   const inGame = canMoveInGame(p, me)
   const bungie = useBungie()
   const icons = useIcons()
+  const damageOf = useWeaponDamage()
   const cap = capacityOf(run, p)
   const tu = run.ruleset.tradeUp
   const active = run.status === 'active' && control
@@ -166,7 +167,7 @@ function Inventory({ run, p, control }: { run: Run; p: Player; control: boolean 
               {/* Like Destiny's inventory: the first spot, a size up, is the equipped one (see .tiles.has-eq). */}
               <div className="tiles has-eq" style={{ ['--n' as string]: Math.max(cap, items.length, 4), ['--n1' as string]: Math.max(cap, items.length, 4) - 1 }}>
                 {[...items].sort((a, b) => Number(b.equipped) - Number(a.equipped)).map((it, i) => (
-                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} shown={shownRarity(run, p, it)} icon={icons.gear(it.name, it.slot, it.rarity)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
+                  <Tile key={it.id} flash={`item:${p.id}:${it.name}`} it={it} shown={shownRarity(run, p, it)} damage={damageOf(it.name, it.slot, it.rarity)} icon={icons.gear(it.name, it.slot, it.rarity)} over={i >= cap} selected={selected === it.id} onSelect={() => select(it.id)} />
                 ))}
                 {Array.from({ length: Math.max(0, cap - items.length) }, (_, i) => (
                   control && !p.bungie
@@ -269,7 +270,7 @@ function OutsideTile({ u, icon, selected, onSelect, flash }: { u: { name: string
 }
 
 /** One item: its Bungie icon where known, otherwise a rarity-coloured initial. */
-function Tile({ it, icon, over, selected, onSelect, flash, shown = it.rarity }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void; flash?: string; shown?: Rarity }) {
+function Tile({ it, icon, over, selected, onSelect, flash, shown = it.rarity, damage }: { it: Item; icon?: string; over: boolean; selected: boolean; onSelect: () => void; flash?: string; shown?: Rarity; damage?: DamageType }) {
   const [broken, setBroken] = useState(false)
   const sim = shown !== it.rarity
   return (
@@ -282,6 +283,7 @@ function Tile({ it, icon, over, selected, onSelect, flash, shown = it.rarity }: 
       onClick={onSelect}
     >
       {icon && !broken ? <img src={icon} alt="" loading="lazy" onError={() => setBroken(true)} /> : <span className="tile-initial">{it.name.slice(0, 2)}</span>}
+      <DamageBadge type={damage} />
       <span className="item-name sr-only">{it.name}</span>
     </button>
   )

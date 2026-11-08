@@ -428,7 +428,12 @@ function RouteAndProtocol({ lobby, readOnly }: { lobby: Lobby; readOnly?: boolea
             <span className="mono">{chronoCount}</span>
           </div>
         ) : (
-          <RouteTiles route={lobby.route} onChange={(next) => set((l) => { l.route = next })} />
+          <>
+            <div className="route-acts">
+              <button className="btn btn-ghost btn-sm" disabled={lobby.route.length < 2} onClick={() => set((l) => { l.route = shuffled(l.route) })} title="Put the dungeons in the route in a random order">Shuffle order</button>
+            </div>
+            <RouteTiles route={lobby.route} onChange={(next) => set((l) => { l.route = next })} />
+          </>
         )}
         {lobby.expedition === 'chronological' && (
         <div className="route-preview">
@@ -449,6 +454,16 @@ function RouteCard({ id, n }: { id: string; n?: number }) {
       <div className="route-info"><strong>{d.name}</strong><span className="muted small">{d.destination ? <>{d.destination} &middot; </> : null}{d.encounters.length} encounters{chestCount(d) ? ` \u00b7 ${chestCount(d)} chest${chestCount(d) > 1 ? 's' : ''}` : ''}</span></div>
     </>
   )
+}
+
+/** The same dungeons in a new random order (never the order they were already in). */
+function shuffled(route: string[]): string[] {
+  if (route.length < 2) return route
+  for (;;) {
+    const next = [...route]
+    for (let i = next.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [next[i], next[j]] = [next[j], next[i]] }
+    if (next.join('|') !== route.join('|')) return next
+  }
 }
 
 /**

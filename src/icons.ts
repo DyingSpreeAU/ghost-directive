@@ -46,3 +46,39 @@ export function useIcons() {
     },
   }
 }
+
+// ---- Weapon damage types, from the weapon/armor table (public/bungie-items.json), for element badges.
+
+export type DamageType = 'Kinetic' | 'Arc' | 'Solar' | 'Void' | 'Stasis' | 'Strand'
+const DAMAGE: Record<number, DamageType> = { 1: 'Kinetic', 2: 'Arc', 3: 'Solar', 4: 'Void', 6: 'Stasis', 7: 'Strand' }
+const SLOTS = ['Kinetic', 'Energy', 'Power']
+const TIERS = ['Common', 'Uncommon', 'Rare', 'Legendary', 'Exotic']
+let damageTable: Promise<Record<string, DamageType> | null> | null = null
+let damageLoaded: Record<string, DamageType> | null = null
+
+function loadDamage() {
+  damageTable ??= fetch('/bungie-items.json')
+    .then((r) => (r.ok ? (r.json() as Promise<{ items: Record<string, [string, number, number, number, number]> }>) : null))
+    .then((d) => {
+      if (!d) return null
+      // "name|slot|Rarity" first (a grey and a Legendary can share a name), then "name|slot".
+      const out: Record<string, DamageType> = {}
+      for (const [name, slot, tier, , damage] of Object.values(d.items)) {
+        const type = DAMAGE[damage]
+        if (slot > 2 || !type) continue
+        out[`${name}|${SLOTS[slot]}|${TIERS[tier]}`] ??= type
+        out[`${name}|${SLOTS[slot]}`] ??= type
+      }
+      return (damageLoaded = out)
+    })
+    .catch(() => null)
+  return damageTable
+}
+
+/** A weapon's damage type by name (and slot and rarity where known); undefined until loaded or for armor. */
+export function useWeaponDamage() {
+  const [t, setT] = useState<Record<string, DamageType> | null>(damageLoaded)
+  useEffect(() => { if (!t) loadDamage().then(setT) }, [t])
+  return (name: string, slot: string, rarity?: string): DamageType | undefined =>
+    SLOTS.includes(slot) ? (rarity && t?.[`${name}|${slot}|${rarity}`]) || t?.[`${name}|${slot}`] : undefined
+}
