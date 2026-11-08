@@ -957,7 +957,7 @@ button.ab-chip:hover { border-color: var(--dim); }
 
 /* The picked option in a 1-of-N reward choice. */
 .choice.is-given { border-color: var(--artifact); }
-.choice.is-given::after { content: 'Researched'; position: absolute; bottom: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--artifact); color: var(--ink); }
+.choice.is-given::after { content: 'Unlocked'; position: absolute; bottom: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--artifact); color: var(--ink); }
 .choice.is-on::after { content: 'Your pick'; position: absolute; top: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--light); color: var(--light-ink); }
 .choice.choice-artifact.is-on::after { background: var(--artifact); color: #04211d; }
 .choice { position: relative; }

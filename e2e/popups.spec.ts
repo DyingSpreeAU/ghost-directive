@@ -22,6 +22,7 @@ test('a tier-up arriving mid-reward waits; the reward keeps its step and categor
   await tool(page, 'Final boss')
   await page.click('.modal .choice >> nth=0')
   await page.click('.modal-foot .btn-light')
+  await page.click('.modal-foot .btn-light') // the bonus aspect
   await page.click('.modal .choice:has-text("Vault Legendary weapon")')
   await expect(title(page)).toHaveText('Choose 1 of 3 Vault weapons')
   // A Legendary helmet drop raises the Helmet slot: its tier-up screen must wait.
@@ -33,11 +34,13 @@ test('a tier-up arriving mid-reward waits; the reward keeps its step and categor
   await page.reload()
   await page.click('.modal .choice >> nth=0')
   await page.click('.modal-foot .btn-light')
+  await page.click('.modal-foot .btn-light') // the bonus aspect
   await expect(title(page)).toHaveText('Choose 1 of 3 Vault weapons')
   await expect(page.locator('.modal .choice:has-text("Exotic armor")')).toHaveCount(0)
   // Finish the reward; then the waiting tier-up shows.
   await page.click('.modal .choice.choice-item >> nth=0')
   await page.click('.modal-foot .btn-light')
+  await page.click('.modal .choice >> nth=0') // an artifact perk
   await page.click('.modal-foot .btn-light')
   await page.click('.modal-foot button:has-text("claim rewards")')
   await expect(title(page)).toContainText('Helmet')
@@ -60,10 +63,13 @@ test('the server can’t be told to switch a final-boss category once it’s pic
   await tool(page, 'Final boss')
   await page.click('.modal .choice >> nth=0')
   await page.click('.modal-foot .btn-light')
+  await page.click('.modal-foot .btn-light') // the bonus aspect
   await page.click('.modal .choice:has-text("Vault Legendary weapon")')
   await expect.poll(async () => (await store(page)).active.pending[0].cat).toBe('legendary')
   // Going Back to the ability step and forward again keeps the weapon category.
   await page.click('.modal-foot button:has-text("Back")')
+  await page.click('.modal-foot button:has-text("Back")')
+  await page.click('.modal-foot .btn-light')
   await page.click('.modal-foot .btn-light')
   await expect(title(page)).toHaveText('Choose 1 of 3 Vault weapons')
 })

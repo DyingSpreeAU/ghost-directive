@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react'
 import { ALL_SLOTS, RARITIES, artifactByName, dungeonById, subclassAbilities, type Rarity, type Slot } from './data'
 import {
-  receiveGear, current, log, rollRewards, uid,
+  receiveGear, artifactChoices, current, log, rollRewards, uid,
   type Pending, type Player, type Run,
 } from './model'
 import { CHANNEL } from './channel'
@@ -75,8 +75,7 @@ function grant(run: Run, kind: Kind, who: Player[]) {
       ...rollRewards(run, p, kind === 'final' ? 'final' : kind === 'encounter' ? 'encounter' : 'chest'),
     }
     pend.bonus = kind === 'bonus' || undefined
-    if (kind === 'bonus') pend.chest = [] // straight to the BONUS step after the ability pick
-    if (kind === 'expansion') pend.chest = [{ kind: 'expansion' as const }]
+    if (kind === 'expansion') pend.chest = [...artifactChoices(p, 2, run.ruleset).map((mod) => ({ kind: 'artifact' as const, mod })), { kind: 'expansion' as const }]
     run.pending.push(pend)
   }
   log(run, 'run', `Test tools: ${kind} reward for ${who.map((p) => p.name).join(', ')}.`)

@@ -82,31 +82,34 @@ test('a Directive can set simulated armor for everyone: no choice in the lobby',
   await expect(page.locator('.setup-guide')).toContainText('Armor is simulated')
 })
 
-test('final boss: Exotic armor and Vault weapons stay locked until those slots are Legendary; an artifact perk is given', async ({ page }) => {
+test('final boss: a random aspect after the ability pick; not signed in, a slot tier-up in place of Exotic armor; Vault weapons locked until weapons are Legendary', async ({ page }) => {
   await fresh(page)
   await startRun(page)
   await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
   await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
-  const early = (await store(page)).active.pending[0]
-  expect(early.exotic).toHaveLength(0)
-  expect(early.legendary).toHaveLength(0)
-  expect(early.locks.exotic).toContain('0 of 5')
-  expect(early.locks.legendary).toContain('0 of 3')
-  expect(early.artifactAuto).toBe(true)
-  expect(early.artifact).toHaveLength(1)
-  // The gear step still shows both, locked, and lets the player carry on.
+  const pend = (await store(page)).active.pending[0]
+  expect(pend.aspect).toContain('|aspect|')
+  for (const id of pend.unlock) expect(id).not.toContain('|aspect|')
+  expect(pend.exotic).toHaveLength(0)
+  expect(pend.tierup).toHaveLength(3)
+  expect(pend.legendary).toHaveLength(0)
+  expect(pend.locks.legendary).toContain('0 of 3')
+  expect(pend.artifact).toHaveLength(3)
+  // Ability pick, then the aspect, then the gear: tier up the first slot offered.
   await page.click('.modal .choice >> nth=0')
   await page.click('.modal-foot .btn-light')
-  await expect(page.locator('.modal .choice.is-locked')).toHaveCount(2)
-  await expect(page.locator('.modal-foot .btn-light')).toBeEnabled()
-  // With every weapon slot Legendary, the Vault weapons open up.
-  await editStore(page, "s.active.pending = []; Object.assign(s.active.players[0].tiers, { Kinetic: 'Legendary', Energy: 'Legendary', Power: 'Legendary' })")
-  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
-  await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
-  const later = (await store(page)).active.pending[0]
-  expect(later.legendary).toHaveLength(3)
-  for (const w of later.legendary) expect(w.rarity).toBe('Legendary')
-  expect(later.exotic).toHaveLength(0)
+  await expect(page.locator('.modal h2')).toHaveText('Bonus aspect from the boss')
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal .choice:has-text("Gear tier-up")')
+  const slot = pend.tierup[0] as string
+  const before = (await store(page)).active.players[0].tiers[slot]
+  await page.locator('.modal .choice', { hasText: slot }).first().click()
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal .choice >> nth=0')
+  await page.click('.modal-foot .btn-light')
+  await page.click('.modal-foot button:has-text("claim rewards")')
+  await expect.poll(async () => (await store(page)).active.players[0].unlocked).toContain(pend.aspect)
+  expect((await store(page)).active.players[0].tiers[slot]).not.toBe(before)
 })
 
 test('BONUS rolls on encounter clears only, not on a final boss', async ({ page }) => {

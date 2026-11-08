@@ -91,19 +91,21 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   final-boss category-first reward (Exotic armor or a Vault weapon, each locked until those slots are Legendary), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
 - **Final-boss rewards** (`rollRewards` in `src/model.ts`, shared by clears, chests and the test tools):
-  the clear's 1 of 3 abilities, plus **one artifact perk** the player hasn't researched, given at random
-  (Directive rule **Artifact perk**: one at random or a pick of several). Final bosses are the only
-  source of artifact perks in the built-in Directives (**Chests offer Artifact research** is off; Iron
-  now has final-boss artifact research too). **Artifact perk rarity**: each draw picks a tier by weight
-  (Directive rules **Tier 1/2/3 perk weight**, 60/30/10 by default), then a perk from it. Then the gear
-  category: **Exotic armor** unlocks once all five armor slots are Legendary, **Vault Legendary
-  weapons** once Kinetic, Energy and Power are all Legendary (rules **Exotic armor unlocks** / **Vault
-  Legendary weapons unlocks**; "always" restores the old behaviour). Locked categories still show,
-  dashed with a padlock and "Unlocks when … (2 of 5 now)" (`Pending.locks`); with both locked the
-  step can be passed. The picked category is saved with the reward (`reward-category` intent,
-  `Pending.cat`), so it can't be changed by going back, reopening or another device.
-- **Secret chests** give an ability pick (rule **Chests offer an ability pick**, on by default) and the
-  Arsenal Expansion chance.
+  the clear's 1 of 3 abilities; then a **bonus aspect**, one at random the player doesn't have, on its own
+  step ("Bonus aspect from the boss") before the gear. Aspects only come from final bosses (Directive
+  rule **Aspects come from**, `Sandbox.aspectSource`): ability picks never offer them. Then the gear
+  category: **Exotic armor** once all five armor slots are Legendary, **Vault Legendary weapons** once
+  Kinetic, Energy and Power are all Legendary (rules **Exotic armor unlocks** / **Vault Legendary
+  weapons unlock**; "always" restores the old behaviour). A player **not signed in with Bungie** gets
+  **Gear tier-up** in place of Exotic armor: 1 of 3 of their slots below Legendary moves up a tier
+  (rule **Not signed in with Bungie**, `Sandbox.unsignedGear`; Exotic offers come from Collections,
+  which the app can only check when signed in). Locked categories still show, dashed with a padlock and
+  "Unlocks when … (2 of 5 now)" (`Pending.locks`); with nothing open the step can be passed. The picked
+  category is saved with the reward (`reward-category` intent, `Pending.cat`), so it can't be changed by
+  going back, reopening or another device. Then 1 of 3 artifact perks, as before.
+- **Artifact perk rarity**: every artifact perk offer (final bosses and secret chests) draws each perk
+  by tier weight (Directive rules **Tier 1/2/3 perk weight**, 60/30/10 by default), then a perk from
+  that tier, so higher tiers come up less often.
 - **Pop-ups take turns** (`App.tsx`): automatic prompts (reward screens, tier-ups, trade-ups, the slot-full
   swap, missing gear) queue by priority, but the one on screen stays until it's finished or closed; a
   prompt that arrives meanwhile (a tier-up from a drop during a reward) waits. A final-boss reward
@@ -381,7 +383,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 : built by playing the real rules forward, so it
   keeps up with them. Three Guardians (the host's Warlock, plus a Titan and Hunter with no device) on
   Standard Directive, partway through The Shattered Throne: Erebus cleared and every reward chosen,
-  Secret Chest 1 found (an ability pick each), a death and a wipe at Vorgeth, then its clear.
+  Secret Chest 1 found (artifact perks researched), a death and a wipe at Vorgeth, then its clear.
   Two drops went through gear progression (Kinetic and Energy up to Uncommon, with their tier pieces
   in the inventory). Threadrunner is still choosing a reward (the host's **Resolve for them**), and
   the next secret chest question is waiting. Nothing pops up on load.
