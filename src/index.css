@@ -956,6 +956,8 @@ button.ab-chip:hover { border-color: var(--dim); }
 .devtools-wide { width: 100%; }
 
 /* The picked option in a 1-of-N reward choice. */
+.choice.is-given { border-color: var(--artifact); }
+.choice.is-given::after { content: 'Researched'; position: absolute; bottom: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--artifact); color: var(--ink); }
 .choice.is-on::after { content: 'Your pick'; position: absolute; top: 8px; right: 8px; padding: 1px 7px; font: 600 0.66rem var(--f-display); letter-spacing: 0.12em; text-transform: uppercase; background: var(--light); color: var(--light-ink); }
 .choice.choice-artifact.is-on::after { background: var(--artifact); color: #04211d; }
 .choice { position: relative; }
@@ -1464,3 +1466,8 @@ body:has(.channel-badge) .mini-dock { top: 34px; } /* under the nightly badge */
 
 /* Easter egg (EASTER_EGGS.md): a Guardian named Zorpalod sees the owl on emblems too. */
 html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; background-size: auto, 20.25% 100%, auto !important; background-repeat: no-repeat !important; }
+
+/* Final-boss reward categories not unlocked yet: shown, greyed, with how to unlock them. */
+.choice.is-locked { opacity: 0.6; border-style: dashed; cursor: not-allowed; }
+.choice.is-locked .muted { color: var(--text); }
+.lock-glyph { margin-right: 6px; vertical-align: -1px; }

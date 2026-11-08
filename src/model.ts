@@ -69,12 +69,18 @@ export type Sandbox = {
    * (topped up with element-neutral ones when too few), or any, leaning slightly towards synergy.
    */
   exoticSynergy: 'only' | 'lean'
-  /**
-   * The final boss's weapon pick: each option rolls a weapon slot (all equally likely) and offers a
-   * weapon of that slot's tier to keep ('tier'; a Vault Legendary once the slot is Legendary), or
-   * always Vault Legendaries, which raise a slot below Legendary a tier instead ('vault').
-   */
-  weaponReward: 'tier' | 'vault'
+  /** Final-boss Exotic armor: offered once all five armor slots are Legendary ('armor'), or always. */
+  exoticUnlock: 'armor' | 'always'
+  /** Final-boss Vault Legendary weapons: offered once Kinetic, Energy and Power are all Legendary ('weapons'), or always. */
+  weaponUnlock: 'weapons' | 'always'
+  /** A final boss's artifact perk: one at random ('random'), or a pick of `artifactChoices` ('choice'). */
+  finalArtifact: 'random' | 'choice'
+  /** How often each artifact perk tier comes up (weights; higher tiers rarer). */
+  artifactOdds1: number
+  artifactOdds2: number
+  artifactOdds3: number
+  /** A found secret chest offers an ability pick (like an encounter clear). */
+  chestAbilities: boolean
   /** Prismatic Guardians can be offered their Exotic class item (one rolled copy from their Vault). */
   exoticClassItems: boolean
   /** Chance (%) that a secret chest offers an Arsenal Expansion (with "chests can offer upgrades"). */
@@ -102,7 +108,7 @@ export const SANDBOX_DEFAULTS: Sandbox = {
   finalClear: 0, chestFound: 0, secretChests: true,
   startGear: { weapons: 'Common', heavy: 'Uncommon', armor: 'Common' }, startAbilities: 'one',
   bonusChance: 10, bonusOn: 'encounters', exoticsAnyTime: true,
-  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticSynergy: 'only', weaponReward: 'tier', exoticClassItems: true, expansionChance: 28,
+  exoticChoices: 3, legendaryChoices: 3, artifactChoices: 3, exoticSynergy: 'only', exoticUnlock: 'armor', weaponUnlock: 'weapons', finalArtifact: 'random', artifactOdds1: 60, artifactOdds2: 30, artifactOdds3: 10, chestAbilities: true, exoticClassItems: true, expansionChance: 28,
   tradeUpNeedsLegendary: true, tradeUpExotics: true, tradeUpNeedsRoom: false,
   tierUpDrops: 'legendary', noRallyBanners: false, armorTiers: 'choose',
 }
@@ -125,7 +131,7 @@ export const PRESETS: Ruleset[] = [
     description: 'A softer run for learning a route: start at 75, wipes cost 10, a player death costs 2, clears restore 10, and slots hold five items.',
     integrity: { start: 75, max: 100, clear: 10, wipe: 10, death: 2 },
     inventory: { capacity: 5, slots: [...ALL_SLOTS] },
-    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: false, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
     progression: true,
     loadouts: { baseSlots: 2 },
@@ -135,7 +141,7 @@ export const PRESETS: Ruleset[] = [
     description: 'The baseline: start at 50 Integrity (cap 100), +5 per clear, −20 per wipe, −5 per player death, four items per slot. Two wipes before any clears leave 10; a third ends the run.',
     integrity: { start: 50, max: 100, clear: 5, wipe: 20, death: 5 },
     inventory: { capacity: 4, slots: [...ALL_SLOTS] },
-    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: true, chestUpgrades: true },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: false, chestUpgrades: true },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: false },
     progression: true,
     loadouts: { baseSlots: 1 },
@@ -145,7 +151,7 @@ export const PRESETS: Ruleset[] = [
     description: 'Start at 40 Integrity (cap 60), wipes cost 20, a player death costs 7, three items per slot, and trade-ups need matching rarity. A second wipe before any clears ends the run.',
     integrity: { start: 40, max: 60, clear: 5, wipe: 20, death: 7 },
     inventory: { capacity: 3, slots: [...ALL_SLOTS] },
-    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: false, chestArtifact: true, chestUpgrades: false },
+    rewards: { unlockChoices: 3, finalBossGear: true, finalBossArtifact: true, chestArtifact: false, chestUpgrades: false },
     tradeUp: { enabled: true, inputs: 4, options: 5, sameRarity: true },
     progression: true,
     loadouts: { baseSlots: 0 },
@@ -299,8 +305,6 @@ export type BungieLink = {
   emblem?: { icon: string; background: string }
   /** Exotic armor for this class unlocked in Collections, and which of those are on the account. Exotic rewards come only from `unlocked`. */
   exotics?: { unlocked: string[]; held: string[] }
-  /** Grey, green and blue weapons this player can get (held, or unlocked in Collections) by slot and tier, and which are held. */
-  tierWeapons?: TierWeapons
   /** This class's Exotic class item copies on the account, each with its two rolled perks. */
   classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[]
   /** The last synced setup where everything equipped was part of the run, for "Restore my Guardian". */
@@ -703,41 +707,6 @@ const EXOTIC_CLASS_ITEM: Record<ClassType, string> = { Titan: 'Stoicism', Hunter
 
 export const vaultPool = (p: Player) => (p.vault.length ? p.vault : EXAMPLE_VAULT)
 
-/** The game's grey, green and blue weapons by slot and tier, and their types (public/bungie-tiers.json; the app loads them). */
-let TIER_POOL: Record<string, Record<string, string[]>> = {}
-let TIER_TYPES: Record<string, string> = {}
-export function setTierPool(weapons: Record<string, Record<string, string[]>>, types: Record<string, string> = {}) {
-  TIER_POOL = weapons
-  TIER_TYPES = types
-}
-
-/**
- * The final boss's weapon pick. Each option first rolls a weapon slot, all three equally likely
- * (repeats allowed), then offers a weapon of that slot's tier to keep, without raising the tier: below
- * Legendary, one the player can get (held or unlocked in Collections, else any in the game); at
- * Legendary, a Legendary from their Vault. A slot with nothing left to offer is skipped.
- */
-export function weaponRewardChoices(run: Run, p: Player): VaultEntry[] {
-  const sb = sandbox(run.ruleset)
-  if (sb.weaponReward === 'vault') return legendaryWeaponChoices(p, run.ruleset)
-  const owned = new Set(p.inventory.map((i) => i.name))
-  const out: VaultEntry[] = []
-  const candidates = (slot: Slot): VaultEntry[] => {
-    const tier = slotTier(run, p, slot)
-    const free = (name: string) => !owned.has(name) && !out.some((o) => o.name === name && o.slot === slot)
-    if (tier === 'Legendary') return vaultPool(p).filter((v) => v.slot === slot && v.rarity === 'Legendary' && free(v.name))
-    const mine = p.bungie?.tierWeapons?.available[slot]?.[tier]
-    return (mine?.length ? mine : TIER_POOL[slot]?.[tier] ?? []).filter(free).map((name) => ({ name, slot, rarity: tier, archetype: TIER_TYPES[name] }))
-  }
-  for (let i = 0; i < sb.legendaryChoices; i++) {
-    const open = WEAPON_SLOTS.filter((s) => candidates(s).length)
-    if (!open.length) break
-    const c = candidates(open[Math.floor(Math.random() * open.length)])
-    out.push(c[Math.floor(Math.random() * c.length)])
-  }
-  return out
-}
-
 export function legendaryWeaponChoices(p: Player, r: Ruleset = STANDARD): VaultEntry[] {
   const owned = new Set(p.inventory.map((i) => i.name))
   const pool = vaultPool(p).filter((v) => v.rarity === 'Legendary' && WEAPON_SLOTS.includes(v.slot) && !owned.has(v.name))
@@ -750,9 +719,27 @@ export function tradeUpChoices(run: Run, p: Player, slot: Slot): VaultEntry[] {
   return favor(pool, (v) => (v.element === p.element ? 1 : 0)).slice(0, run.ruleset.tradeUp.options)
 }
 
-export function artifactChoices(p: Player, n = 3) {
-  const perks = artifactByName(p.artifactName)?.perks ?? []
-  return shuffle(perks.map((x) => x.name).filter((m) => !p.artifact.includes(m))).slice(0, n)
+/**
+ * Artifact perks the player hasn't researched, n of them. Each draw picks a tier by the Directive's
+ * odds (higher tiers rarer; only tiers with perks left), then a perk from that tier.
+ */
+export function artifactChoices(p: Player, n = 3, r: Ruleset = STANDARD) {
+  const sb = sandbox(r)
+  const odds = { 1: sb.artifactOdds1, 2: sb.artifactOdds2, 3: sb.artifactOdds3 } as const
+  const left = (artifactByName(p.artifactName)?.perks ?? []).filter((x) => !p.artifact.includes(x.name))
+  const out: string[] = []
+  while (out.length < n) {
+    const pool = left.filter((x) => !out.includes(x.name))
+    const tiers = ([1, 2, 3] as const).filter((t) => pool.some((x) => x.tier === t))
+    if (!tiers.length) break
+    const total = tiers.reduce((sum, t) => sum + Math.max(0, odds[t]), 0)
+    let roll = Math.random() * total, tier = tiers[tiers.length - 1]
+    if (total > 0) for (const t of tiers) { roll -= Math.max(0, odds[t]); if (roll < 0) { tier = t; break } }
+    else tier = tiers[Math.floor(Math.random() * tiers.length)]
+    const inTier = pool.filter((x) => x.tier === tier)
+    out.push(inTier[Math.floor(Math.random() * inTier.length)].name)
+  }
+  return out
 }
 
 export type ChestReward =
@@ -762,7 +749,7 @@ export type ChestReward =
 
 export function chestChoices(run: Run, p: Player): ChestReward[] {
   const out: ChestReward[] = []
-  if (run.ruleset.rewards.chestArtifact) artifactChoices(p, 3).forEach((mod) => out.push({ kind: 'artifact', mod }))
+  if (run.ruleset.rewards.chestArtifact) artifactChoices(p, 3, run.ruleset).forEach((mod) => out.push({ kind: 'artifact', mod }))
   if (run.ruleset.rewards.chestUpgrades) {
     // Arsenal Expansion is uncommon. Loadout Archive is off while saved loadouts are hidden.
     if (Math.random() < sandbox(run.ruleset).expansionChance / 100) out.splice(Math.min(out.length, 2), 1, { kind: 'expansion' })
@@ -841,6 +828,12 @@ export type Pending = {
   chest: ChestReward[]
   /** BONUS: after the rewards, raise any slot one tier (gear progression, 1 in 10). */
   bonus?: boolean
+  /** The final-boss gear category the player picked; fixed once picked, so it can't be swapped later. */
+  cat?: 'exotic' | 'legendary'
+  /** The artifact perk is given, not chosen: `artifact` holds the one perk the boss gave. */
+  artifactAuto?: boolean
+  /** Final-boss categories still locked, with how far along the player is ("2 of 5 armor slots Legendary"). */
+  locks?: { exotic?: string; legendary?: string }
 }
 
 /**
@@ -874,32 +867,52 @@ export function recordChest(run: Run, found: boolean) {
   const bonus = sandbox(run.ruleset).chestFound
   if (bonus) changeIntegrity(run, bonus, `Found Secret Chest ${next.number}.`, 'chest')
   for (const p of run.players) {
-    run.pending.push({
-      id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false,
-      unlock: [], exotic: [], legendary: [], artifact: [], chest: chestChoices(run, p),
-      bonus: rollBonus(run, p, 'chest'),
-    })
+    run.pending.push({ id: uid(), playerId: p.id, kind: 'chest', where: `${dungeon.name} \u00b7 Secret Chest ${next.number}`, final: false, ...rollRewards(run, p, 'chest') })
   }
 }
 
 /** Records a clear: Integrity, every player's reward, then on to the next encounter. */
+type RewardRoll = Omit<Pending, 'id' | 'playerId' | 'kind' | 'where' | 'final'>
+const ARMOR_ONLY: Slot[] = ['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item']
+/**
+ * What one Guardian is offered for an encounter clear, a final boss or a found secret chest.
+ * Encounter: 1 of 3 abilities. Final boss: the same, one artifact perk (at random by default, rarer
+ * tiers less often), and a gear category: Exotic armor once every armor slot is Legendary, Vault
+ * Legendary weapons once every weapon slot is (shown locked until then). Chest: an ability pick and
+ * the Arsenal Expansion chance (artifact perks only if the Directive still puts them in chests).
+ */
+export function rollRewards(run: Run, p: Player, from: 'encounter' | 'final' | 'chest'): RewardRoll {
+  const rw = run.ruleset.rewards
+  const sb = sandbox(run.ruleset)
+  const out: RewardRoll = { unlock: [], exotic: [], legendary: [], artifact: [], chest: [], bonus: rollBonus(run, p, from) }
+  if (from !== 'chest' || sb.chestAbilities) out.unlock = unlockChoices(run, p).map((a) => a.id)
+  if (from === 'chest') out.chest = chestChoices(run, p)
+  if (from !== 'final') return out
+  if (rw.finalBossGear) {
+    const legendaryIn = (slots: Slot[]) => slots.filter((s) => slotTier(run, p, s) === 'Legendary').length
+    const armor = legendaryIn(ARMOR_ONLY), weapons = legendaryIn(WEAPON_SLOTS)
+    const locks: NonNullable<Pending['locks']> = {}
+    if (sb.exoticUnlock === 'always' || armor === ARMOR_ONLY.length) out.exotic = exoticChoices(p, run.ruleset)
+    else locks.exotic = `Unlocks when all five armor slots are Legendary (${armor} of 5 now).`
+    if (sb.weaponUnlock === 'always' || weapons === WEAPON_SLOTS.length) out.legendary = legendaryWeaponChoices(p, run.ruleset)
+    else locks.legendary = `Unlocks when Kinetic, Energy and Power are all Legendary (${weapons} of 3 now).`
+    if (locks.exotic || locks.legendary) out.locks = locks
+  }
+  if (rw.finalBossArtifact) {
+    out.artifact = artifactChoices(p, sb.finalArtifact === 'random' ? 1 : sb.artifactChoices, run.ruleset)
+    if (sb.finalArtifact === 'random' && out.artifact.length) out.artifactAuto = true
+  }
+  return out
+}
+
 export function recordClear(run: Run) {
   if (pendingChest(run)) return
   const { dungeon, encounter } = current(run)
   const final = encounter.type === 'final'
-  const rw = run.ruleset.rewards
   run.claimed.push(encounter.id)
   changeIntegrity(run, run.ruleset.integrity.clear + (final ? sandbox(run.ruleset).finalClear : 0), `Cleared ${encounter.name}.`, 'clear')
   for (const p of run.players) {
-    run.pending.push({
-      id: uid(), playerId: p.id, kind: 'clear', where: `${dungeon.name} \u00b7 ${encounter.name}`, final,
-      unlock: unlockChoices(run, p).map((a) => a.id),
-      exotic: final && rw.finalBossGear ? exoticChoices(p, run.ruleset) : [],
-      legendary: final && rw.finalBossGear ? weaponRewardChoices(run, p) : [],
-      artifact: final && rw.finalBossArtifact ? artifactChoices(p, sandbox(run.ruleset).artifactChoices) : [],
-      chest: [],
-      bonus: rollBonus(run, p, final ? 'final' : 'encounter'),
-    })
+    run.pending.push({ id: uid(), playerId: p.id, kind: 'clear', where: `${dungeon.name} \u00b7 ${encounter.name}`, final, ...rollRewards(run, p, final ? 'final' : 'encounter') })
   }
   if (run.status === 'active') advance(run)
 }
@@ -932,10 +945,11 @@ export type Intent =
   | { type: 'resolve'; pendingId: string; unlock?: string; gear?: string; mod?: string; chest?: number; drops: NewItem[]; bonusSlot?: Slot }
   | { type: 'upgrade-pick'; upgradeId: string; item: string }
   | { type: 'upgrade-done'; upgradeId: string }
-  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; links?: { itemId: string; instanceId: string }[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; tierWeapons?: TierWeapons | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
+  | { type: 'bungie-sync'; name: string; character: string; vault: VaultEntry[]; vaultItems: number; missing: string[]; untracked: Untracked[]; undismantled?: string[]; drops?: DetectedDrop[]; links?: { itemId: string; instanceId: string }[]; subclass?: { name: string; element: Element } | null; configured?: string[]; artifact?: { name: string; matched?: string; activePerks: string[] } | null; restore?: RestorePoint | null; emblem?: { icon: string; background: string } | null; exotics?: { unlocked: string[]; held: string[] } | null; equipped?: { slot: Slot; name: string; instanceId?: string }[]; classItems?: { instanceId: string; perks: { name: string; desc?: string }[] }[] }
   | { type: 'remove-item'; itemId: string; dismantled?: boolean }
   | { type: 'bungie-unlink' }
   | { type: 'keep-outside' }
+  | { type: 'reward-category'; pendingId: string; cat: 'exotic' | 'legendary' }
   | { type: 'bungie-stats'; sessions: StatSession[]; trackers: { instanceId: string; name: string; kills: number }[] }
   | { type: 'resume-ready'; ready: boolean }
   | { type: 'link-item'; itemId?: string; name?: string; slot?: Slot; instanceId: string }
@@ -1105,7 +1119,6 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       const prevRestore = p.bungie?.restore
       const prevExotics = p.bungie?.exotics
       const prevClassItems = p.bungie?.classItems
-      const prevTierWeapons = p.bungie?.tierWeapons
       const shown = bungieDisplayName(str(it.name, 40))
       if (shown && isDefaultName(p.name)) { log(run, 'run', `${p.name} is now ${shown} (Bungie name).`); p.name = shown }
       p.vault = vault
@@ -1132,15 +1145,6 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
           }))
           .filter((c) => c.instanceId && c.perks.length)
       } else if (prevClassItems) p.bungie.classItems = prevClassItems
-      const tw = (it.tierWeapons ?? null) as { available?: Record<string, Record<string, unknown>>; held?: unknown } | null
-      if (tw?.available && typeof tw.available === 'object') {
-        const available: TierWeapons['available'] = {}
-        for (const s of WEAPON_SLOTS) for (const t of ['Common', 'Uncommon', 'Rare'] as Rarity[]) {
-          const names = strs(tw.available[s]?.[t], 200)
-          if (names.length) (available[s] ??= {})[t] = names
-        }
-        p.bungie.tierWeapons = { available, held: strs(tw.held, 600) }
-      } else if (prevTierWeapons) p.bungie.tierWeapons = prevTierWeapons
       // Remember the setup only while it's a clean run setup, so playing something else doesn't overwrite it.
       p.bungie.restore = (!untracked.some((u) => u.equipped) && sub?.element === p.element && cleanRestore(it.restore)) || prevRestore
       // What's equipped in game is the confirmed configuration; unlocked-vs-equipped warnings follow from it.
@@ -1221,6 +1225,15 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       }
       st.at = Date.now()
       p.stats = st
+      return null
+    }
+    case 'reward-category': {
+      const pend = run.pending.find((x) => x.id === it.pendingId && x.playerId === p.id)
+      if (!pend) return 'That reward was already claimed.'
+      if (it.cat !== 'exotic' && it.cat !== 'legendary') return 'Unknown category.'
+      if (pend.cat && pend.cat !== it.cat) return 'The category was already chosen.'
+      if (!pend[it.cat].length) return 'Nothing to choose in that category.'
+      pend.cat = it.cat
       return null
     }
     case 'keep-outside': {
@@ -1310,6 +1323,7 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
       if (pend.unlock.length && !it.unlock) return 'Choose an unlock.'
       const gear = it.gear ? [...pend.exotic, ...pend.legendary].find((g) => g.name === it.gear) : undefined
       if (it.gear && !gear) return 'That item was not offered.'
+      if (gear && pend.cat && !pend[pend.cat].includes(gear)) return 'That item is in the other category.'
       if (it.mod && !pend.artifact.includes(it.mod)) return 'That mod was not offered.'
       const chest = typeof it.chest === 'number' ? pend.chest[it.chest] : undefined
       if (typeof it.chest === 'number' && !chest) return 'That chest reward was not offered.'
@@ -1321,11 +1335,8 @@ export function applyIntent(run: Run, playerId: string, raw: Intent): string | n
         log(run, 'unlock', `${p.name} unlocked ${a.name} (${KIND_LABEL[a.kind]}).`)
       }
       if (gear) {
-        // A picked weapon of the slot's tier is kept as it is. Exotics, and Vault Legendaries under the
-        // 'vault' rule, go through gear progression (below Legendary, a Vault weapon raises the slot instead).
-        const kept = pend.legendary.includes(gear) && sandbox(run.ruleset).weaponReward === 'tier'
-        const item = { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' }
-        const added = kept ? addItem(run, p, item) : receiveGear(run, p, item, 'reward')
+        // Through gear progression: once the slots are Legendary (as the locks require) it's simply kept.
+        const added = receiveGear(run, p, { name: gear.name, slot: gear.slot, rarity: gear.rarity, source: 'final-boss reward' }, 'reward')
         // A specific copy (an Exotic class item's roll) is tracked as that exact item.
         if (added && gear.instanceId) added.instanceId = gear.instanceId
       }
@@ -1563,7 +1574,8 @@ export function exampleRun(code: string, hostCid: string): Run {
       const unlock = picks[pend.playerId] ?? pend.unlock[0]
       if (unlock && !pend.unlock.includes(unlock)) pend.unlock = [unlock, ...pend.unlock].slice(0, 3)
       pend.bonus = false
-      applyIntent(run, pend.playerId, { type: 'resolve', pendingId: pend.id, unlock, chest: pend.chest.length ? 0 : undefined, drops: [] })
+      // No chance-based chest extras (an Arsenal Expansion), so the example is the same every time.
+      applyIntent(run, pend.playerId, { type: 'resolve', pendingId: pend.id, unlock, chest: pend.chest.findIndex((c) => c.kind === 'artifact') >= 0 ? pend.chest.findIndex((c) => c.kind === 'artifact') : undefined, drops: [] })
     }
   }
   // A tier-up from a drop, with its in-game swap already done.

@@ -128,6 +128,11 @@ function TypeBanner({ kind, element }: { kind: AbilityKind; element: Element }) 
   )
 }
 
+/** A small padlock, on reward categories that aren't unlocked yet. */
+function LockGlyph() {
+  return <svg className="lock-glyph" viewBox="0 0 16 16" width="12" height="12" aria-label="Locked"><path d="M4.5 7V5a3.5 3.5 0 0 1 7 0v2" fill="none" stroke="currentColor" strokeWidth="1.6" /><rect x="3" y="7" width="10" height="7.5" rx="1" fill="currentColor" /></svg>
+}
+
 function ChoiceGrid({ children, five }: { children: ReactNode; five?: boolean }) {
   return <div className={`choices ${five ? 'five' : ''}`}>{children}</div>
 }
@@ -192,7 +197,9 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const { dispatch, toast, me } = useGD()
   const p = run.players.find((x) => x.id === pend.playerId)!
   const linkPulled = linker(dispatch, p.id)
-  const gearAvail = pend.exotic.length + pend.legendary.length > 0
+  // The final boss's gear step shows even while both categories are locked, to say how to unlock them.
+  const gearOptions = pend.exotic.length + pend.legendary.length
+  const gearAvail = gearOptions > 0 || !!pend.locks
   const steps: Step[] = [
     ...(pend.unlock.length ? ['unlock' as const] : []),
     ...(gearAvail ? ['gear' as const] : []),
@@ -205,14 +212,18 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   ]
   const [i, setI] = useState(0)
   const [unlock, setUnlock] = useState<string | undefined>()
-  const [cat, setCat] = useState<'exotic' | 'legendary' | null>(null)
+  // The category, once picked, is saved with the reward (reward-category), so it survives the screen
+  // closing or being reopened elsewhere.
+  const [pickedCat, setPickedCat] = useState<'exotic' | 'legendary' | null>(null)
+  const cat = pend.cat ?? pickedCat
+  const setCat = (c: 'exotic' | 'legendary') => { setPickedCat(c); dispatch({ type: 'reward-category', pendingId: pend.id, cat: c }, p.id) }
   const [gear, setGear] = useState<VaultEntry | null>(null)
   const [mod, setMod] = useState<string | undefined>()
   const [chest, setChest] = useState<number | undefined>()
   const [bonusSlot, setBonusSlot] = useState<Slot | undefined>()
   const [drops, setDrops] = useState<NewItem[]>([])
   const step = steps[i]
-  const canNext = step === 'unlock' ? !!unlock : step === 'gear' ? !!gear || (!!cat && pend[cat].length === 0) : step === 'artifact' ? !!mod : step === 'chest' ? chest !== undefined : step === 'bonus' ? !!bonusSlot : true
+  const canNext = step === 'unlock' ? !!unlock : step === 'gear' ? !!gear || (!!cat && pend[cat].length === 0) || gearOptions === 0 : step === 'artifact' ? !!mod || !!pend.artifactAuto : step === 'chest' ? chest !== undefined : step === 'bonus' ? !!bonusSlot : true
   const forSomeoneElse = p.clientId !== me
   const icons = useIcons()
   // Vault weapons: the player's own copies, read from Bungie on their device, with a DIM-style card.
@@ -228,7 +239,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const canLater = !!run.ruleset.rewards.allowLater || forSomeoneElse
 
   const submit = () => {
-    dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod, chest, drops, bonusSlot }, p.id)
+    dispatch({ type: 'resolve', pendingId: pend.id, unlock, gear: gear?.name, mod: mod ?? (pend.artifactAuto ? pend.artifact[0] : undefined), chest, drops, bonusSlot }, p.id)
     toast('Rewards recorded')
     onClose()
     // A Vault weapon or an owned Exotic comes to the run character in Destiny 2 (signed-in player's own device).
@@ -249,8 +260,8 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
   const n = (xs: unknown[]) => xs.length
   const title = {
     unlock: `Choose 1 of ${n(pend.unlock)} abilities`,
-    gear: cat ? `Choose 1 of ${n(pend[cat])} ${cat === 'exotic' ? 'Exotic armor pieces' : 'Vault weapons'}` : 'Final-boss reward: pick a category',
-    artifact: `Research 1 of ${n(pend.artifact)} artifact perks`,
+    gear: cat ? `Choose 1 of ${n(pend[cat])} ${cat === 'exotic' ? 'Exotic armor pieces' : 'Vault weapons'}` : gearOptions ? 'Final-boss reward: pick a category' : 'Final-boss gear: still locked',
+    artifact: pend.artifactAuto ? 'Artifact research from the boss' : `Research 1 of ${n(pend.artifact)} artifact perks`,
     chest: `Choose 1 of ${n(pend.chest)} chest rewards`,
     bonus: 'BONUS! Move one slot up a tier',
     drops: 'Register your drops',
@@ -290,20 +301,20 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 
       {step === 'gear' && (!cat ? (
         <div className="stack">
-          <p>First pick a category; you can&rsquo;t change it afterwards. Then you choose <strong>1 of 3</strong> items from it, and you keep only the one you choose.</p>
+          <p>{gearOptions
+            ? <>First pick a category; you can&rsquo;t change it afterwards. Then you choose <strong>1 of 3</strong> items from it, and you keep only the one you choose.</>
+            : <>Neither category is unlocked yet. Keep climbing your gear tiers: final bosses offer them once your slots reach <TierWord tier="Legendary" />.</>}</p>
           <ChoiceGrid>
-            <button className="choice" disabled={!pend.exotic.length} onClick={() => setCat('exotic')}>
-              <span className="choice-kind r-exotic-text">Exotic armor</span>
+            <button className={`choice ${pend.locks?.exotic ? 'is-locked' : ''}`} disabled={!pend.exotic.length} onClick={() => setCat('exotic')}>
+              <span className="choice-kind r-exotic-text">{pend.locks?.exotic && <LockGlyph />}Exotic armor</span>
               <strong>1 of 3 {p.cls} Exotics</strong>
-              <span className="muted">{sandbox(run.ruleset).exoticSynergy === 'only' ? `Pieces that synergise with ${p.element}${p.element === 'Prismatic' ? ' (any element)' : ''}, topped up with element-neutral ones if needed.` : `${p.element} synergy favored where available.`}</span>
+              <span className="muted">{pend.locks?.exotic ?? (sandbox(run.ruleset).exoticSynergy === 'only' ? `Pieces that synergise with ${p.element}${p.element === 'Prismatic' ? ' (any element)' : ''}, topped up with element-neutral ones if needed.` : `${p.element} synergy favored where available.`)}</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.exotic.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
-            <button className="choice" disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
-              <span className="choice-kind r-legendary-text">{sandbox(run.ruleset).weaponReward === 'tier' ? 'Weapon' : 'Vault Legendary weapon'}</span>
-              <strong>1 of {pend.legendary.length || 3} {sandbox(run.ruleset).weaponReward === 'tier' ? 'weapons to keep' : 'weapons from your Vault'}</strong>
-              <span className="muted">{sandbox(run.ruleset).weaponReward === 'tier'
-                ? 'Each at its slot\u2019s tier, so it\u2019s yours to use now: a Legendary from your Vault once the slot is Legendary.'
-                : p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.'}</span>
+            <button className={`choice ${pend.locks?.legendary ? 'is-locked' : ''}`} disabled={!pend.legendary.length} onClick={() => setCat('legendary')}>
+              <span className="choice-kind r-legendary-text">{pend.locks?.legendary && <LockGlyph />}Vault Legendary weapon</span>
+              <strong>1 of 3 weapons from your Vault</strong>
+              <span className="muted">{pend.locks?.legendary ?? (p.vault.length ? 'From your Vault pool.' : 'From the example Vault pool.')}</span>
               {run.ruleset.rewards.revealCategories && <span className="choice-thumbs">{pend.legendary.map((g) => icons.gear(g.name, g.slot, g.rarity) && <img key={g.name} src={icons.gear(g.name, g.slot, g.rarity)} alt="" title={g.name} />)}</span>}
             </button>
           </ChoiceGrid>
@@ -318,10 +329,12 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 
       {step === 'artifact' && (
         <div className="stack">
-        <p>You research <strong>one</strong> of these {pend.artifact.length} {p.artifactName ?? 'artifact'} perks; the others are not kept. Switch it on in Destiny 2 once it&rsquo;s researched.</p>
+        <p>{pend.artifactAuto
+          ? <>The boss gave you this {p.artifactName ?? 'artifact'} perk, one you hadn&rsquo;t researched (higher tiers are rarer). Switch it on in Destiny 2.</>
+          : <>You research <strong>one</strong> of these {pend.artifact.length} {p.artifactName ?? 'artifact'} perks; the others are not kept. Switch it on in Destiny 2 once it&rsquo;s researched.</>}</p>
         <ChoiceGrid>
           {pend.artifact.map((m) => (
-            <button key={m} className={`choice choice-artifact ${icons.artifactPerk(p.artifactName, m) ? 'choice-item' : ''} ${mod === m ? 'is-on' : ''}`} onClick={() => setMod(m)}>
+            <button key={m} className={`choice choice-artifact ${icons.artifactPerk(p.artifactName, m) ? 'choice-item' : ''} ${pend.artifactAuto ? 'is-given' : mod === m ? 'is-on' : ''}`} onClick={() => !pend.artifactAuto && setMod(m)}>
               {icons.artifactPerk(p.artifactName, m) && <img className="choice-icon" src={icons.artifactPerk(p.artifactName, m)} alt="" loading="lazy" />}
               <span className="choice-kind">{p.artifactName} &middot; Tier {artifactPerk(p.artifactName, m)?.tier ?? '?'}</span>
               <strong>{m}</strong>
@@ -372,9 +385,7 @@ function RewardFlow({ run, pend, onClose }: { run: Run; pend: Pending; onClose: 
 }
 
 /** An Exotic that's unlocked in Collections but not on the account yet: it has to be pulled in game. */
-const notHeld = (p: Player, g: VaultEntry) => g.rarity === 'Exotic' ? !!p.bungie?.exotics && !p.bungie.exotics.held.includes(g.name)
-  // A grey, green or blue weapon reward may be unlocked in Collections without a copy on the account.
-  : g.rarity !== 'Legendary' && !!p.bungie?.tierWeapons && !p.bungie.tierWeapons.held.includes(g.name)
+const notHeld = (p: Player, g: VaultEntry) => g.rarity === 'Exotic' && !!p.bungie?.exotics && !p.bungie.exotics.held.includes(g.name)
 
 /**
  * Item choices with real icons, and details read from the player's own account. Weapons show the

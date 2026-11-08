@@ -230,6 +230,8 @@ test('an archived run keeps its stats in Run History', async ({ page }) => {
 test('final boss Exotic armor offers only pieces that synergise with the subclass', async ({ page }) => {
   await fresh(page)
   await startRun(page)
+  // Exotic armor opens once every armor slot is Legendary.
+  await editStore(page, "Object.assign(s.active.players[0].tiers, { Helmet: 'Legendary', Gauntlets: 'Legendary', Chest: 'Legendary', Legs: 'Legendary', 'Class Item': 'Legendary' })")
   await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
   await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
   const run = (await store(page)).active

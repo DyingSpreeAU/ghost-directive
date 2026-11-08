@@ -88,17 +88,26 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 - **Mission Briefing**: shared Fireteam Integrity, current encounter with generated destination
   art and route progress, three player panels with unlocks and slot capacity, host actions.
 - **Record Clear** flow: Integrity reward (capped), three-choice subclass unlock per player,
-  final-boss category-first reward (Exotic armor or a weapon), final-boss
+  final-boss category-first reward (Exotic armor or a Vault weapon, each locked until those slots are Legendary), final-boss
   Artifact research, drop registration, then advance. One completion reward per encounter.
-- **Final-boss weapon pick** (Directive rule **Weapon pick**, `Sandbox.weaponReward`, default 'tier';
-  `weaponRewardChoices` in `src/model.ts`): each of the three options rolls Kinetic, Energy or Power,
-  all equally likely (repeats allowed, e.g. a grey Kinetic and two Legendary heavies), and offers a
-  weapon of that slot's current tier, which the player keeps without the tier moving: below Legendary,
-  a grey, green or blue weapon they can get (held or unlocked in Collections, reported by each sync as
-  `BungieLink.tierWeapons`; otherwise any in the game, from `public/bungie-tiers.json`, now with grey
-  weapons too); at Legendary, a Legendary from their Vault. A piece only in Collections gets a "pull it
-  from Collections" note. The 'vault' setting keeps the old pick: Vault Legendaries, which below
-  Legendary raise the slot a tier instead.
+- **Final-boss rewards** (`rollRewards` in `src/model.ts`, shared by clears, chests and the test tools):
+  the clear's 1 of 3 abilities, plus **one artifact perk** the player hasn't researched, given at random
+  (Directive rule **Artifact perk**: one at random or a pick of several). Final bosses are the only
+  source of artifact perks in the built-in Directives (**Chests offer Artifact research** is off; Iron
+  now has final-boss artifact research too). **Artifact perk rarity**: each draw picks a tier by weight
+  (Directive rules **Tier 1/2/3 perk weight**, 60/30/10 by default), then a perk from it. Then the gear
+  category: **Exotic armor** unlocks once all five armor slots are Legendary, **Vault Legendary
+  weapons** once Kinetic, Energy and Power are all Legendary (rules **Exotic armor unlocks** / **Vault
+  Legendary weapons unlocks**; "always" restores the old behaviour). Locked categories still show,
+  dashed with a padlock and "Unlocks when … (2 of 5 now)" (`Pending.locks`); with both locked the
+  step can be passed. The picked category is saved with the reward (`reward-category` intent,
+  `Pending.cat`), so it can't be changed by going back, reopening or another device.
+- **Secret chests** give an ability pick (rule **Chests offer an ability pick**, on by default) and the
+  Arsenal Expansion chance.
+- **Pop-ups take turns** (`App.tsx`): automatic prompts (reward screens, tier-ups, trade-ups, the slot-full
+  swap, missing gear) queue by priority, but the one on screen stays until it's finished or closed; a
+  prompt that arrives meanwhile (a tier-up from a drop during a reward) waits. A final-boss reward
+  already part-way through (category picked) comes back first after a reload.
 - **Naming**: rulesets are called **Directives** everywhere players see them (the Directives page, "Custom
   Directive", "Save Directive", "Import Directive", the lobby's Directive section). In code they're still
   `Ruleset` / protocols (`Protocols.tsx`, `allProtocols`, `protocolId`).
@@ -359,7 +368,7 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
 : built by playing the real rules forward, so it
   keeps up with them. Three Guardians (the host's Warlock, plus a Titan and Hunter with no device) on
   Standard Directive, partway through The Shattered Throne: Erebus cleared and every reward chosen,
-  Secret Chest 1 found (artifact perks researched), a death and a wipe at Vorgeth, then its clear.
+  Secret Chest 1 found (an ability pick each), a death and a wipe at Vorgeth, then its clear.
   Two drops went through gear progression (Kinetic and Energy up to Uncommon, with their tier pieces
   in the inventory). Threadrunner is still choosing a reward (the host's **Resolve for them**), and
   the next secret chest question is waiting. Nothing pops up on load.
@@ -569,6 +578,7 @@ chromium`.
 
 - `start` – start screen, explainer, first-visit intro, the Integrity gauge animation.
 - `lobby` – code card and copy, artifact gate, custom route, rules text per Directive.
+- `popups` – a prompt arriving while another is open waits (tier-up during a reward, reward during a tier-up); the final-boss category can't be switched by going back or reloading.
 - `run` – run stats (splits leave out breaks, highlights, chart tooltip, kept in Run History), deaths and wipes, the phone mini bar, the sidebar player, the missing-gear pop-up and wanted poster, reward type banners, pop-ups above the page, final boss bonus, resume lobby.
 - `progression` – tier-ups (piece named by type), the "used for a tier-up" record, BONUS.
 - `tradeup` – locked options across a reload, the room rule and Arsenal Expansions.

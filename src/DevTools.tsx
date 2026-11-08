@@ -4,7 +4,7 @@
 import { useRef, useState } from 'react'
 import { ALL_SLOTS, RARITIES, artifactByName, dungeonById, subclassAbilities, type Rarity, type Slot } from './data'
 import {
-  receiveGear, artifactChoices, chestChoices, current, exoticChoices, weaponRewardChoices, log, uid, unlockChoices,
+  receiveGear, current, log, rollRewards, uid,
   type Pending, type Player, type Run,
 } from './model'
 import { CHANNEL } from './channel'
@@ -72,14 +72,11 @@ function grant(run: Run, kind: Kind, who: Player[]) {
       id: uid(), playerId: p.id, kind: kind === 'chest' || kind === 'expansion' || kind === 'bonus' ? 'chest' : 'clear',
       where: `Test · ${dungeon.name} · ${kind === 'final' ? 'Final boss' : kind === 'encounter' ? encounter.name : 'Secret chest'}`,
       final: kind === 'final',
-      unlock: kind === 'encounter' || kind === 'final' ? unlockChoices(run, p).map((a) => a.id) : [],
-      exotic: kind === 'final' ? exoticChoices(p, run.ruleset) : [],
-      legendary: kind === 'final' ? weaponRewardChoices(run, p) : [],
-      artifact: kind === 'final' ? artifactChoices(p) : [],
-      chest: kind === 'chest' || kind === 'bonus' ? chestChoices(run, p) : [],
-      bonus: kind === 'bonus' || undefined,
+      ...rollRewards(run, p, kind === 'final' ? 'final' : kind === 'encounter' ? 'encounter' : 'chest'),
     }
-    if (kind === 'expansion') pend.chest = [...artifactChoices(p, 2).map((mod) => ({ kind: 'artifact' as const, mod })), { kind: 'expansion' as const }]
+    pend.bonus = kind === 'bonus' || undefined
+    if (kind === 'bonus') pend.chest = [] // straight to the BONUS step after the ability pick
+    if (kind === 'expansion') pend.chest = [{ kind: 'expansion' as const }]
     run.pending.push(pend)
   }
   log(run, 'run', `Test tools: ${kind} reward for ${who.map((p) => p.name).join(', ')}.`)

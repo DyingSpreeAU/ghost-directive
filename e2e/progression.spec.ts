@@ -82,29 +82,31 @@ test('a Directive can set simulated armor for everyone: no choice in the lobby',
   await expect(page.locator('.setup-guide')).toContainText('Armor is simulated')
 })
 
-test('final boss weapon pick: each option at its slot’s tier, kept without raising the tier', async ({ page }) => {
+test('final boss: Exotic armor and Vault weapons stay locked until those slots are Legendary; an artifact perk is given', async ({ page }) => {
   await fresh(page)
   await startRun(page)
-  await editStore(page, "s.active.players[0].tiers.Power = 'Legendary'")
   await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
   await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
-  const before = (await store(page)).active.players[0]
-  const offered = (await store(page)).active.pending[0].legendary as { name: string; slot: string; rarity: string }[]
-  expect(offered).toHaveLength(3)
-  for (const w of offered) expect(w.rarity).toBe(before.tiers[w.slot])
-  // Through the reward screen: an ability, then a weapon, then an artifact perk.
+  const early = (await store(page)).active.pending[0]
+  expect(early.exotic).toHaveLength(0)
+  expect(early.legendary).toHaveLength(0)
+  expect(early.locks.exotic).toContain('0 of 5')
+  expect(early.locks.legendary).toContain('0 of 3')
+  expect(early.artifactAuto).toBe(true)
+  expect(early.artifact).toHaveLength(1)
+  // The gear step still shows both, locked, and lets the player carry on.
   await page.click('.modal .choice >> nth=0')
   await page.click('.modal-foot .btn-light')
-  await page.click('.modal .choice:has-text("Weapon")')
-  await page.locator('.modal .choice', { hasText: offered[0].name }).first().click()
-  await page.click('.modal-foot .btn-light')
-  await page.click('.modal .choice >> nth=0')
-  await page.click('.modal-foot .btn-light')
-  await page.click('.modal-foot button:has-text("claim rewards")')
-  await expect.poll(async () => (await store(page)).active.players[0].inventory.some((i: { name: string }) => i.name === offered[0].name)).toBe(true)
-  const after = (await store(page)).active.players[0]
-  expect(after.tiers).toEqual(before.tiers)
-  expect(after.inventory.find((i: { name: string }) => i.name === offered[0].name).rarity).toBe(offered[0].rarity)
+  await expect(page.locator('.modal .choice.is-locked')).toHaveCount(2)
+  await expect(page.locator('.modal-foot .btn-light')).toBeEnabled()
+  // With every weapon slot Legendary, the Vault weapons open up.
+  await editStore(page, "s.active.pending = []; Object.assign(s.active.players[0].tiers, { Kinetic: 'Legendary', Energy: 'Legendary', Power: 'Legendary' })")
+  await tools(page, async () => { await toolsForMe(page); await page.click('.devtools button:has-text("Final boss")') })
+  await expect.poll(async () => (await store(page)).active.pending.length).toBeGreaterThan(0)
+  const later = (await store(page)).active.pending[0]
+  expect(later.legendary).toHaveLength(3)
+  for (const w of later.legendary) expect(w.rarity).toBe('Legendary')
+  expect(later.exotic).toHaveLength(0)
 })
 
 test('BONUS rolls on encounter clears only, not on a final boss', async ({ page }) => {

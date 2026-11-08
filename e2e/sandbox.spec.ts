@@ -55,5 +55,5 @@ test('Directive JSON exports and imports', async ({ page }) => {
   await page.click('button:has-text("Import Directive")')
   await page.fill('#proto-io', json.replace('"Iron Directive"', '"Imported Iron"'))
   await page.click('.io button:has-text("Import")')
-  await expect(page.locator('.proto', { hasText: 'Imported Iron' })).toContainText('7 changes from Standard Directive')
+  await expect(page.locator('.proto', { hasText: 'Imported Iron' })).toContainText('6 changes from Standard Directive')
 })

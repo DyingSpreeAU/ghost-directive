@@ -229,8 +229,6 @@ export type BungieSnapshot = {
   classItems: ClassItemRoll[]
   /** This class's Exotic armor unlocked in Collections, and which of those are on the account; null if Bungie didn't say. */
   exotics: { unlocked: string[]; held: string[] } | null
-  /** Grey, green and blue weapons this player can get (held or unlocked in Collections). */
-  tierWeapons: TierWeapons | null
 }
 
 /** A character's equipped gear and subclass sockets, recorded so the run's setup can be re-equipped. */
@@ -322,7 +320,6 @@ export async function fetchSnapshot(cls: ClassType): Promise<BungieSnapshot> {
     emblem: char?.emblemPath && char.emblemBackgroundPath ? { icon: char.emblemPath, background: char.emblemBackgroundPath } : null,
     exotics: collectedExotics(p, exoticRows, cls, owned),
     classItems: await classItemRolls(p, items, cls).catch(() => []),
-    tierWeapons: await loadTiers().then((t) => tierAvailability(p, items, t, cls)).catch(() => null),
   }
 }
 
@@ -1124,8 +1121,6 @@ export async function availableTierWeapons(slot: Slot, tier: Rarity, cls: ClassT
   const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,201,205,800`)
   return tierAvailability(p, items, tiers, cls).available[slot]?.[tier] ?? []
 }
-/** The game's tier weapons and their types, for the host's reward rolls. */
-export const tierWeaponPool = () => loadTiers().then((t) => ({ weapons: t.weapons ?? {}, types: t.types ?? {} }))
 /** A tier weapon's type as the game names it ("Auto Rifle"), if known. */
 export function tierWeaponType(name: string) {
   return loadTiers().then((t) => t.types?.[name])

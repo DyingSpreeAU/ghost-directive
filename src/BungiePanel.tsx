@@ -67,7 +67,6 @@ export async function syncBungie(run: Run, p: Player, dispatch: (i: Intent, pid?
       exotics: snap.exotics,
       equipped: snap.equipped.map((e) => ({ slot: e.slot, name: e.name, instanceId: e.instanceId })),
       classItems: snap.classItems,
-      tierWeapons: snap.tierWeapons,
     }, p.id)
     // Only drops the run takes count as news: not a tier piece being waited for, nor (below Legendary) one that doesn't raise the tier.
     const awaited = (d: (typeof drops)[number]) => p.upgrades?.some((u) => !u.instanceId && u.item === d.name && u.slot === d.slot && u.to === d.rarity)

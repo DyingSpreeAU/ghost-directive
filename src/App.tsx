@@ -5,7 +5,7 @@ import { Briefing, SidePlayer } from './Briefing'
 import { isZorpalod, useZorpalod } from './easterEggs'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
-import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult, tierWeaponPool } from './bungie'
+import { bungieAccountId, bungieConfigured, onAuthChange, signOut, takeSignInResult } from './bungie'
 import { FlowHost } from './Flows'
 import { History } from './History'
 import { LobbyView, ResumeLobby } from './Lobby'
@@ -15,7 +15,7 @@ import {
   type Ctx, type Flow, type HostStore, type Snapshot, type View,
 } from './store'
 import {
-  STANDARD, applyIntent, applyLobbyIntent, bindBungieId, setTierPool, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
+  STANDARD, applyIntent, applyLobbyIntent, bindBungieId, capacityOf, claimRunSeat, computeWarnings, createLobby, current, exampleRun, itemsIn,
   type Intent, type LobbyIntent, type Run,
 } from './model'
 import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, normalizeCode, snapshotAssembler, type StateChunk, type Transport, type TransportStatus } from './net'
@@ -23,6 +23,9 @@ import { connect, encodeSnapshot, inClaudeViewer, isValidCode, makeLobbyCode, no
 type Mode = { kind: 'landing' } | { kind: 'host' } | { kind: 'guest'; code: string }
 
 // Test tools exist only in test builds: in production CHANNEL is '' at build time, so this is never loaded.
+/** Which prompt a flow is: the same reward, tier-up or trade-up keeps the same key while it's open. */
+const flowKey = (f: Flow) => f.type === 'reward' ? `reward:${f.pendingId}` : f.type === 'upgrade' ? `upgrade:${f.upgradeId}`
+  : f.type === 'tradeup' || f.type === 'swap' ? `${f.type}:${f.playerId}:${f.slot}` : f.type === 'missing' ? `missing:${f.playerId}` : f.type
 const MISSING_KEY = 'ghost-directive:missing-asked'
 const DevTools = CHANNEL ? lazy(() => import('./DevTools')) : null
 
@@ -34,8 +37,6 @@ function ChannelBadge() {
 }
 
 export default function App() {
-  // The game's grey, green and blue weapons, for the host's final-boss weapon rolls.
-  useEffect(() => { tierWeaponPool().then((t) => setTierPool(t.weapons, t.types), () => {}) }, [])
   return <><ChannelBadge /><Root /></>
 }
 
@@ -523,6 +524,8 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [deferred, setDeferred] = useState<string[]>([])
   const [dismissedSwaps, setDismissedSwaps] = useState<string[]>([])
+  // The automatic prompt on screen (see flowKey), so a newer one can't replace it mid-way.
+  const [shownAuto, setShownAuto] = useState<string | null>(null)
   // Missing items already asked about ("run id|name"), kept on this device so they aren't asked again.
   const [askedMissing, setAskedMissing] = useState<string[]>(() => { try { return JSON.parse(localStorage.getItem(MISSING_KEY) ?? '[]') } catch { return [] } })
   toastRef.current = setToastMsg
@@ -573,12 +576,22 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
     : []
   // A reopened run waiting for everyone to restore holds back the automatic prompts.
   const paused = !!run?.resume && run.status === 'active'
-  const activeFlow: Flow | null = flow ?? (paused ? null
-    : (tradeFor && run?.status === 'active' ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } : null)
-    ?? (upgradeFor && run?.status === 'active' ? { type: 'upgrade', playerId: upgradeFor.id, upgradeId: upgradeFor.upgrades![0].id } : null)
-    ?? (autoReward ? { type: 'reward', pendingId: autoReward.id } : null)
-    ?? (swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } : null)
-    ?? (missingNames.length && me ? { type: 'missing', playerId: me.id, names: missingNames } : null))
+  // Automatic prompts in priority order. The one on screen stays until it's finished or closed: something
+  // that arrives meanwhile (a tier-up from a drop during a reward screen) waits its turn, never replaces it.
+  const live = run?.status === 'active'
+  // A final-boss reward already part-way through (its category picked) comes back first.
+  const started = myPending.find((x) => x.cat && !deferred.includes(x.id))
+  const waiting: Flow[] = paused ? [] : [
+    started ? { type: 'reward', pendingId: started.id } as const : null,
+    tradeFor && live ? { type: 'tradeup', playerId: tradeFor.id, slot: tradeFor.trade!.slot } as const : null,
+    upgradeFor && live ? { type: 'upgrade', playerId: upgradeFor.id, upgradeId: upgradeFor.upgrades![0].id } as const : null,
+    autoReward ? { type: 'reward', pendingId: autoReward.id } as const : null,
+    swapSlot && me ? { type: 'swap', playerId: me.id, slot: swapSlot } as const : null,
+    missingNames.length && me ? { type: 'missing', playerId: me.id, names: missingNames } as const : null,
+  ].filter((f): f is NonNullable<typeof f> => !!f)
+  const autoFlow = waiting.find((f) => flowKey(f) === shownAuto) ?? waiting[0] ?? null
+  useEffect(() => { setShownAuto(autoFlow ? flowKey(autoFlow) : null) }, [autoFlow ? flowKey(autoFlow) : null]) // eslint-disable-line react-hooks/exhaustive-deps
+  const activeFlow: Flow | null = flow ?? autoFlow
   const closeFlow = () => {
     if (flow) setFlow(null)
     else if (activeFlow?.type === 'reward') setDeferred((d) => [...d, activeFlow.pendingId])
