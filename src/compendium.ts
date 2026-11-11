@@ -310,7 +310,7 @@ export const COMPENDIUM = {
     "super": [
      "Sentinel Shield",
      "Twilight Arsenal",
-     "Ward of Dawn"
+     "Ward of Dawn Bubble"
     ],
     "melee": [
      "Shield Bash",
@@ -630,9 +630,9 @@ export const COMPENDIUM = {
   "Void|aspect|Vanishing Step": "Replaces Dodge Animation with a faster, farther traveling Dodge Animation that grants Invisibility for 5+2 seconds.",
   "Void|melee|Shield Bash": "Shared with other Shoulder Charge Abilities: Requires sprinting for 1.25 seconds. Drains 15% Melee Ability Energy if no enemy is hit. Unable to use during slide if user shoots. Guardians directly hit by Shoulder Charge…",
   "Void|melee|Shield Throw": "Hurls a Void Shield forward. Ricochets up to 4 times per throw, attempts to home in towards enemies, and is affected by gravity.",
-  "Void|super|Sentinel Shield": "Light Attack | Drains 4.5% Super Energy per Attack. The Final Hit in the combo drains 2% Super Energy. Grounded 3-Hit Combo, dealing 797 [?] and 856 [?] damage. Airborne 2-Hit Combo, dealing 797 [?] damage The Final…",
+  "Void|super|Sentinel Shield": "Light Attack | Drains 4.5% Super Energy per Attack. The Final Hit in the combo drains 2% Super Energy. Grounded 3-Hit Combo, dealing 797 [?] and 856 [?] damage. Airborne 2-Hit Combo, dealing 797 [?] damage Combo…",
   "Void|super|Twilight Arsenal": "Summons 3 Void Axes and throws them towards the reticle. Axes deal up to 1,250 [?] damage over ? meters on impact, pulling enemies inwards, and explode after 0.6 seconds, dealing up to 1,750 [?] damage and weakening…",
-  "Void|super|Ward of Dawn": "Ward of Dawn: Projects a 8,000 Construct HP Protective Dome with 75??% NEEDS TESTING Damage Resistance against Combatants alongside an internal core with 200 HP. Guardians deal 50% increased damage to the Protective…",
+  "Void|super|Ward of Dawn Bubble": "Ward of Dawn: Projects a 8,000 Construct HP Protective Dome with 75??% NEEDS TESTING Damage Resistance against Combatants alongside an internal core with 200 HP. Guardians deal 50% increased damage to the Protective…",
   "Void|aspect|Bastion": "On Super Cast: Grants allies within 15 metres a 45 HP Void Overshield.",
   "Void|aspect|Controlled Demolition": "Void Ability Damage inflicts Volatile. Volatile Explosions also count as Void Ability Damage.",
   "Void|aspect|Offensive Bulwark": "Grants an additional Shield Throw to Sentinel Shield Super.",
@@ -1997,7 +1997,7 @@ export const COMPENDIUM = {
     "name": "Crest of Alpha Lupi",
     "perk": "Survival Well",
     "slot": "Chest",
-    "synergy": "Void",
+    "synergy": null,
     "brief": "On Class Ability Usage: Instantly restores Health and Shields to the wielder and allies in Line of Sight within 12 metres, centered on the wielder. Healing is based on the equipped Class Ability. Barricade restores 160 Health and 110…"
    },
    {
