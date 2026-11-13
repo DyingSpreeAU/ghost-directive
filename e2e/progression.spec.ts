@@ -136,9 +136,17 @@ test('heavy weapon: green to blue takes two Legendary drops, then blue to Legend
   await drop()
   await expect(page.locator('.modal h2')).toHaveText('Power: 1 of 2 drops towards Rare')
   await expect(page.locator('.upgrade-steps li').first()).toContainText('Dismantle or vault')
+  // A random green heavy weapon to use in place of the dismantled drop.
+  await expect(page.locator('.upgrade-steps li').nth(1)).toContainText('Use ')
+  await expect.poll(async () => (await me()).upgrades?.[0]?.item).toBeTruthy()
+  const green = (await me()).upgrades[0].item as string
+  const powers = async () => (await me()).inventory.filter((i: { slot: string }) => i.slot === 'Power').length
+  const before = await powers()
   await page.click('.modal-foot .btn-light')
   await expect.poll(async () => (await me()).tierProgress?.Power).toBe(1)
   expect((await me()).tiers.Power).toBe('Uncommon')
+  await expect.poll(powers).toBe(before + 1)
+  expect((await me()).inventory.find((i: { name: string; slot: string }) => i.name === green && i.slot === 'Power')?.rarity).toBe('Uncommon')
   await expect(page.locator('.guardian').first().locator('.g-slot', { hasText: 'Power' }).locator('.tier-progress')).toHaveText('1/2')
   await drop()
   await expect(page.locator('.modal h2')).toHaveText('Power: Uncommon → Rare')

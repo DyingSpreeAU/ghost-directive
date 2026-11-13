@@ -127,7 +127,9 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   `Sandbox.heavyGreenDrops`, default 2): the heavy weapon starts a tier higher, so this step takes extra
   Legendary drops and it climbs as many times as the other slots. Until the last one, a drop only counts
   (`Player.tierProgress`; the slot shows "1/2"): its screen ("Power: 1 of 2 drops towards Rare") says to
-  dismantle or vault the drop and keep the current weapon. BONUS and reward tier-ups still move a whole
+  dismantle or vault the drop and use a random green heavy weapon in its place (picked like a tier piece:
+  one the player holds or has unlocked in Collections when signed in; Done pulls it if it's on the account
+  and adds it to the run at Uncommon). The previous heavy stays as a spare. BONUS and reward tier-ups still move a whole
   tier and clear the count.
 - **Armor tiers: real or simulated** (`Sandbox.armorTiers`: each Guardian chooses (default), real
   pieces, or simulated). With "chooses", every seat picks in the lobby (**Real pieces** / **Simulated**,

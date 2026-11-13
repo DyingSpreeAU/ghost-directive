@@ -828,7 +828,8 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
   const weapon = !!up && WEAPON_SLOTS.includes(up.slot)
   // A weapon piece is any of the tier's rarity for the slot: one the player owns if possible, fixed once picked.
   useEffect(() => {
-    if (!up || up.item || up.progress || up.to === 'Legendary' || !weapon || picking.current) return
+    // A counted heavy drop (progress) also gets a piece: a green heavy weapon to use in place of the drop.
+    if (!up || up.item || up.to === 'Legendary' || !weapon || picking.current) return
     picking.current = true
     ;(async () => {
       const pool = (await tierWeapons())[up.slot]?.[up.to] ?? []
@@ -876,12 +877,22 @@ function UpgradeFlow({ run, onClose, playerId, upgradeId }: { run: Run; onClose:
     const more = up.progress.need - up.progress.have
     return (
       <Modal kicker={`${p.name} \u00b7 Gear progression`} title={`${up.slot}: ${up.progress.have} of ${up.progress.need} drops towards Rare`}
-        footer={<button className="btn btn-light" onClick={finish}>Done</button>}>
+        footer={<button className="btn btn-light" disabled={moving || !up.item} onClick={finish}>{moving ? 'Moving in Destiny 2\u2026' : inGame && held ? `Pull ${up.item} and finish` : 'Done'}</button>}>
         <div className="stack upgrade-flow">
           <p className="tier-step"><TierWord tier={up.from} /> <span className="tier-pips" aria-label={`${up.progress.have} of ${up.progress.need}`}>{Array.from({ length: up.progress.need }, (_, k) => <span key={k} className={k < up.progress!.have ? 'is-on' : ''} />)}</span> <span aria-hidden="true">&rarr;</span> <TierWord tier="Rare" /></p>
           <ol className="upgrade-steps">
             {up.drop && <li><strong>Dismantle or vault {up.drop.name}</strong> in Destiny 2. It counts towards your {up.slot} slot&rsquo;s next tier, but it isn&rsquo;t yours for the run until the slot is Legendary.</li>}
-            <li>Your heavy weapon starts at <TierWord tier="Uncommon" />, so it takes {up.progress.need} Legendary drops to reach <TierWord tier="Rare" />. {more} more to go; keep using your current one.</li>
+            <li>
+              {up.item
+                ? <><strong>Use {up.item}</strong>, a <TierWord tier="Uncommon" /> heavy {wtype ?? 'weapon'}, in place of the drop. </>
+                : <>Picking a <TierWord tier="Uncommon" /> heavy weapon for you&hellip; </>}
+              {up.item && (inGame
+                ? held === null ? <span className="muted">Checking your account&hellip;</span>
+                  : held ? <span>It&rsquo;s on your account: finishing pulls it to your {p.cls}.</span>
+                  : <span>It&rsquo;s not on your account: pull it from <strong>Collections</strong> (Weapons) in Destiny 2, then press Done.</span>
+                : <span>Pull it from your Vault, or from <strong>Collections</strong> if you don&rsquo;t have one.</span>)}
+            </li>
+            <li>Your heavy weapon starts at <TierWord tier="Uncommon" />, so it takes {up.progress.need} Legendary drops to reach <TierWord tier="Rare" />. {more} more to go. Your previous heavy stays in your run inventory as a spare.</li>
           </ol>
         </div>
       </Modal>
