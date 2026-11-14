@@ -145,6 +145,8 @@ export type HostApi = {
   updateRun: (fn: (r: Run) => void) => void
   updateLobby: (fn: (l: Lobby) => void) => void
   closeSession: (archive: boolean) => void
+  /** Deletes the current run for good (not to Run History), tells connected players, and goes to the start screen. */
+  discardRun: () => void
 }
 
 export type Ctx = {

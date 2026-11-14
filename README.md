@@ -317,6 +317,11 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   on any Guardian (**Record my death** on their own); the host can **Undo last** (restores the Integrity).
   The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
+- **Leaving a run** (`RunExit` in `src/App.tsx`; sidebar, and the bottom of the page on phones): the host
+  has **Save and close run** (back to the start screen; the run stays in Saved runs) and **Quit and
+  discard run**, which asks "Discard this run?" and then deletes it for good (not to Run History; players
+  in the lobby are disconnected). In a lobby with no run yet it's Back to start screen; players have
+  Leave lobby.
 - **Saved runs (save slots, unlimited)**: every unfinished run is kept in the host's browser (`saved` in the
   host store, localStorage; the app asks the browser for persistent storage). Starting a new lobby puts
   the current run aside, and beginning another run leaves the saved ones alone. A saved run is about

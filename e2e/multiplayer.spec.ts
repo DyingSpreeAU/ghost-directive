@@ -31,7 +31,7 @@ test('guest joins, readies up, and on a reopened run can only restore', async ({
   await host.click('text=Begin run and lock route')
   await expect(guest.locator('#arsenal')).toBeVisible()
 
-  await host.click('.sidebar >> text=Back to start screen')
+  await host.click('.sidebar >> text=Save and close run')
   a.chars[HUNTER].inv.push(item(a, I.StayAway, B.e))
   await host.click('.saved-run button:has-text("Resume")')
   await expect(guest.locator('.resume-lobby')).toBeVisible({ timeout: 30_000 })

@@ -2,6 +2,7 @@ import { BugReport } from './BugReport'
 import { Explainer } from './Explainer'
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Briefing, SidePlayer } from './Briefing'
+import { Modal } from './ui'
 import { isZorpalod, useZorpalod } from './easterEggs'
 import { CHANNEL } from './channel'
 import { BungieStart, SynapticLink, useAutoSync } from './BungiePanel'
@@ -26,6 +27,33 @@ type Mode = { kind: 'landing' } | { kind: 'host' } | { kind: 'guest'; code: stri
 /** Which prompt a flow is: the same reward, tier-up or trade-up keeps the same key while it's open. */
 const flowKey = (f: Flow) => f.type === 'reward' ? `reward:${f.pendingId}` : f.type === 'upgrade' ? `upgrade:${f.upgradeId}`
   : f.type === 'tradeup' || f.type === 'swap' ? `${f.type}:${f.playerId}:${f.slot}` : f.type === 'missing' ? `missing:${f.playerId}` : f.type
+/**
+ * Leaving the run page. The host: Save and close run (it stays in Saved runs, to resume later) or
+ * Quit and discard run, which asks first and then deletes it for good. In a lobby with no run yet,
+ * Back to start screen; a player: Leave lobby.
+ */
+function RunExit({ run }: { run: Run | null }) {
+  const { role, leave, host } = useGD()
+  const [asking, setAsking] = useState(false)
+  if (role !== 'host' || !run) return <button className="link" onClick={leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
+  return (
+    <div className="run-exit">
+      <button className="btn btn-ghost btn-sm" onClick={leave}>Save and close run</button>
+      <button className="link tone-danger" onClick={() => setAsking(true)}>Quit and discard run</button>
+      {asking && (
+        <Modal kicker={run.name} title="Discard this run?" onClose={() => setAsking(false)}
+          footer={<>
+            <button className="btn btn-ghost" onClick={() => setAsking(false)}>Keep the run</button>
+            <button className="btn btn-danger" onClick={() => { setAsking(false); host!.discardRun() }}>Discard run</button>
+          </>}>
+          <p>Everything about this run is deleted from this browser: route progress, unlocks, inventories and the Combat Report. It won&rsquo;t go to Run History, and it can&rsquo;t be undone.</p>
+          <p className="small muted">Players in the lobby are disconnected. To keep it for later, use <strong>Save and close run</strong> instead.</p>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
 const MISSING_KEY = 'ghost-directive:missing-asked'
 const DevTools = CHANNEL ? lazy(() => import('./DevTools')) : null
 
@@ -306,6 +334,14 @@ function HostApp({ onLeave }: { onLeave: () => void }) {
         s.active = null
         s.lobby = null
       })
+      // Saved now: leaving unmounts this screen before the save effect would run.
+      saveHostStore(ref.current)
+      onLeave()
+    },
+    discardRun: () => {
+      tRef.current?.send({ r: 'h', k: 'closed' })
+      mutate((s) => { if (s.active) deleteRun(s, s.active.id); s.lobby = null })
+      saveHostStore(ref.current)
       onLeave()
     },
   }), [store, mutate, onLeave])
@@ -636,7 +672,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
           />
           {run && !paused && run.status === 'active' && <SidePlayer run={run} />}
           <div className="sidebar-foot">
-            <button className="link" onClick={base.leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
+            <RunExit run={run} />
             <p>{role === 'host' ? 'The run lives in this browser. Close the window any time; it resumes here.' : 'The host’s browser keeps the run. You control your own Guardian.'}</p>
             <BugReport run={run} lobby={lobby} role={role} />
           </div>
@@ -654,7 +690,7 @@ function Shell({ base, toastRef }: { base: Omit<Ctx, 'openFlow' | 'go' | 'toast'
             : run ? <Briefing run={run} warnings={warnings} pendingDeferred={myPending.length} onOpenRewards={() => { setDeferred([]); if (myPending[0]) setFlow({ type: 'reward', pendingId: myPending[0].id }) }} />
             : lobby ? <LobbyView lobby={lobby} />
             : null}
-          <div className="main-foot show-narrow"><BugReport run={run} lobby={lobby} role={role} /></div>
+          <div className="main-foot show-narrow">{role === 'host' && run && <RunExit run={run} />}<BugReport run={run} lobby={lobby} role={role} /></div>
         </main>
 
         <nav className="tabbar" aria-label="Sections">

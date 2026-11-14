@@ -43,7 +43,7 @@ test('reopened run: gear from the break is not a drop; restoring lets play conti
   await page.waitForSelector('#arsenal'); await later(page)
   await tools(page, () => page.click('.devtools button:has-text("All slots Legendary")'))
   await expect.poll(async () => (await store(page)).active.players[0].inventory.length).toBe(8)
-  await page.click('.sidebar >> text=Back to start screen')
+  await page.click('.sidebar >> text=Save and close run')
   const h = a.chars[HUNTER]
   h.inv.push(item(a, I.StayAway, B.e), item(a, I.Pariah, B.k))
   await page.click('.saved-run button:has-text("Resume")')
