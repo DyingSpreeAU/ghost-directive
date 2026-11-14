@@ -73,7 +73,8 @@ export async function editStore(page: Page, fn: string) {
 
 /** Picks armor tiers on your own seat (real pieces unless said otherwise). */
 export async function pickArmor(page: Page, mode: 'Real pieces' | 'Simulated' = 'Real pieces') {
-  await page.click(`.seat.is-you .armor-opt:has-text("${mode}")`)
+  await page.click('.seat.is-you .seat-armor button.link')
+  await page.click(`.modal .armor-opt:has-text("${mode}")`)
 }
 
 /** Creates a lobby, picks an artifact and begins a real run. */

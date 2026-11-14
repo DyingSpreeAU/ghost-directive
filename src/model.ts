@@ -1406,6 +1406,8 @@ export type Seat = {
   artifact: string
   /** Armor tiers, when the Directive lets each Guardian choose; required before the run starts then. */
   armor?: ArmorMode
+  /** Starting gear the player picked per slot in the lobby (item instance ids), for Equip in game. */
+  startGear?: Partial<Record<Slot, string>>
   /** The player changed class, subclass or abilities themselves, so Bungie auto-fill leaves the seat alone. */
   custom?: boolean
   /** The Bungie.net account of the seat's device (see bindBungieId). */
@@ -1504,7 +1506,7 @@ export function runFromLobby(l: Lobby): Run {
 
 export type LobbyIntent =
   | { type: 'seat-claim'; seatId: string | null }
-  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact' | 'emblem' | 'armor'>> & { auto?: boolean } }
+  | { type: 'seat-update'; patch: Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'checklist' | 'ready' | 'artifact' | 'emblem' | 'armor' | 'startGear'>> & { auto?: boolean } }
   | { type: 'seat-leave' }
 
 /** Seat changes from a player's device (or the host for their own seat). */
@@ -1545,6 +1547,10 @@ export function applyLobbyIntent(l: Lobby, clientId: string, raw: LobbyIntent, o
       }
       if (typeof pt.artifact === 'string' && artifactByName(pt.artifact)) mine.artifact = pt.artifact
       if (pt.armor === 'collections' || pt.armor === 'simulated') mine.armor = pt.armor
+      if (pt.startGear && typeof pt.startGear === 'object') {
+        const sg = pt.startGear as Record<string, unknown>
+        mine.startGear = Object.fromEntries(ALL_SLOTS.filter((s) => typeof sg[s] === 'string' && /^\d{1,30}$/.test(sg[s] as string)).map((s) => [s, sg[s] as string]))
+      }
       const em = (pt.emblem ?? {}) as { icon?: unknown; background?: unknown }
       if (iconPath(em.icon) && iconPath(em.background)) mine.emblem = { icon: iconPath(em.icon), background: iconPath(em.background) }
       if (typeof pt.ready === 'boolean') mine.ready = pt.ready && !!mine.artifact && !needsArmor(l, mine)

@@ -62,7 +62,7 @@ test('a lobby on an older copy of its Directive (from before gear progression) u
   await fresh(page)
   await page.click('text=Create lobby')
   await collapseTools(page)
-  await expect(page.locator('.seat.is-you section[aria-label="Armor tiers"]')).toBeVisible()
+  await expect(page.locator('.seat.is-you .seat-armor')).toBeVisible()
   // As saved by an older version: no gear progression, no newer sandbox rules.
   await page.evaluate(() => {
     const s = JSON.parse(localStorage.getItem('ghost-directive:v2')!)
@@ -70,7 +70,7 @@ test('a lobby on an older copy of its Directive (from before gear progression) u
     localStorage.setItem('ghost-directive:v2', JSON.stringify(s))
   })
   await page.reload()
-  await expect(page.locator('.seat.is-you section[aria-label="Armor tiers"]')).toBeVisible()
+  await expect(page.locator('.seat.is-you .seat-armor')).toBeVisible()
 })
 
 test('reopening the lobby after a run from before gear progression brings it in', async ({ page }) => {
@@ -90,7 +90,7 @@ test('reopening the lobby after a run from before gear progression brings it in'
   await page.click('.page-head button:has-text("End run")')
   await page.click('.modal-foot .btn-danger')
   await page.click('button:has-text("Archive and reopen lobby")')
-  await expect(page.locator('.seat.is-you section[aria-label="Armor tiers"]')).toBeVisible()
+  await expect(page.locator('.seat.is-you .seat-armor')).toBeVisible()
 })
 
 test('custom route: Shuffle order puts the same dungeons in a new random order', async ({ page }) => {

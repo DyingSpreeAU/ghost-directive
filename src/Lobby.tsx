@@ -3,13 +3,13 @@ import { ARTIFACTS, CLASSES, DUNGEONS, abilityDesc, baseKit, artifactByName, che
 import { CHECKLIST, CHRONOLOGICAL_ROUTE, MAX_SEATS, armorChoice, needsArmor, sandbox, startRarities, type Ruleset, bungieDisplayName, defaultStarter, endResume, markRestored, starterOf, isDefaultName, newSeat, runFromLobby, type ArmorMode, type Lobby, type Player, type Run, type Seat } from './model'
 import { allProtocols, useGD } from './store'
 import { ElementMark, EncounterArt, Modal, SwipeCols, TierWord, rarityClass } from './ui'
-import { bungieConfigured, fetchEquipped, sendSetup, startSignIn, type EquippedPreview, type SendReport } from './bungie'
+import { bungieConfigured, equipGear, fetchEquipped, sendSetup, startSignIn, startingGearOptions, type EquippedPreview, type GearOption, type SendReport } from './bungie'
 import type { Rarity, Slot } from './data'
 import { RestoreGuardian, reportLink, useBungie } from './BungiePanel'
 import { useIcons } from './icons'
 import { ArmorTiersGraphic } from './ArmorTiers'
 
-type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem' | 'armor'>> & { auto?: boolean }
+type Patch = Partial<Pick<Seat, 'name' | 'cls' | 'element' | 'starter' | 'ready' | 'artifact' | 'emblem' | 'armor' | 'startGear'>> & { auto?: boolean }
 
 export function LobbyView({ lobby }: { lobby: Lobby }) {
   const { role, me, online, host, lobbyAct, toast, net } = useGD()
@@ -55,15 +55,51 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
     try {
       const abilities = STARTER_KINDS.map((k) => starterOf(mine)[k].split('|')[2])
       const report = await sendSetup({ cls: mine.cls, element: mine.element, abilities, artifact: mine.artifact || undefined }, (step) => setSend({ busy: true, step }))
-      // Everything applied and the gear is starting gear in every slot: ready up now, no need to wait for Bungie.
-      const gearOk = GEAR_SLOTS.every((slot) => report.gear.some((g) => g.slot === slot && g.instanceId && startRarities(lobby.ruleset, slot).includes(g.rarity)))
-      const readied = report.problems.length === 0 && gearOk && !!artifactByName(mine.artifact)
-      if (report.problems.length === 0) eq.setSent({ at: Date.now(), gear: report.gear })
-      if (readied && !mine.ready) patchSeat(mine, { ready: true })
+      // Then the starting gear picked in the seat, on the character.
+      const picks = chosenGear(gearOpts, mine)
+      const toEquip = GEAR_SLOTS.map((slot) => picks[slot]).filter((g): g is GearOption => !!g && g.where !== 'equipped')
+      if (toEquip.length) {
+        const gearProblems = await equipGear(mine.cls, toEquip.map((g) => g.instanceId), (step) => setSend({ busy: true, step }))
+        report.problems.push(...gearProblems)
+        report.applied.push(...toEquip.map((g) => `Equipped ${g.name}`))
+      }
+      // A legal pick in every slot, all equipped without problems: ready up now, no need to wait for Bungie.
+      const gearOk = GEAR_SLOTS.every((slot) => picks[slot]) && report.problems.length === 0
+      const readied = gearOk && !!artifactByName(mine.artifact)
+      if (report.problems.length === 0) eq.setSent({ at: Date.now(), gear: GEAR_SLOTS.flatMap((slot) => picks[slot] ? [{ slot, name: picks[slot]!.name, rarity: picks[slot]!.rarity, instanceId: picks[slot]!.instanceId }] : []) })
       setSend({ busy: false, report: { ...report, readied, gearOk } })
+      if (readied && !mine.ready) readyUp(mine)
     } catch (e) { setSend({ busy: false, error: (e as Error).message }) }
     eq.refresh()
+    gearOpts.refresh()
   }
+  // Armor tiers are asked in a pop-up: when readying up, or on Begin for the host's own seat and seats with no device.
+  const [armorFor, setArmorFor] = useState<{ seatId: string; then?: 'ready' | 'begin' } | null>(null)
+  const armorSeat = armorFor ? lobby.seats.find((s) => s.id === armorFor.seatId) : undefined
+  const readyUp = (s: Seat) => (needsArmor(lobby, s) ? setArmorFor({ seatId: s.id, then: 'ready' }) : patchSeat(s, { ready: true }))
+  const beginRun = () => {
+    // Read inside the update, so an armor pick made a moment ago counts.
+    let ask: Seat | undefined
+    host!.mutate((st) => {
+      if (!st.lobby) return
+      const l = st.lobby
+      ask = l.seats.find((s) => needsArmor(l, s) && (s.isHost || s.clientId === null))
+      if (!ask) { st.active = runFromLobby(l); st.lobby = null }
+    })
+    if (ask) setArmorFor({ seatId: ask.id, then: 'begin' })
+    else toast('Run started. Route locked.')
+  }
+  const pickArmor = (mode: ArmorMode) => {
+    if (!armorSeat || !armorFor) return
+    const then = armorFor.then
+    setArmorFor(null)
+    patchSeat(armorSeat, { armor: mode, ...(then === 'ready' ? { ready: true } : {}) })
+    // Begin carries on once every seat the host answers for has chosen (the next one asks in turn).
+    if (then === 'begin' && host) beginRun()
+  }
+  // The player's starting gear picks, as instance ids by slot.
+  const gearOpts = useGearOptions(eq.active && !!mine, mine?.cls, lobby.ruleset)
+  const pickedIds = (s: Seat) => Object.fromEntries(Object.entries(chosenGear(gearOpts, s)).map(([slot, g]) => [slot, g!.instanceId]))
   const others = lobby.seats.filter((s) => s.clientId && s.clientId !== me && isOnline(s.clientId))
   // Share the player's in-game emblem with the lobby, for their seat's nameplate.
   const emblem = eq.data?.emblem
@@ -75,15 +111,15 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   return (
     <div className="lobby">
       {send && !send.busy && (
-        <Modal title={send.error ? 'Couldn’t apply your setup' : 'Setup sent to your character'} kicker="Send to" onClose={() => setSend(null)} footer={<button className="btn btn-light" onClick={() => setSend(null)}>Done</button>}>
+        <Modal title={send.error ? 'Couldn’t apply your setup' : 'Equipped in game'} kicker="Equip in game" onClose={() => setSend(null)} footer={<button className="btn btn-light" onClick={() => setSend(null)}>Done</button>}>
           {send.error ? <p className="tone-danger">{send.error}</p> : send.report && (
             <div className="stack restore-info">
               <p>Your {send.report.character}:</p>
               <ul>{send.report.applied.length ? send.report.applied.map((a) => <li key={a}>{a}</li>) : <li>Already matched this seat. Nothing to change.</li>}</ul>
               {send.report.readied
-                ? <p className="tone-ok">&#10003; Everything checks out and your gear is starting gear in every slot. You&rsquo;re marked ready.</p>
+                ? <p className="tone-ok">&#10003; Everything checks out and your starting gear is on in every slot. You&rsquo;re readying up.</p>
                 : send.report.problems.length === 0 && !send.report.gearOk
-                  ? <p className="tone-warn">Your subclass and artifact are set, but your gear isn&rsquo;t starting gear in every slot yet, so you&rsquo;re not marked ready.</p>
+                  ? <p className="tone-warn">Your subclass and artifact are set, but some slots have no legal starting gear yet (see Starting gear), so you&rsquo;re not readied up.</p>
                   : null}
               {send.report.already.length > 0 && <><p className="small muted">Already set:</p><ul className="small muted">{send.report.already.map((x) => <li key={x}>{x}</li>)}</ul></>}
               {send.report.problems.length > 0 && <><p className="small tone-warn">Couldn&rsquo;t apply:</p><ul className="small">{send.report.problems.map((x) => <li key={x}>{x}</li>)}</ul></>}
@@ -92,6 +128,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
         </Modal>
       )}
       {send?.busy && <div className="toast" role="status">{send.step ?? 'Reading your character…'}</div>}
+      {armorSeat && <ArmorPrompt seat={armorSeat} onPick={pickArmor} onClose={() => setArmorFor(null)} />}
       <header className="page-head">
         <div>
           <div className="eyebrow">Lobby</div>
@@ -133,8 +170,11 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               onPatch={(p) => patchSeat(s, p)}
               notice={undefined}
               armorAsk={armorChoice(lobby.ruleset)}
+              onReady={() => readyUp(s)}
+              onArmor={() => setArmorFor({ seatId: s.id })}
               sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
-              equipped={s.clientId === me ? <EquippedNow eq={eq} seat={s} ruleset={lobby.ruleset} onApply={(patch) => patchSeat(s, patch)} /> : undefined}
+              equipped={s.clientId === me ? <EquippedIssues eq={eq} seat={s} ruleset={lobby.ruleset} /> : undefined}
+              gear={s.clientId === me && eq.active ? <StartingGear opts={gearOpts} seat={s} ruleset={lobby.ruleset} onPick={(slot, id) => patchSeat(s, { startGear: { ...pickedIds(s), [slot]: id } })} /> : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -154,10 +194,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
 
       <RouteAndProtocol lobby={lobby} />
 
-      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={() => {
-        host!.mutate((s) => { s.active = runFromLobby(s.lobby!); s.lobby = null })
-        toast('Run started. Route locked.')
-      }} /> : (
+      {role === 'host' ? <BeginBar lobby={lobby} isOnline={isOnline} notice={notice} readyRow={others.length > 0 ? <ReadyRow lobby={lobby} isOnline={isOnline} me={me} /> : undefined} onBegin={beginRun} /> : (
         <div className="panel waiting-bar">
           <div className="waiting-text">
             <span>{mine?.ready ? <><span className="scanner small" aria-hidden="true" /> You&rsquo;re ready. Waiting for the host to begin.</> : 'Choose your artifact, set up your starting gear, then mark yourself ready.'}</span>
@@ -165,7 +202,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
             {notice}
           </div>
           {mine && (
-            <button className={`btn ${mine.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!artifactByName(mine.artifact) && !mine.ready} onClick={() => patchSeat(mine, { ready: !mine.ready })}>
+            <button className={`btn ${mine.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!artifactByName(mine.artifact) && !mine.ready} onClick={() => (mine.ready ? patchSeat(mine, { ready: false }) : readyUp(mine))}>
               {mine.ready ? 'Not ready yet' : artifactByName(mine.artifact) ? 'I\u2019m ready' : 'Choose an artifact first'}
             </button>
           )}
@@ -219,10 +256,16 @@ const ARMOR_MODES: { value: ArmorMode; title: string; blurb: string }[] = [
   { value: 'simulated', title: 'Simulated', blurb: 'Keep wearing your grey armor. The app colours it green, then blue, as the slot climbs. Nothing to pull.' },
 ]
 
-function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped, statusLabel, resume, armorAsk }: {
+function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, sync, equipped, gear, statusLabel, resume, armorAsk, onReady, onArmor }: {
   seat: Seat; you: boolean; connected: boolean | null; editable: boolean
   /** The Directive lets each Guardian choose real or simulated armor tiers. */
   armorAsk?: boolean
+  /** Readying up (asks about armor tiers first when they're still to choose). */
+  onReady?: () => void
+  /** Opens the armor tiers choice. */
+  onArmor?: () => void
+  /** The player's own seat: legal starting gear on their account, one pick per slot. */
+  gear?: React.ReactNode
   /** Replaces the lobby's own status word (the resume screen shows Restored or Waiting). */
   statusLabel?: string
   /** On the resume screen: Bungie sign-in is about restoring, not the Vault. */
@@ -275,16 +318,6 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
           <section className="g-sec" aria-label="Class and subclass">
             <header className="g-sec-head">
               <span className="eyebrow">Class and subclass</span>
-              {sync && (
-                <span className="row-acts seat-sync">
-                  <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.run} title="Read your in-game character from Bungie and set this seat's class, subclass, Super, melee and grenade to match.">
-                    {sync.busy ? 'Syncing\u2026' : 'Sync from'}
-                  </button>
-                  <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.send} title="Apply this seat to your character in game: its subclass, Super, melee and grenade, with aspects, fragments and artifact perks cleared. Works in orbit, a social space, or offline.">
-                    {sync.sending ? 'Sending\u2026' : 'Send to'}
-                  </button>
-                </span>
-              )}
             </header>
             <div className="seg" role="radiogroup" aria-label="Class">
               {CLASSES.map((c) => <button key={c} role="radio" aria-checked={seat.cls === c} className={seat.cls === c ? 'is-on' : ''} disabled={ro} onClick={() => onPatch({ cls: c })}>{c}</button>)}
@@ -329,27 +362,28 @@ function SeatCard({ seat, you, connected, editable, onPatch, hostTools, notice, 
               : <small className="tone-warn">{ro ? 'Not chosen yet.' : 'Pick one before the run starts. All Artifact research comes from it.'}</small>}
           </section>
 
-          {armorAsk && (
-            <section className="g-sec" aria-label="Armor tiers">
-              <header className="g-sec-head"><span className="eyebrow">Armor tiers</span><span className="muted small">locked for the run</span></header>
-              <div className="armor-pick" role="radiogroup" aria-label="Armor tiers">
-                {ARMOR_MODES.map((o) => (
-                  <button key={o.value} role="radio" aria-checked={seat.armor === o.value} className={`armor-opt ${seat.armor === o.value ? 'is-on' : ''}`} disabled={ro} onClick={() => onPatch({ armor: o.value })}>
-                    <strong>{o.title}</strong>
-                    <span className="muted small">{o.blurb}</span>
-                  </button>
-                ))}
-              </div>
-              <ArmorTiersGraphic cls={seat.cls} chosen={seat.armor} />
-              {!seat.armor && <small className="tone-warn">{ro ? 'Not chosen yet.' : 'Pick one before the run starts.'}</small>}
-            </section>
-          )}
+          {gear}
 
           {equipped}
           {notice}
+          {/* Last before readying up: put the seat into the game, or take it from the game. */}
+          {sync && (
+            <div className="seat-sync">
+              <button className="btn btn-ghost btn-sm" disabled={sync.busy || sync.sending} onClick={sync.run} title="Read your character in game and set this seat's class, subclass, Super, class ability, melee and grenade and artifact to match.">
+                {sync.busy ? 'Syncing\u2026' : 'Sync from game'}
+              </button>
+              <button className="btn btn-light btn-sm" disabled={sync.busy || sync.sending} onClick={sync.send} title="Set your character in game to this seat: its subclass and abilities, aspects, fragments and artifact perks cleared, and the starting gear you picked equipped. Works in orbit, a social space, or offline.">
+                {sync.sending ? 'Equipping\u2026' : 'Equip in game'}
+              </button>
+            </div>
+          )}
+          {armorAsk && (
+            <p className="small seat-armor">Armor tiers: {seat.armor ? <strong>{seat.armor === 'simulated' ? 'Simulated' : 'Real pieces'}</strong> : <span className="muted">asked when you ready up</span>}
+              {!ro && <> &middot; <button className="link" onClick={onArmor}>{seat.armor ? 'Change' : 'Choose now'}</button></>}</p>
+          )}
           {!ro && !seat.isHost && seat.clientId !== null && (
-            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={(!art || !armorOk) && !seat.ready} onClick={() => onPatch({ ready: !seat.ready })}>
-              {seat.ready ? 'Not ready yet' : !art ? 'Choose an artifact first' : !armorOk ? 'Choose armor tiers first' : 'I\u2019m ready'}
+            <button className={`btn ${seat.ready ? 'btn-ghost' : 'btn-light'}`} disabled={!art && !seat.ready} onClick={() => (seat.ready ? onPatch({ ready: false }) : onReady?.())}>
+              {seat.ready ? 'Not ready yet' : !art ? 'Choose an artifact first' : 'I\u2019m ready'}
             </button>
           )}
       </div>
@@ -575,7 +609,6 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
   const [confirm, setConfirm] = useState(false)
   const notReady = lobby.seats.filter((s) => !s.isHost && s.clientId !== null && (!s.ready || !isOnline(s.clientId)))
   const noArtifact = lobby.seats.filter((s) => !artifactByName(s.artifact))
-  const noArmor = lobby.seats.filter((s) => needsArmor(lobby, s))
   const noRoute = lobby.route.length === 0
   return (
     <div className="panel begin-bar">
@@ -585,14 +618,13 @@ function BeginBar({ lobby, isOnline, onBegin, notice, readyRow }: { lobby: Lobby
         {readyRow ?? (notReady.length > 0 && <p className="small tone-warn">Not ready: {notReady.map((s) => s.name).join(', ')}</p>)}
         {noRoute && <p className="small tone-danger">Add at least one dungeon.</p>}
         {noArtifact.length > 0 && <p className="small tone-danger">Every Guardian needs an artifact. Still to choose: {noArtifact.map((s) => s.name).join(', ')}</p>}
-        {noArmor.length > 0 && <p className="small tone-danger">Every Guardian picks real or simulated armor tiers. Still to choose: {noArmor.map((s) => s.name).join(', ')}</p>}
         {notice}
       </div>
       <div className="begin-acts">
-        <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || noArmor.length > 0 || notReady.length > 0} onClick={onBegin}>
+        <button className="btn btn-light" disabled={noRoute || noArtifact.length > 0 || notReady.length > 0} onClick={onBegin}>
           {notReady.length ? `Waiting on ${notReady.length} Guardian${notReady.length === 1 ? '' : 's'}` : <>Begin run<span className="hide-narrow"> and lock route</span></>}
         </button>
-        {notReady.length > 0 && !noRoute && noArtifact.length === 0 && noArmor.length === 0 && (confirm ? (
+        {notReady.length > 0 && !noRoute && noArtifact.length === 0 && (confirm ? (
           <div className="override">
             <p className="small tone-warn">{notReady.map((s) => s.name).join(', ')} {notReady.length === 1 ? 'isn’t' : 'aren’t'} ready. Their setup may not match the run&rsquo;s starting rules.</p>
             <div className="row-acts"><button className="btn btn-ghost btn-sm" onClick={() => setConfirm(false)}>Wait</button><button className="btn btn-danger btn-sm" onClick={onBegin}>Begin anyway</button></div>
@@ -738,96 +770,132 @@ function useAutofill(eq: Equipped, seat: Seat | undefined, apply: (p: Patch) => 
   useEffect(() => {
     if (!eq.data || !seat || seat.custom) return
     const key = `ghost-directive:autofill:${seat.id}`
-    try { if (sessionStorage.getItem(key)) return; sessionStorage.setItem(key, '1') } catch { /* fill anyway */ }
+    // Once per seat, ever: after this the seat only changes when the player changes it (or Sync from game).
+    try { if (localStorage.getItem(key)) return; localStorage.setItem(key, '1') } catch { /* fill anyway */ }
     apply({ ...seatFromCharacter(eq.data), auto: true })
     toast(`Seat set from your ${eq.data.cls}${eq.data.subclass ? ` (${eq.data.subclass.element})` : ''}. Change anything you like.`)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eq.data, seat?.id])
 }
 
-/** Inside the player's own seat: what their character has equipped right now, checked against the starting rules. */
-function EquippedNow({ eq, seat, ruleset, onApply }: { eq: Equipped; seat?: Seat; ruleset: Ruleset; onApply: (p: Patch) => void }) {
-  const icons = useIcons()
+/**
+ * Inside the player's own seat: only what's equipped in game that the starting rules don't allow
+ * (gear above starting rarity or missing, aspects, fragments or artifact perks switched on, the wrong
+ * class or subclass). Nothing listed means it all fits.
+ */
+function EquippedIssues({ eq, seat, ruleset }: { eq: Equipped; seat?: Seat; ruleset: Ruleset }) {
   if (!bungieConfigured || !eq.active) return null
   const { data, now } = eq
-  const minted = data?.mintedAt ?? null
-  const tip = data
-    ? `${minted ? `Bungie generated this data at ${new Date(minted).toLocaleTimeString()} (${since(minted, now)}).` : 'Bungie did not say when this data was generated.'} Fetched at ${new Date(data.fetchedAt).toLocaleTimeString()}. Bungie\u2019s data can lag the game by a minute or more.`
-    : ''
-  const slotOf = (slot: Slot) => data?.items.find((i) => i.slot === slot)
-  const gearRow = (slots: Slot[]) => (
-    <div className="tiles" style={{ ['--n' as string]: slots.length }}>
-      {slots.map((slot) => {
-        const i = slotOf(slot)
-        if (!i) return <span key={slot} className="tile tile-empty item is-off" title={`${slot}: nothing equipped`} aria-label={`${slot}: nothing equipped`} />
-        const allowed = startRarities(ruleset, slot)
-        const ok = allowed.includes(i.rarity)
-        const why = ok ? `${i.rarity}, fits setup` : `${i.rarity}; setup calls for ${colorsOf(allowed)}`
-        return (
-          <span key={slot} className={`tile item ${rarityClass(i.rarity)} ${ok ? '' : 'is-off'}`} title={`${slot}: ${i.name} \u00b7 ${why}`} aria-label={`${slot}: ${i.name}, ${why}`}>
-            {icons.gear(i.name, i.slot, i.rarity) ? <img src={icons.gear(i.name, i.slot, i.rarity)} alt="" loading="lazy" /> : <span className="tile-initial">{i.name.slice(0, 2)}</span>}
-          </span>
-        )
-      })}
-    </div>
-  )
-  const plugChip = (n: string, bad?: boolean, artifact?: string) => {
-    const icon = artifact ? icons.artifactPerk(artifact, n) : icons.plug(n)
-    return <span key={n} className={`ab-chip is-unlocked ${bad ? 'is-bad' : ''}`}>{icon && <img src={icon} alt="" loading="lazy" />}<span>{n}</span></span>
-  }
+  const issues: string[] = []
+  if (data && seat && data.cls !== seat.cls) issues.push(`You're on your ${data.cls}; this seat is a ${seat.cls}.`)
+  if (data?.subclass && seat && data.subclass.element !== seat.element) issues.push(`${data.subclass.name} is equipped; this seat is ${seat.element}.`)
+  for (const i of eq.off) issues.push(`${i.slot}: ${i.name} is ${i.rarity}; starting gear here is ${colorsOf(startRarities(ruleset, i.slot))}.`)
+  for (const slot of eq.empty) issues.push(`${slot}: nothing equipped.`)
+  const plugs = eq.vouched ? [] : [...(data?.subclass?.aspects ?? []), ...(data?.subclass?.fragments ?? [])]
+  if (plugs.length) issues.push(`Aspects and fragments on: ${plugs.join(', ')}.`)
+  const perks = eq.vouched ? [] : data?.artifact?.activePerks ?? []
+  if (perks.length) issues.push(`Artifact perks on: ${perks.join(', ')}.`)
   return (
-    <section className={`g-sec equipped-now ${data ? (eq.ready ? 'is-ready' : 'is-waiting') : ''}`} aria-labelledby="equipped-now-title">
+    <section className={`g-sec equipped-issues ${data ? (issues.length ? 'is-waiting' : 'is-ready') : ''}`} aria-label="Equipped in game">
       <header className="g-sec-head">
-        <span className="eyebrow">Equipped now</span>
-        {data && (
-          <span className="freshness" tabIndex={0} title={tip} aria-label={tip}>
-            <span className={`dot ${eq.stale ? 'is-stale' : ''}`} aria-hidden="true" />
-            Updated {since(minted ?? data.fetchedAt, now)}
-          </span>
-        )}
+        <span className="eyebrow">Equipped in game</span>
+        {data && <span className="freshness" title="Bungie's data can lag the game by a minute or more."><span className={`dot ${eq.stale ? 'is-stale' : ''}`} aria-hidden="true" />Updated {since(data.mintedAt ?? data.fetchedAt, now)} &middot; <button className="link" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Checking\u2026' : 'Check again'}</button></span>}
       </header>
-      <h4 id="equipped-now-title" className="equipped-title">{data ? `${data.cls}${data.subclass ? ` \u00b7 ${data.subclass.name}` : ''} \u00b7 ${data.light} Power` : 'Your character'}</h4>
-      {data && <p className="small muted">{data.online ? <><span className="online-dot" aria-hidden="true" /> In game now</> : `Not in game: showing your most recently played ${data.cls}`}</p>}
-      {data && seat && data.cls !== seat.cls && <p className="small tone-warn">Your seat is set to {seat.cls}. Use my character&rsquo;s setup to match, or switch characters in game.</p>}
-      <div className="row-acts">
-        {data && seat && <button className="btn btn-ghost btn-sm" onClick={() => onApply(seatFromCharacter(data))}>Use my character&rsquo;s setup</button>}
-        <button className="btn btn-ghost btn-sm" disabled={eq.busy} onClick={() => eq.refresh()}>{eq.busy ? 'Refreshing\u2026' : 'Refresh'}</button>
-      </div>
-      {eq.error && <p className="small tone-danger">{eq.error}</p>}
-      {!data && !eq.error && <p className="muted small">Reading your character from Bungie&hellip;</p>}
-      {data && <SyncNotice eq={eq} compact />}
-      {data && (
+      {eq.error ? <p className="small tone-danger">{eq.error}</p>
+        : !data ? <p className="muted small">Reading your character from Bungie&hellip;</p>
+        : issues.length ? <ul className="issue-list small">{issues.map((x) => <li key={x}>{x}</li>)}</ul>
+        : <p className="small tone-ok"><span aria-hidden="true">&#10003;</span> Nothing equipped breaks the starting rules.</p>}
+    </section>
+  )
+}
+
+/** The account's legal starting gear per slot (see startingGearOptions), read when the seat's class changes and on request. */
+function useGearOptions(active: boolean, cls: ClassType | undefined, ruleset: Ruleset) {
+  const [state, setState] = useState<{ data?: Awaited<ReturnType<typeof startingGearOptions>>; busy: boolean; error?: string }>({ busy: false })
+  const refresh = useCallback(() => {
+    if (!active || !cls) return
+    setState((x) => ({ ...x, busy: true, error: undefined }))
+    startingGearOptions(cls, (slot) => startRarities(ruleset, slot))
+      .then((data) => setState({ data, busy: false }), (e) => setState((x) => ({ ...x, busy: false, error: (e as Error).message })))
+  }, [active, cls, ruleset])
+  useEffect(() => { refresh() }, [refresh])
+  return { ...state, refresh }
+}
+type GearOptions = ReturnType<typeof useGearOptions>
+
+/** The seat's pick per slot: its saved one while it's still legal, else what's equipped, else the first legal piece. */
+function chosenGear(opts: GearOptions, seat: Seat | undefined): Partial<Record<Slot, GearOption>> {
+  const out: Partial<Record<Slot, GearOption>> = {}
+  for (const slot of GEAR_SLOTS) {
+    const list = opts.data?.options[slot] ?? []
+    const pick = list.find((o) => o.instanceId === seat?.startGear?.[slot]) ?? list.find((o) => o.where === 'equipped') ?? list[0]
+    if (pick) out[slot] = pick
+  }
+  return out
+}
+
+/**
+ * Under the artifact: the legal starting gear on the player's account for this Directive, with one
+ * pick per slot. Equip in game puts the picks on the character.
+ */
+function StartingGear({ opts, seat, ruleset, onPick }: { opts: GearOptions; seat: Seat; ruleset: Ruleset; onPick: (slot: Slot, instanceId: string) => void }) {
+  const icons = useIcons()
+  const chosen = chosenGear(opts, seat)
+  const missing = GEAR_SLOTS.filter((s) => opts.data && !chosen[s])
+  const toEquip = GEAR_SLOTS.filter((s) => chosen[s] && chosen[s]!.where !== 'equipped')
+  return (
+    <section className="g-sec starting-gear" aria-label="Starting gear">
+      <header className="g-sec-head">
+        <span className="eyebrow">Starting gear</span>
+        <span className="muted small">weapons {colorsOf(startRarities(ruleset, 'Kinetic'))}, heavy {colorsOf(startRarities(ruleset, 'Power'))}, armor {colorsOf(startRarities(ruleset, 'Helmet'))} &middot; <button className="link" disabled={opts.busy} onClick={opts.refresh}>{opts.busy ? 'Checking\u2026' : 'Check again'}</button></span>
+      </header>
+      {opts.error && <p className="small tone-danger">{opts.error}</p>}
+      {!opts.data && !opts.error && <p className="muted small">Checking your account for legal starting gear&hellip;</p>}
+      {opts.data && (
         <>
-          <div className="equipped-grid" aria-label="Equipped gear">
-            <span className="ab-kind-name">Weapons <span className="muted">{colorsOf(startRarities(ruleset, 'Kinetic'))}; heavy {colorsOf(startRarities(ruleset, 'Power'))}</span></span>
-            {gearRow(['Kinetic', 'Energy', 'Power'])}
-            <span className="ab-kind-name">Armor <span className="muted">{colorsOf(startRarities(ruleset, 'Helmet'))}</span></span>
-            {gearRow(['Helmet', 'Gauntlets', 'Chest', 'Legs', 'Class Item'])}
-          </div>
-          {data.subclass ? (
-            <div className="equipped-subclass ab-kinds">
-              <div className="ab-kind"><span className="ab-kind-name">Abilities</span><div className="ab-chips">{[data.subclass.super, data.subclass.class, data.subclass.melee, data.subclass.grenade].filter((x): x is string => !!x).map((n) => plugChip(n))}</div></div>
-              <div className="ab-kind"><span className="ab-kind-name">Aspects and fragments</span>
-                {data.subclass.aspects.length + data.subclass.fragments.length
-                  ? <div className="ab-chips">{[...data.subclass.aspects, ...data.subclass.fragments].map((n) => plugChip(n, true))}<span className="small tone-warn">setup calls for none</span></div>
-                  : <span className="small tone-ok">None, fits setup</span>}
-              </div>
-            </div>
-          ) : <p className="small muted">Couldn&rsquo;t read your subclass, so aspects and fragments aren&rsquo;t checked.</p>}
-          {data.artifact ? (
-            <div className="equipped-artifact ab-kind">
-              <span className="ab-kind-name">Artifact</span>
-              <p className="art-name">{icons.artifact(data.artifact.name) && <img className="art-icon sm" src={icons.artifact(data.artifact.name)} alt="" loading="lazy" />}<strong>{data.artifact.name}</strong>
-                {seat?.artifact && data.artifact.matched && data.artifact.matched !== seat.artifact && <span className="tone-warn small"> (your seat has {seat.artifact})</span>}</p>
-              {data.artifact.activePerks.length
-                ? <div className="ab-chips">{data.artifact.activePerks.map((n) => plugChip(n, true, data.artifact!.name))}<span className="small tone-warn">setup calls for none</span></div>
-                : <span className="small tone-ok">No perks on, fits setup</span>}
-            </div>
-          ) : <p className="small muted">Couldn&rsquo;t read your artifact.</p>}
-          <p className="small muted">Refreshes every minute.</p>
+          <ul className="gear-picks">
+            {GEAR_SLOTS.map((slot) => {
+              const list = opts.data!.options[slot] ?? []
+              const pick = chosen[slot]
+              const icon = pick && icons.gear(pick.name, slot, pick.rarity)
+              return (
+                <li key={slot} className={pick ? rarityClass(pick.rarity) : 'is-missing'}>
+                  <span className="gp-icon">{icon ? <img src={icon} alt="" loading="lazy" /> : <span className="tile-initial">{pick ? pick.name.slice(0, 2) : '?'}</span>}</span>
+                  <span className="gp-slot">{slot}</span>
+                  {list.length ? (
+                    <select aria-label={`${slot} starting gear`} value={pick?.instanceId} onChange={(e) => onPick(slot, e.target.value)}>
+                      {list.map((o) => <option key={o.instanceId} value={o.instanceId}>{o.name} ({o.rarity}, {o.whereLabel})</option>)}
+                    </select>
+                  ) : <span className="small tone-warn">None on your account: pull a {colorsOf(startRarities(ruleset, slot))} one from Collections.</span>}
+                  {pick && <span className={`small ${pick.where === 'equipped' ? 'tone-ok' : 'muted'}`}>{pick.where === 'equipped' ? '\u2713 equipped' : 'Equip in game puts it on'}</span>}
+                </li>
+              )
+            })}
+          </ul>
+          <p className="small muted">{missing.length ? `${missing.length} slot${missing.length > 1 ? 's have' : ' has'} no legal starting gear on your account yet.` : toEquip.length ? `${toEquip.length} pick${toEquip.length > 1 ? 's' : ''} to equip: use Equip in game below.` : 'Your picks are all equipped.'}</p>
         </>
       )}
     </section>
+  )
+}
+
+/** Armor tiers, asked when readying up (or beginning, for the host and seats with no device). */
+function ArmorPrompt({ seat, onPick, onClose }: { seat: Seat; onPick: (mode: ArmorMode) => void; onClose: () => void }) {
+  return (
+    <Modal kicker={seat.name} title="Armor tiers" onClose={onClose} wide>
+      <div className="stack">
+        <p>How should your armor climb its tiers this run? It&rsquo;s locked once the run begins.</p>
+        <div className="armor-pick" role="radiogroup" aria-label="Armor tiers">
+          {ARMOR_MODES.map((o) => (
+            <button key={o.value} role="radio" aria-checked={seat.armor === o.value} className={`armor-opt ${seat.armor === o.value ? 'is-on' : ''}`} onClick={() => onPick(o.value)}>
+              <strong>{o.title}</strong>
+              <span className="muted small">{o.blurb}</span>
+            </button>
+          ))}
+        </div>
+        <ArmorTiersGraphic cls={seat.cls} chosen={seat.armor} />
+      </div>
+    </Modal>
   )
 }
 

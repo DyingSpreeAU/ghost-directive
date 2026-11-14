@@ -317,6 +317,24 @@ SINGLE=1 npx vite build --outDir dist-single   # one self-contained HTML file
   on any Guardian (**Record my death** on their own); the host can **Undo last** (restores the Integrity).
   The cost is the protocol's `integrity.death` (Standard −5, with wipes −20; Vanguard −2; Iron −7), it's in the
   Combat Report, and a death that reaches 0 Integrity ends the run.
+- **Lobby seat (your own, signed in with Bungie)**, top to bottom after the artifact:
+  - **Starting gear** (`StartingGear`, `startingGearOptions` in `src/bungie.ts`): the account's legal
+    starting gear for this Directive per slot (starting rarities, never Exotic, armor for the seat's
+    class), equipped first, then on the character, the Vault, other characters. One pick per slot
+    (defaults to what's equipped, saved on the seat as `Seat.startGear`); a slot with nothing legal says
+    to pull one from Collections. Checked when the seat's class changes, and on Check again.
+  - **Equipped in game** (`EquippedIssues`): only what's on the character that the starting rules don't
+    allow: gear above starting rarity or missing, aspects, fragments or artifact perks on, the wrong
+    class or subclass. Nothing listed: a tick.
+  - **Sync from game** (set the seat from the character) and **Equip in game** (set the character to
+    the seat: subclass and abilities, aspects, fragments and artifact perks cleared, and the picked
+    starting gear pulled and equipped, `equipGear`), the last step before readying up. If every slot
+    has a legal pick and nothing went wrong, it readies the player up.
+  - The seat fills itself from the character **once**, the first time (remembered per seat); after
+    that nothing changes it automatically.
+  - **Armor tiers** are asked in a pop-up (`ArmorPrompt`, with the infographic) when the player readies
+    up, and on Begin for the host's own seat and seats with no device; the seat shows the choice with
+    Change.
 - **Leaving a run** (`RunExit` in `src/App.tsx`; sidebar, and the bottom of the page on phones): the host
   has **Save and close run** (back to the start screen; the run stays in Saved runs) and **Quit and
   discard run**, which asks "Discard this run?" and then deletes it for good (not to Run History; players
@@ -443,15 +461,12 @@ per run on that device (`ghost-directive:missing-asked` in localStorage), whethe
 with **Ask me later**. One pop-up in 10,000 is drawn as a sepia wanted poster ("Have you seen these
 items?!", a WANTED card per item, "Reward: 5 Glimmer").
 
-**Lobby: Equipped now.** Signed-in players see their active character (the one in game now, or else the most recently
-played) with its equipped weapons, armor and subclass, checked against the starting rules
-(including no aspects or fragments). The panel refreshes every minute and has a
-Refresh button. Hovering "Updated X ago" shows when Bungie generated the data (the profile's
-minted timestamp), since it can lag the game. Until the gear matches, the panel, the Ready button
-and the host's begin bar say to wait: the run records equipped gear as starting gear, and anything
-new after that counts as a drop. The seat is filled once from the character (class, subclass,
-Super, class ability, melee, grenade from the equipped subclass's sockets) unless the player already set it up.
-"Use my character's setup" re-applies it.
+**Lobby: Equipped in game.** Signed-in players' seats read their active character (the one in game
+now, or else the most recently played of the seat's class) every minute and list only what breaks the
+starting rules (see "Lobby seat" above). Hovering "Updated X ago" says Bungie's data can lag the game.
+The run records equipped gear as starting gear when it begins, and anything new after that counts as a
+drop. The seat is filled from the character once (class, subclass, Super, class ability, melee,
+grenade, artifact); Sync from game does it again on request.
 
 **Abilities.** During a run each sync reads the equipped subclass and what's slotted in it. That
 replaces the manual "equipped" ticks in the Subclass Archive, and anything equipped that isn't

@@ -1263,3 +1263,72 @@ export async function fetchRunStats(cls: ClassType, window: { from: number; to?:
   }
   return { sessions, trackers }
 }
+
+// ------------------------------------------------------------------ starting gear (lobby)
+
+export type GearOption = { instanceId: string; name: string; rarity: Rarity; where: 'equipped' | 'character' | 'vault' | 'other'; whereLabel: string }
+
+/**
+ * The account's weapons and armor that are legal starting gear, by slot: rarities the Directive allows
+ * at the start (never Exotic), armor for this class. Equipped on the class's character first, then on
+ * it, then the Vault, then other characters.
+ */
+export async function startingGearOptions(cls: ClassType, allowed: (slot: Slot) => Rarity[]): Promise<{ character: string; options: Partial<Record<Slot, GearOption[]>> }> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205`)
+  const picked = pickCharacter(p, cls)
+  const charId = picked?.id
+  const options: Partial<Record<Slot, GearOption[]>> = {}
+  const rank = { equipped: 0, character: 1, vault: 2, other: 3 }
+  for (const h of holdings(p, items)) {
+    const row = items[h.itemHash]
+    if (!row || h.where === 'postmaster') continue
+    const slot = ALL_SLOTS[row[1]]
+    if (!allowed(slot).includes(h.tier) || h.tier === 'Exotic') continue
+    if (row[1] >= 3 && row[3] !== 3 && row[3] !== CLASS_TYPE[cls]) continue
+    const where: GearOption['where'] = h.where === 'vault' ? 'vault' : h.where === charId ? (h.equipped ? 'equipped' : 'character') : 'other'
+    const whereLabel = where === 'equipped' ? 'equipped' : where === 'character' ? `on your ${cls}` : where === 'vault' ? 'in the Vault' : 'on another character'
+    ;(options[slot] ??= []).push({ instanceId: h.instanceId, name: h.name, rarity: h.tier, where, whereLabel })
+  }
+  for (const list of Object.values(options)) list!.sort((a, b) => rank[a.where] - rank[b.where] || a.name.localeCompare(b.name))
+  return { character: picked ? `${cls}, ${picked.char.light} Power` : `No ${cls} on this account`, options }
+}
+
+/**
+ * Brings each chosen item to the class's character (via the Vault from another character) and equips
+ * them all. Problems (a full inventory, the item in use elsewhere) are reported, not thrown, except
+ * for being somewhere Bungie won't allow equipping.
+ */
+export async function equipGear(cls: ClassType, instanceIds: string[], progress: (msg: string) => void): Promise<string[]> {
+  const [{ mem }, items] = await Promise.all([membership(), itemTable()])
+  const p = await api<ProfileResponse>(`/Destiny2/${mem.membershipType}/Profile/${mem.membershipId}/?components=102,200,201,204,205`)
+  const charId = pickCharacter(p, cls)?.id
+  if (!charId) throw new BungieError(`There's no ${cls} on this account.`)
+  const held = holdings(p, items)
+  const problems: string[] = []
+  const move = (h: Held, toVault: boolean, characterId: string) =>
+    api('/Destiny2/Actions/Items/TransferItem/', { itemReferenceHash: h.itemHash, stackSize: 1, transferToVault: toVault, itemId: h.instanceId, characterId, membershipType: mem.membershipType })
+  const ready: string[] = []
+  for (const id of instanceIds) {
+    const h = held.find((x) => x.instanceId === id)
+    if (!h) { problems.push('An item you picked is no longer on your account.'); continue }
+    if (h.where === charId) { ready.push(id); continue }
+    if (h.equipped) { problems.push(`${h.name}: equipped on another character`); continue }
+    progress(`Pulling ${h.name} to your ${cls}…`)
+    try {
+      if (h.where !== 'vault') await move(h, true, h.where)
+      await move(h, false, charId)
+      ready.push(id)
+    } catch (e) {
+      if (noScope(e)) throw new BungieError(actionMessage(e))
+      problems.push(`${h.name}: ${actionMessage(e)}`)
+    }
+  }
+  if (ready.length) {
+    progress('Equipping your starting gear…')
+    const r = await api<{ equipResults?: { itemInstanceId: string; equipStatus: number }[] }>('/Destiny2/Actions/Items/EquipItems/', { itemIds: ready, characterId: charId, membershipType: mem.membershipType })
+    if (r.equipResults?.some((x) => x.equipStatus === 1634)) throw new BungieError(LOCATION_MESSAGE)
+    for (const x of r.equipResults ?? []) if (x.equipStatus !== 1) problems.push(`${held.find((h) => h.instanceId === x.itemInstanceId)?.name ?? 'An item'} couldn’t be equipped`)
+  }
+  return problems
+}

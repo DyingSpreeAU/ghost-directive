@@ -1493,3 +1493,18 @@ html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; b
 .run-exit { display: grid; gap: 8px; justify-items: start; }
 .main-foot .run-exit { margin-bottom: 12px; }
 .run-exit .link.tone-danger { color: var(--danger); }
+
+/* Lobby seat: what's equipped that shouldn't be, starting gear picks, and the last step before readying up. */
+.issue-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--warn); }
+.issue-list li { color: var(--text); }
+.equipped-issues.is-waiting { border-left: 2px solid var(--warn); padding-left: 10px; }
+.gear-picks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.gear-picks li { display: grid; grid-template-columns: 36px 84px minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+.gear-picks .gp-icon { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid var(--seam); border-bottom: 3px solid var(--rc, var(--seam)); overflow: hidden; background: var(--ink); }
+.gear-picks .gp-icon img { width: 100%; height: 100%; object-fit: cover; }
+.gear-picks .gp-slot { font-family: var(--f-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.78rem; color: var(--dim); }
+.gear-picks select { min-width: 0; width: 100%; }
+.gear-picks li.is-missing .gp-icon { border-style: dashed; }
+@media (max-width: 600px) { .gear-picks li { grid-template-columns: 36px minmax(0, 1fr); } .gear-picks .gp-slot { grid-column: 2; } .gear-picks select, .gear-picks li > .small { grid-column: 1 / -1; } }
+.seat-body .seat-sync { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.seat-armor { margin: 0; }
