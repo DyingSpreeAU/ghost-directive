@@ -118,6 +118,8 @@ p { margin: 0; }
 .btn-light { background: var(--light); color: var(--light-ink); border-color: var(--light); }
 .btn-light:hover:not(:disabled) { background: #f3e2b0; border-color: #f3e2b0; }
 .btn-danger { background: color-mix(in srgb, var(--danger) 22%, var(--hull-2)); border-color: color-mix(in srgb, var(--danger) 60%, transparent); color: #ffd9d2; }
+.btn-ok { background: color-mix(in srgb, var(--ok) 22%, var(--hull-2)); border-color: color-mix(in srgb, var(--ok) 60%, transparent); color: #d6f5e4; }
+.btn-ok:hover:not(:disabled) { background: color-mix(in srgb, var(--ok) 35%, var(--hull-2)); border-color: var(--ok); }
 .btn-danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 35%, var(--hull-2)); border-color: var(--danger); }
 .btn-ghost { background: transparent; }
 .btn-sm { padding: 5px 12px; font-size: 0.86rem; }
@@ -1490,9 +1492,9 @@ html.zorpalod .has-emblem { --emblem: url('/easter/zorpalod.webp') !important; b
 .choice-icon-wrap .choice-icon { position: static; display: block; width: 100%; height: 100%; }
 
 /* Leaving the run: Save and close run, then the smaller Quit and discard run. */
-.run-exit { display: grid; gap: 8px; justify-items: start; }
+.run-exit { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-width: 420px; }
+.run-exit .btn { white-space: normal; line-height: 1.2; text-align: center; justify-content: center; }
 .main-foot .run-exit { margin-bottom: 12px; }
-.run-exit .link.tone-danger { color: var(--danger); }
 
 /* Lobby seat: what's equipped that shouldn't be, starting gear picks, and the last step before readying up. */
 .issue-list { margin: 0; padding-left: 18px; display: grid; gap: 4px; color: var(--warn); }

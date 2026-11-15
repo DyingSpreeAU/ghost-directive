@@ -38,8 +38,8 @@ function RunExit({ run }: { run: Run | null }) {
   if (role !== 'host' || !run) return <button className="link" onClick={leave}>{role === 'host' ? 'Back to start screen' : 'Leave lobby'}</button>
   return (
     <div className="run-exit">
-      <button className="btn btn-ghost btn-sm" onClick={leave}>Save and close run</button>
-      <button className="link tone-danger" onClick={() => setAsking(true)}>Quit and discard run</button>
+      <button className="btn btn-ok btn-sm" onClick={leave}>Save and close run</button>
+      <button className="btn btn-danger btn-sm" onClick={() => setAsking(true)}>Quit and discard run</button>
       {asking && (
         <Modal kicker={run.name} title="Discard this run?" onClose={() => setAsking(false)}
           footer={<>

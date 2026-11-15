@@ -297,3 +297,12 @@ test('on a phone, the run page has Save and close run and Quit and discard run a
   await page.click('.main-foot >> text=Save and close run')
   await expect(page.locator('.saved-run')).toHaveCount(1)
 })
+
+test('Save and Quit sit side by side as buttons, green and red', async ({ page }) => {
+  await exampleRun(page)
+  const save = page.locator('.sidebar .run-exit .btn-ok', { hasText: 'Save and close run' })
+  const quit = page.locator('.sidebar .run-exit .btn-danger', { hasText: 'Quit and discard run' })
+  const [a, b] = [await save.boundingBox(), await quit.boundingBox()]
+  expect(Math.abs(a!.y - b!.y)).toBeLessThan(2)
+  expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1)
+})
