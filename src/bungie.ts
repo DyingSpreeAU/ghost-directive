@@ -178,7 +178,7 @@ type ProfileResponse = {
   profileCollectibles?: { data?: { collectibles?: Record<string, { state: number }> } }
   characterCollectibles?: { data?: Record<string, { collectibles?: Record<string, { state: number }> }> }
   itemComponents?: {
-    sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean }[] }> }
+    sockets?: { data?: Record<string, { sockets: { plugHash?: number; isEnabled?: boolean; isVisible?: boolean }[] }> }
     /** Instance stats (component 304), e.g. a weapon's rolled Range or Handling. */
     stats?: { data?: Record<string, { stats: Record<string, { statHash: number; value: number }> }> }
     /** Objectives on each item's plugs (component 309), e.g. a weapon's kill tracker. */
@@ -544,6 +544,9 @@ function plugSet(hash: number) {
   return plugSets.get(hash)!
 }
 
+/** A socket that's switched on and shown in game (not one locked by the aspects slotted). */
+const live = (s: { isEnabled?: boolean; isVisible?: boolean }) => s.isEnabled !== false && s.isVisible !== false
+
 /** The character's equipped subclass and the names of everything slotted in it. */
 async function readSubclass(p: ProfileResponse, charId: string, cls: ClassType) {
   const sub = p.characterEquipment?.data?.[charId]?.items.find((i) => i.bucketHash === SUBCLASS_BUCKET)
@@ -553,7 +556,9 @@ async function readSubclass(p: ProfileResponse, charId: string, cls: ClassType) 
   const element: Element | undefined = name.startsWith('Prismatic') ? 'Prismatic' : SUBCLASS_ELEMENT[name]
   if (!element || (name.startsWith('Prismatic') && !name.endsWith(cls))) return null
   const sockets = sub.itemInstanceId ? p.itemComponents?.sockets?.data?.[sub.itemInstanceId]?.sockets ?? [] : []
-  const hashes = [...new Set(sockets.map((s) => s.plugHash).filter((h): h is number => !!h))]
+  // A fragment socket the aspects no longer open is locked and hidden in game, but Bungie still
+  // reports the fragment that was in it. It does nothing, so only live sockets count.
+  const hashes = [...new Set(sockets.filter(live).map((s) => s.plugHash).filter((h): h is number => !!h))]
   const plugs = (await Promise.all(hashes.map(defName))).filter((n): n is string => !!n)
   return classifySubclass(cls, name, element, plugs)
 }
@@ -857,6 +862,7 @@ export async function sendSetup(seat: { cls: ClassType; element: Element; abilit
   type Job = { idx: number; kind: 'fragment' | 'aspect' | StarterKind; name: string }
   const jobs: Job[] = []
   await Promise.all(current.map(async (sock, idx) => {
+    if (!live(sock)) return
     const def = sock.plugHash ? await itemDef(sock.plugHash) : null
     const name = def?.displayProperties?.name?.trim() ?? ''
     // The plug's category says which socket this is (warlock.prism.grenades, shared.prism.fragments…);

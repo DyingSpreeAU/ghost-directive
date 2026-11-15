@@ -130,6 +130,21 @@ test('lobby reads the character of the seat’s class when not in game', async (
   await expect(page.locator('.seat.is-you [aria-label="Class"] [aria-checked="true"]')).toHaveText('Hunter')
 })
 
+test('a fragment left in a locked socket doesn’t count as slotted (bug report #2)', async ({ page, baseURL }) => {
+  const a = account()
+  a.sub.plugs.push(17) // Ember of Searing, socket 5
+  await stubBungie(page, a, baseURL!)
+  await fresh(page)
+  await signIn(page)
+  await page.click('text=Create lobby')
+  await expect(page.locator('.seat.is-you .equipped-issues')).toContainText('Ember of Searing')
+  // The aspects that opened that slot come off: the socket locks, but Bungie still reports the fragment.
+  a.sub.hidden = [5]
+  await page.reload()
+  await expect(page.locator('.seat.is-you .equipped-issues')).toContainText('Fatebringer is Legendary')
+  await expect(page.locator('.seat.is-you .equipped-issues')).not.toContainText('Ember of Searing')
+})
+
 test('lobby starting gear: legal pieces on the account per slot, one pick each, kept on the seat', async ({ page, baseURL }) => {
   const a = account()
   // A second grey Kinetic, on the Hunter, to pick instead of the Vault one.
