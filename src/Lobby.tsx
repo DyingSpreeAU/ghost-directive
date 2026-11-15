@@ -99,7 +99,6 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
   }
   // The player's starting gear picks, as instance ids by slot.
   const gearOpts = useGearOptions(eq.active && !!mine, mine?.cls, lobby.ruleset)
-  const pickedIds = (s: Seat) => Object.fromEntries(Object.entries(chosenGear(gearOpts, s)).map(([slot, g]) => [slot, g!.instanceId]))
   const others = lobby.seats.filter((s) => s.clientId && s.clientId !== me && isOnline(s.clientId))
   // Share the player's in-game emblem with the lobby, for their seat's nameplate.
   const emblem = eq.data?.emblem
@@ -174,7 +173,7 @@ export function LobbyView({ lobby }: { lobby: Lobby }) {
               onArmor={() => setArmorFor({ seatId: s.id })}
               sync={s.clientId === me && eq.active ? { busy: eq.busy, run: syncSeat, sending: !!send?.busy, send: sendSeat } : undefined}
               equipped={s.clientId === me ? <EquippedIssues eq={eq} seat={s} ruleset={lobby.ruleset} /> : undefined}
-              gear={s.clientId === me && eq.active ? <StartingGear opts={gearOpts} seat={s} ruleset={lobby.ruleset} onPick={(slot, id) => patchSeat(s, { startGear: { ...pickedIds(s), [slot]: id } })} /> : undefined}
+              gear={s.clientId === me && eq.active ? <StartingGear opts={gearOpts} seat={s} ruleset={lobby.ruleset} onPick={(slot, id) => patchSeat(s, { startGear: { ...s.startGear, [slot]: id } })} /> : undefined}
               hostTools={role === 'host' && !s.isHost ? {
                 remove: () => host!.updateLobby((l) => { l.seats = l.seats.filter((x) => x.id !== s.id) }),
                 unlink: s.clientId ? () => host!.updateLobby((l) => { const x = l.seats.find((y) => y.id === s.id)!; x.clientId = null; x.ready = false }) : undefined,
@@ -811,15 +810,22 @@ function EquippedIssues({ eq, seat, ruleset }: { eq: Equipped; seat?: Seat; rule
 
 /** The account's legal starting gear per slot (see startingGearOptions), read when the seat's class changes and on request. */
 function useGearOptions(active: boolean, cls: ClassType | undefined, ruleset: Ruleset) {
-  const [state, setState] = useState<{ data?: Awaited<ReturnType<typeof startingGearOptions>>; busy: boolean; error?: string }>({ busy: false })
+  const [state, setState] = useState<{ data?: Awaited<ReturnType<typeof startingGearOptions>>; cls?: ClassType; busy: boolean; error?: string }>({ busy: false })
+  // Only the latest read counts: when the seat's class changes (autofill does this as the lobby
+  // opens), an earlier read for the old class can come back last and must not replace the new one.
+  const latest = useRef(0)
   const refresh = useCallback(() => {
     if (!active || !cls) return
+    const n = ++latest.current
     setState((x) => ({ ...x, busy: true, error: undefined }))
-    startingGearOptions(cls, (slot) => startRarities(ruleset, slot))
-      .then((data) => setState({ data, busy: false }), (e) => setState((x) => ({ ...x, busy: false, error: (e as Error).message })))
+    startingGearOptions(cls, (slot) => startRarities(ruleset, slot)).then(
+      (data) => { if (n === latest.current) setState({ data, cls, busy: false }) },
+      (e) => { if (n === latest.current) setState((x) => ({ ...x, busy: false, error: (e as Error).message })) },
+    )
   }, [active, cls, ruleset])
   useEffect(() => { refresh() }, [refresh])
-  return { ...state, refresh }
+  // A read for another class is never shown, even while the new one loads.
+  return { ...state, data: state.cls === cls ? state.data : undefined, refresh }
 }
 type GearOptions = ReturnType<typeof useGearOptions>
 

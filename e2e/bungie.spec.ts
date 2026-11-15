@@ -145,6 +145,36 @@ test('a fragment left in a locked socket doesn’t count as slotted (bug report 
   await expect(page.locator('.seat.is-you .equipped-issues')).not.toContainText('Ember of Searing')
 })
 
+test('starting gear reads the seat’s class only, and knows what’s already equipped', async ({ page, baseURL }) => {
+  const a = account()
+  // The Titan is in game wearing a grey helmet; the Hunter wears its own grey one. A grey Kinetic in the Vault.
+  a.inActivity = TITAN
+  a.chars[TITAN].eq.push(item(a, I.TitanGreyHelm, B.helm))
+  a.chars[HUNTER].eq = a.chars[HUNTER].eq.filter((x) => x.bucket !== B.helm)
+  a.chars[HUNTER].eq.push(item(a, I.HunterGreyMask, B.helm))
+  a.vault.push(item(a, I.KhvostovGrey, B.k))
+  await stubBungie(page, a, baseURL!)
+  // The first read is for the seat's default class (Hunter), before autofill makes it a Titan; it comes back last.
+  let first = true
+  await page.route('https://www.bungie.net/Platform/Destiny2/*/Profile/**', async (route) => {
+    if (first && route.request().url().includes('components=102,200,201,204,205')) { first = false; await new Promise((r) => setTimeout(r, 2500)) }
+    await route.fallback()
+  })
+  await fresh(page)
+  await signIn(page)
+  await page.click('text=Create lobby')
+  await collapseTools(page)
+  await expect(page.locator('.seat.is-you [aria-label="Class"] [aria-checked="true"]')).toHaveText('Titan')
+  const helmet = page.locator('.seat.is-you .starting-gear select[aria-label="Helmet starting gear"]')
+  await expect(helmet.locator('option')).toHaveText(['Brave Titan Helm (Common, equipped)'])
+  await page.waitForTimeout(3000) // the slow, older read (Hunter) lands now and must not replace it
+  await expect(helmet.locator('option')).toHaveText(['Brave Titan Helm (Common, equipped)'])
+  await expect(page.locator('.seat.is-you .starting-gear li', { hasText: 'Helmet' })).toContainText('✓ equipped')
+  // Picking one slot saves that slot only; the rest keep following what's equipped.
+  await page.locator('.seat.is-you .starting-gear select[aria-label="Kinetic starting gear"]').selectOption({ index: 0 })
+  await expect.poll(async () => Object.keys((await store(page)).lobby.seats[0].startGear ?? {})).toEqual(['Kinetic'])
+})
+
 test('lobby starting gear: legal pieces on the account per slot, one pick each, kept on the seat', async ({ page, baseURL }) => {
   const a = account()
   // A second grey Kinetic, on the Hunter, to pick instead of the Vault one.
