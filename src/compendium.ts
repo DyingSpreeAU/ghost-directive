@@ -310,7 +310,7 @@ export const COMPENDIUM = {
     "super": [
      "Sentinel Shield",
      "Twilight Arsenal",
-     "Ward of Dawn"
+     "Ward of Dawn Bubble"
     ],
     "melee": [
      "Shield Bash",
@@ -555,7 +555,7 @@ export const COMPENDIUM = {
   "Arc|fragment|Spark of Focus": "After 1.25 seconds of sprinting, while maintaining both sprint and a movement speed of at least 5m/s: 150% [75%] Additional Base Class Ability Regeneration Rate. Deactivates once Class Ability has at least 1 charge…",
   "Arc|fragment|Spark of Frequency": "Upon scoring a Melee Hit: +15 Stability, +50 Reload Speed, and 0.8x Reload Duration Multiplier for 5.25 seconds.",
   "Arc|fragment|Spark of Haste": "After 1.25 seconds of sprinting, while maintaining both sprint and a movement speed of at least 5m/s: Grants +50 Health Stat.",
-  "Arc|fragment|Spark of Instinct": "While at Critical Health: Being damaged releases a burst of Arc Energy, dealing up to 46 [20] damage and inflicting Jolt to enemies within ? metres. Incurs a 15? second cooldown between activations.",
+  "Arc|fragment|Spark of Instinct": "While at Critical Health: Being damaged releases a burst of Arc Energy, dealing up to 46 [20] damage and inflicting Jolt to enemies within 8 metres. Incurs a 15? second cooldown between activations.",
   "Arc|fragment|Spark of Ions": "Killing Jolted Enemies, or scoring a Bolt Charge Kill creates an Ionic Trace. Incurs a 10 second cooldown between Ionic Traces spawns.",
   "Arc|fragment|Spark of Magnitude": "Lightning Grenade fire an additional lightning bolt, increasing to a maximum of 5 bolts. Pulse Grenade release an additional 2 pulses, increasing to a maximum of 8 pulses. Storm Grenade release an additional barrage.…",
   "Arc|fragment|Spark of Momentum": "Upon sliding over Ammo Bricks while not on Full Ammo of the respective type: Refills the equipped weapon and grants x3 Bolt Charge.",
@@ -603,7 +603,7 @@ export const COMPENDIUM = {
   "Void|fragment|Echo of Expulsion": "Void Ability Kills cause enemies to explode, dealing up to 160 [130] damage in a 7 metre radius.",
   "Void|fragment|Echo of Harvest": "Killing Weakened Enemies creates an Orb of Power that grants 2.5% Super Energy and a Void Breach. Incurs a 10 second cooldown upon creating an Orb of Power.",
   "Void|fragment|Echo of Instability": "Grenade Kills grant Volatile Rounds to Void Weapons for 11.25 [7.5] seconds. Does not require Void Grenade Kills.",
-  "Void|fragment|Echo of Leeching": "Melee Kills begin health regeneration for the user and allies within ? metres.",
+  "Void|fragment|Echo of Leeching": "Melee Kills begin health regeneration for the user and allies within 12 metres.",
   "Void|fragment|Echo of Obscurity": "Finishers grant Invisibility for 5+2 seconds.",
   "Void|fragment|Echo of Persistence": "Void Buffs applied to the user last longer. Devour: 50% Increased duration. Invisibility: 40% increased duration. Void Overshield: 50% increased duration.",
   "Void|fragment|Echo of Provision": "Grenade Ability Damage grants Melee Energy. Can only activate once per damage instance. Hitting multiple enemies counts as 1 instance. Does not work with Unbreakable.",
@@ -630,9 +630,9 @@ export const COMPENDIUM = {
   "Void|aspect|Vanishing Step": "Replaces Dodge Animation with a faster, farther traveling Dodge Animation that grants Invisibility for 5+2 seconds.",
   "Void|melee|Shield Bash": "Shared with other Shoulder Charge Abilities: Requires sprinting for 1.25 seconds. Drains 15% Melee Ability Energy if no enemy is hit. Unable to use during slide if user shoots. Guardians directly hit by Shoulder Charge…",
   "Void|melee|Shield Throw": "Hurls a Void Shield forward. Ricochets up to 4 times per throw, attempts to home in towards enemies, and is affected by gravity.",
-  "Void|super|Sentinel Shield": "Light Attack | Drains 4.5% Super Energy per Attack. The Final Hit in the combo drains 2% Super Energy. Grounded 3-Hit Combo, dealing 797 [?] and 856 [?] damage. Airborne 2-Hit Combo, dealing 797 [?] damage The Final…",
+  "Void|super|Sentinel Shield": "Light Attack | Drains 4.5% Super Energy per Attack. The Final Hit in the combo drains 2% Super Energy. Grounded 3-Hit Combo, dealing 797 [?] and 856 [?] damage. Airborne 2-Hit Combo, dealing 797 [?] damage Combo…",
   "Void|super|Twilight Arsenal": "Summons 3 Void Axes and throws them towards the reticle. Axes deal up to 1,250 [?] damage over ? meters on impact, pulling enemies inwards, and explode after 0.6 seconds, dealing up to 1,750 [?] damage and weakening…",
-  "Void|super|Ward of Dawn": "Ward of Dawn: Projects a 8,000 Construct HP Protective Dome with 75??% NEEDS TESTING Damage Resistance against Combatants alongside an internal core with 200 HP. Guardians deal 50% increased damage to the Protective…",
+  "Void|super|Ward of Dawn Bubble": "Ward of Dawn: Projects a 8,000 Construct HP Protective Dome with 75??% NEEDS TESTING Damage Resistance against Combatants alongside an internal core with 200 HP. Guardians deal 50% increased damage to the Protective…",
   "Void|aspect|Bastion": "On Super Cast: Grants allies within 15 metres a 45 HP Void Overshield.",
   "Void|aspect|Controlled Demolition": "Void Ability Damage inflicts Volatile. Volatile Explosions also count as Void Ability Damage.",
   "Void|aspect|Offensive Bulwark": "Grants an additional Shield Throw to Sentinel Shield Super.",
@@ -652,12 +652,12 @@ export const COMPENDIUM = {
   "Stasis|fragment|Whisper of Durance": "Slow Debuff Duration and certain abilities last longer. All affected Slow sources and abilities will have their value with Durance shown in smaller text next to the regular duration or stack amount. Eg: 25 seconds ->…",
   "Stasis|fragment|Whisper of Fissures": "Shattering enemies or destroying Crystals deals an additional damage instance, dealing up to 25 [9] damage in a 10 [8] metre radius. Falloff decreases damage dealt down to a minimum of 15 [4] damage at 10 [8] meters.",
   "Stasis|fragment|Whisper of Fractures": "Grants x1 Frost Armor upon shattering an enemy with Melee Damage.",
-  "Stasis|fragment|Whisper of Hedrons": "Freezing an enemy grants +? Handling, and +30 Health for 11 seconds.",
+  "Stasis|fragment|Whisper of Hedrons": "Upon freezing an enemy: +30 Health, +30 Mobility, +20 Stability, +15 Aim Assist, and +40 Airborne Effectiveness for 11 seconds. \"buffs handling\" yeah, im sure :)",
   "Stasis|fragment|Whisper of Hunger": "Stasis Shards grant 60% increased Melee Energy. Additive to other sources such as Yearning Echo's Overflowing Coffers's 260% increase.",
   "Stasis|fragment|Whisper of Impetus": "Upon dealing Powered Melee Damage: Refills all weapons and grants +40 Handling for 5 seconds. Buff duration serves as cooldown.",
   "Stasis|fragment|Whisper of Refraction": "Kills against enemies affected by Stasis effects grants Class Ability Energy based on Enemy Rank. 9% = Tier 1 Combatant 13% = Tier 2 Combatant 15% = Guardian 20% = Tier 3 Combatant 30% = Tier 4 Combatant 40% = Miniboss…",
   "Stasis|fragment|Whisper of Rending": "Primary Ammo Weapons deal 100% increased damage against Stasis Crystals and 50% increased damage against Frozen Enemies. Includes Fighting Lion, Revision Zero, Vex Mythoclast, and their respective alternate fire modes.",
-  "Stasis|fragment|Whisper of Reversal": "While Frost Armor is active: Dealing or receiving Physical Melee Damage applies x10? Slow for ?+? [?+?] seconds. Also applies to Glaive Melee.",
+  "Stasis|fragment|Whisper of Reversal": "While Frost Armor is active: Dealing or receiving Physical Melee Damage applies x10 Slow for 4+1 [?+?] seconds. Also applies to Glaive Melee.",
   "Stasis|fragment|Whisper of Rime": "Enhances Frost Armor, increasing the maximum stack amount to x7 (50% [16?%] DR), and the duration to 6 seconds.",
   "Stasis|fragment|Whisper of Shards": "Upon destroying a Stasis Crystal: Grants 500% [150%] Additional Base Grenade Regeneration Rate for 6 seconds, up to a maximum of 11 seconds.",
   "Stasis|fragment|Whisper of Torment": "Upon receiving damage: Grants 7% Grenade Ability Energy. Increased to 12% Grenade Ability Energy while Frost Armor is active. Incurs a 1 second cooldown between Grenade Energy gains.",
@@ -683,14 +683,14 @@ export const COMPENDIUM = {
   "Stasis|aspect|Frostpulse": "Grants 11% Class Ability Energy upon freezing an enemy.",
   "Stasis|aspect|Glacial Harvest": "Picking up Small Stasis Shards restores 10 HP and grants x1 Frost Armor. Picking up Large Stasis Shards restore ? HP and grant x3 Frost Armor.",
   "Stasis|aspect|Iceflare Bolts": "Shattering a Frozen Enemy creates a seeker, targeting the closest enemy up to 12 metres away. Seeker detonates upon reaching an enemy or expiring, freezing enemies within 3 [1.75] meters.",
-  "Strand|fragment|Thread of Ascent": "On Grenade Ability Usage: Refills readied weapon. +40? Handling, +40 Reload Speed, 0.925x Reload Duration Multiplier and +30 Airborne Effectiveness for 15 seconds. Incurs a 4 second cooldown between Ammo Refills upon…",
+  "Strand|fragment|Thread of Ascent": "On Grenade Ability Usage: Refills readied weapon. +40 Handling, +40 Reload Speed, 0.922x Reload Duration Multiplier and +30 Airborne Effectiveness for 15 seconds. Incurs a 4 second cooldown between Ammo Refills upon…",
   "Strand|fragment|Thread of Binding": "Super Kills cause the enemy to trigger a damaging Suspending Burst. Suspending Burst deals 108 [?] Damage and inflicts Suspension to enemies within 6 meters.",
   "Strand|fragment|Thread of Continuity": "Strand Debuffs normally last 50% longer. Debuff sources will have their value with Continuity shown in smaller text next to the regular duration.",
-  "Strand|fragment|Thread of Evolution": "Threadling move 30?% faster, travel further, and deal increased damage.",
+  "Strand|fragment|Thread of Evolution": "Threadling move 30?% faster, travel further, and deal 33% [10%] increased damage.",
   "Strand|fragment|Thread of Finality": "Finishers create Threadlings, with the amount scaling with Enemy Rank. Rank-And-File = 1 | Elite = 2 | Miniboss = 3",
-  "Strand|fragment|Thread of Fury": "Upon dealing damage with Tangles: Grants a varying amount of Melee Energy per damage instance. Tier 1 Combatant = 10% | T2 = 18% | T3 = 20% | T4 = 30% | Guardians = 25% Incurs a 1? second cooldown between triggers.",
+  "Strand|fragment|Thread of Fury": "Upon dealing damage with Tangles: Grants a varying amount of Melee Energy per damage instance. Tier 1 Combatant = 10% | T2 = 18% | T3 = 20% | T4 = 30% | Guardians = 25% Incurs a 1 second cooldown between triggers.",
   "Strand|fragment|Thread of Generation": "Upon dealing damage: Grants a variable amount of Grenade Ability Energy. Does not grant Slicewire Grenade Energy.",
-  "Strand|fragment|Thread of Isolation": "Upon scoring multiple Precision Hits within 2 seconds of each: Emits a Severing Burst, inflicting Sever to enemies within ? metres. Incurs a 4 second cooldown upon Severing. Precision Hits during the cooldown will not…",
+  "Strand|fragment|Thread of Isolation": "Upon scoring multiple Precision Hits within 2 seconds of each: Emits a Severing Burst, inflicting Sever to enemies within 3 metres. Incurs a 4 second cooldown upon Severing. Precision Hits during the cooldown will not…",
   "Strand|fragment|Thread of Mind": "Killing Suspended Enemies grants Class Ability Energy based on Enemy Rank. Incurs a 1? second cooldown upon scoring a kill. Tier 1 Combatant = 10% | T2 = 12% | T3 = 15% | T4 = 30% | Guardians = 15%",
   "Strand|fragment|Thread of Propagation": "On Powered Melee Ability Kill: Grants Unraveling Rounds to Strand Weapons for 8 [5] seconds.",
   "Strand|fragment|Thread of Rebirth": "Strand Weapon Kills progress a counter that spawns a variable number of Threadlings upon reaching 100%.",
@@ -710,7 +710,7 @@ export const COMPENDIUM = {
   "Strand|melee|Frenzied Blade": "Innately has 3 Melee Ability Charges. 0 Charges = 1.15x Regeneration Speed | 1 Charge = 1.55x Regeneration Speed | 2 Charges = 1.95x Regeneration Speed. On Prismatic: Penalized with an additional 0.7x Regeneration Speed",
   "Strand|super|Bladefury": "Light Attack Drains 3% Super Energy. Performs a strengthened Frenzied Blade Melee that deals 851 [210] damage and can be infinitely chained. Deals 25% increased damage against Suspended enemies. Attacks 3 times per…",
   "Strand|aspect|Banner of War": "Upon scoring a Sword Kill, Melee Kill, Glaive Melee Kill, Super Light Attack Kill, or Finisher: Raises a Banner of War for 15 seconds, buffing the user and nearby allies within 10 metres. Kills scored by the user or…",
-  "Strand|aspect|Drengr's Lash": "Killing Elementally-Debuffed Enemies grants ?% Class Ability Energy.",
+  "Strand|aspect|Drengr's Lash": "Killing Elementally-Debuffed Enemies grants 10% Class Ability Energy.",
   "Strand|aspect|Flechette Storm": "While sliding: [Melee Ability] leaps into the air, draining 50% Melee Energy, knocking enemies within ? metres back, and dealing 135 [66] damage. Unable to use during slide if user shoots.",
   "Strand|aspect|Into The Fray": "Upon destroying a Tangle: Releases 3 pulses from where the Tangle was destroyed, restoring 15 HP and granting Woven Mail to the user and allies within 10? metres every 2 seconds.",
   "Strand|melee|Arcane Needle": "Innately has 3 Melee Ability Charges. 0 Charges = 1.16x Regeneration Speed | 1 Charge = 1.64x Regeneration Speed | 2 Charges = 2.6x Regeneration Speed On Prismatic: Penalized with an additional 0.7x Regeneration Speed",
@@ -721,9 +721,9 @@ export const COMPENDIUM = {
   "Strand|aspect|Weavewalk": "While airborne and while having at least 1 Melee Ability Charge: [Air Move] grants Weavewalk and instantly consumes 20% Melee Ability Energy.",
   "Prismatic|fragment|Facet of Awakening": "Killing 3 enemies with Elemental Damage within 6 seconds of each, or a Super Kill spawns an Element-Matching Elemental Pickup. Elemental Pickup is determined by the Damage Type of the final kill.",
   "Prismatic|fragment|Facet of Balance": "Killing 3 enemies within 3 seconds of each with Light Damage grants 10% Melee Energy.",
-  "Prismatic|fragment|Facet of Blessing": "Melee Kills begin health regeneration. Effect applies to allies within ? metres while Transcendent.",
+  "Prismatic|fragment|Facet of Blessing": "Melee Kills begin health regeneration. Effect applies to allies within 12 metres while Transcendent.",
   "Prismatic|fragment|Facet of Bravery": "Grenade Kills grant Volatile Rounds to Void Weapons for 11.25 [7.5] seconds.",
-  "Prismatic|fragment|Facet of Command": "Suppressing or Freezing an enemy refills the readied weapon and grants +20? Stability, +? Aim Assist, and +40 Airborne Effectiveness for 11 seconds. Incurs a 4 second cooldown before it can be reactivated.",
+  "Prismatic|fragment|Facet of Command": "Suppressing or Freezing an enemy refills the readied weapon and grants +20 Stability, +15 Aim Assist, and +40 Airborne Effectiveness for 11 seconds. Incurs a 4 second cooldown before it can be reactivated.",
   "Prismatic|fragment|Facet of Courage": "Against enemies inflicted with Stasis or Strand Elemental Debuffs: Light Abilities deal 10% increased damage. Light Powered Melee Abilities deal 50% [10%] increased damage.",
   "Prismatic|fragment|Facet of Dawn": "Powered Melee Hits grant Radiant for 5 seconds.",
   "Prismatic|fragment|Facet of Defiance": "Finishers trigger an Elemental Detonation that deals 135 Super-Matching Elemental Damage and applies a Super-Matching Elemental Debuff to enemies within 7 meters. Arc = Jolt | Solar = x40 Scorch | Void = Volatile…",
@@ -738,7 +738,7 @@ export const COMPENDIUM = {
   "Prismatic|fragment|Facet of Protection": "While within 15 metres of 3 enemies: 15% [?%] Damage Resist. In-Game Description is erroneous, the effect does NOT become increased while Transcendent. Instead, the 15% DR from Protection stacks with Transcendence's…",
   "Prismatic|fragment|Facet of Purpose": "Orbs of Power grant Elemental Buffs on pickup, based on the equipped Super.",
   "Prismatic|fragment|Facet of Ruin": "Shattering enemies or destroying Crystals deals an additional damage instance, dealing up to 25 [9] damage in a 10 [8] metre radius. Falloff decreases damage dealt down to a minimum of 17 [4] damage at the maximum…",
-  "Prismatic|fragment|Facet of Sacrifice": "Ability Kills while affected by an Arc, Solar, or Void Elemental Buff grant an additional 1% [?%] Darkness Transcendence Energy.",
+  "Prismatic|fragment|Facet of Sacrifice": "Ability Kills while affected by an Arc, Solar, or Void Elemental Buff grant an additional 1% Darkness Transcendence Energy. Technically filters by Enemy Rank properly, but always results in giving 1% Darkness Energy.",
   "Prismatic|fragment|Facet of Solitude": "Upon scoring a Magazine-Based amount of Precision Hits within 3 seconds of each: The next damage instance from any source within 3 seconds will emit a Severing Burst. Sever Burst inflicts Sever to enemies within 3…",
   "Prismatic|grenade|Hailfire Spike": "Attaches to surfaces or enemies, releasing a torrent of Stasis and Solar energy in a cone up to ? meters away.",
   "Prismatic|grenade|Electrified Snare": "Explosive charged with Arc and Strand energy. Explodes in a supercharged suspending burst, dealing up to 105 [?] damage, and inflicting Suspension to enemies within ? meters. Suspended Enemies are dealt ? damage every…",
@@ -782,7 +782,7 @@ export const COMPENDIUM = {
   "Prismatic|aspect|Consecration": "Solar. While sliding: [Melee Ability] launches a wave of Solar Energy 20 meters forward, dealing 40 [30] damage and inflicting x40+20 Scorch. Only consumes 50% Melee Ability Energy if the slam is not activated. Unable to use…",
   "Prismatic|aspect|Knockout": "Arc. On Melee Kill: Quickly restores a varying amount of Health over 0.1 seconds, begins Health Regeneration and grants Amplified. Rank-and-File = 50 HP | Elite = 75 HP | Miniboss+ = 100 HP | Guardian = 30 HP",
   "Prismatic|aspect|Diamond Lance": "Stasis. Creates a Stasis Lance upon scoring 1 [3] Stasis Weapon Kills, a Stasis Ability Kill, or a Shatter Kill.",
-  "Prismatic|aspect|Drengr's Lash": "Strand. Killing Elementally-Debuffed Enemies grants ?% Class Ability Energy.",
+  "Prismatic|aspect|Drengr's Lash": "Strand. Killing Elementally-Debuffed Enemies grants 10% Class Ability Energy.",
   "Prismatic|super|Song of Flame": "Solar. Song of Flame: Caster is granted +100 Grenade, +100 Melee, +100 Class, Radiant and Scorching Rounds. Weapon Kills by the Caster count as Super Kills. Weapon damage does not count as Ability damage. Allies within 15…",
   "Prismatic|super|Nova Bomb: Cataclysm": "Void. Releases a slowly moving, tracking Nova Bomb that detonates on impact, or upon being detonated, dealing up to 3,241 [?] damage in a 12 meter radius. Nova Bomb has 400 Construct HP. Caster deals 300% increased damage…",
   "Prismatic|super|Stormtrance": "Arc. On Super Cast: Deals up to 690 [?] damage in a 6 meter radius, knocking enemies back, and releases 5 Lightning Seekers around the caster. Lightning Seekers deal 440 [150] damage and inflict jolt for 16 seconds.",
@@ -818,7 +818,7 @@ export const COMPENDIUM = {
     {
      "name": "Dielectric",
      "tier": 2,
-     "desc": "On Arc-Debuffed Enemy Kill: Grants x1 Bolt Charge. Upon scoring 3 Arc-Debuffed Enemy Kills within 6 seconds of each: Spawns an Orb of Power that grants 7.15% Super Energy. Restores 40 HP."
+     "desc": "On Arc-Debuffed Enemy Kill: Grants x1 Bolt Charge. Upon scoring 3 Arc-Debuffed Enemy Kills within 6 seconds of each: Spawns an Orb of Power that grants 7.15% Super Energy. Restores 35 HP."
     },
     {
      "name": "Elemental Orbs: Arc",
@@ -843,7 +843,7 @@ export const COMPENDIUM = {
     {
      "name": "Reload at Range",
      "tier": 1,
-     "desc": "Upon scoring a Precision Hit with a Bow or Sniper Rifle: Grants a stack of Reload at Range for ? seconds, up to ? stacks. Reload at Range: x1 | +? Reload Speed x2 | +? Reload Speed x3 | +? Reload Speed"
+     "desc": "Upon scoring a Precision Hit with a Bow or Sniper Rifle: Grants a stack of Reload at Range for ? seconds, up to 5 stacks. Reload at Range: x1 | +10 Reload Speed and 0.98x Reload Duration Multiplier. x2 | +20 Reload Speed and 0.96x Reload…"
     },
     {
      "name": "Counter Energy",
@@ -1570,7 +1570,7 @@ export const COMPENDIUM = {
     {
      "name": "Passive Aggressive Guard",
      "tier": 3,
-     "desc": "While a Glaive is readied: 50% Damage Resist against Combatants within ? meters."
+     "desc": "While a Glaive is readied: 50% Damage Resist against Combatants within 20 meters."
     },
     {
      "name": "Shatter Orbs",
@@ -1997,7 +1997,7 @@ export const COMPENDIUM = {
     "name": "Crest of Alpha Lupi",
     "perk": "Survival Well",
     "slot": "Chest",
-    "synergy": "Void",
+    "synergy": null,
     "brief": "On Class Ability Usage: Instantly restores Health and Shields to the wielder and allies in Line of Sight within 12 metres, centered on the wielder. Healing is based on the equipped Class Ability. Barricade restores 160 Health and 110…"
    },
    {
